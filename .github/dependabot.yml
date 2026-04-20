@@ -1,0 +1,41 @@
+version: 2
+updates:
+  # Rust (Cargo) updates
+  - package-ecosystem: "cargo"
+    directory: "/rust/taskchampion-android"
+    schedule:
+      interval: "weekly"
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+
+  # Android/Kotlin (Gradle) updates
+  - package-ecosystem: "gradle"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+    groups:
+      android-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
+
+  # Docker updates (for docker-compose.yml)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"

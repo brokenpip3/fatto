@@ -1,0 +1,21 @@
+- [x] sync with taskwarrior-sync-server
+- [x] show tasks and sort them
+- [x] support due date in tasks
+- [x] support scheduling tasks
+- [x] support add waiting to task
+- [x] support projects
+- [x] support tags
+- [x] show project pages with all the subprojects and tasks
+- [x] show tags pages with all the tagged tasks
+- [x] support scaling the tag per line
+- [x] support advanced filters in search
+- [x] suggest tags and projects when adding a task
+- [x] support calendar view
+- [x] show notification for due, scheduled, and overdue tasks
+- [ ] support task dependencies
+- [ ] support priority in tasks
+- [ ] support task annotations
+- [ ] support recurring tasks
+- [ ] better notification: when tap the notification, open the app and show the task details
+- [ ] support builtin UDA like tag and project colours
+- [ ] support custom UDA

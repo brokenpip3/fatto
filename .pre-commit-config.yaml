@@ -1,0 +1,47 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+  hooks:
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+    - id: check-toml
+
+- repo: https://github.com/python-jsonschema/check-jsonschema
+  rev: 8db279a37c552206d2df62269ff6f9d31125815a  # frozen: 0.37.0
+  hooks:
+    - id: check-dependabot
+    - id: check-github-workflows
+      args: ["--verbose"]
+
+- repo: https://github.com/brokenpip3/pre-commit-hooks
+  rev: dd7b3821637ba3c3a8628ad487fd84edec8006f2  # frozen: 0.0.1
+  hooks:
+    - id: github-actions-hash
+      files: ^.github/workflows/.*\.(yml|yaml)$ # limit only to github workflows
+
+- repo: local
+  hooks:
+    - id: rust-fmt
+      name: rust-fmt
+      entry: bash -c "cd rust/taskchampion-android && cargo fmt --all"
+      language: system
+      types: [rust]
+      pass_filenames: false
+    - id: rust-clippy
+      name: rust-clippy
+      entry: bash -c "cd rust/taskchampion-android && cargo clippy --all-targets --all-features -- -D warnings"
+      language: system
+      types: [rust]
+      pass_filenames: false
+    - id: ktlint
+      name: ktlint
+      entry: bash -c "cd android && ./gradlew ktlintCheck"
+      language: system
+      types: [kotlin]
+      pass_filenames: false
+    - id: detekt
+      name: detekt
+      entry: bash -c "cd android && ./gradlew detekt"
+      language: system
+      types: [kotlin]
+      pass_filenames: false

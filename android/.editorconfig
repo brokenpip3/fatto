@@ -1,0 +1,14 @@
+[*.{kt,kts}]
+# Official Kotlin Style Guide
+# https://kotlinlang.org/docs/coding-conventions.html
+indent_size = 4
+insert_final_newline = true
+max_line_length = 140
+
+# ktlint specific
+# Allow PascalCase for Composables
+ktlint_code_style = ktlint_official
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+# Disable wildcard imports (ktlint default is already no-wildcard-imports, but we can be explicit if we wanted to allow them, which we don't yet)
+# ij_kotlin_packages_to_use_import_on_demand = unset

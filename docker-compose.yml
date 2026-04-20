@@ -1,0 +1,44 @@
+services:
+  tss:
+    image: ghcr.io/gothenburgbitfactory/taskchampion-sync-server:0.7.1
+    ports:
+      - "8080:8080"
+    environment:
+      - "RUST_LOG=debug"
+      - "DATA_DIR=/var/lib/taskchampion-sync-server/data"
+      - "LISTEN=0.0.0.0:8080"
+
+  taskwarrior-client:
+    image: archlinux:latest
+    depends_on:
+      - tss
+    environment:
+      - CLIENT_ID=5c7c7ac1-7dea-43dc-be88-156128be2a96
+      - SYNC_SECRET=ciao
+    entrypoint: >
+      sh -c "
+      pacman -Sy --noconfirm task &&
+      mkdir -p ~/.task &&
+      echo 'sync.server.url=http://tss:8080' > ~/.taskrc &&
+      echo \"sync.server.client_id=$$CLIENT_ID\" >> ~/.taskrc &&
+      echo \"sync.encryption_secret=$$SYNC_SECRET\" >> ~/.taskrc &&
+      echo 'Client initialized. Seeding database...' &&
+      task add project:microsaas.dev tags:work,2h scheduled:monday 'refactor database migration scripts' &&
+      task add project:microsaas.dev tags:work,coding,1h due:tomorrow 'implement jwt authentication flow' depends:1 &&
+      task add project:microsaas.billing tags:work,stripe,30min scheduled:today 'update webhook signing secret for production' &&
+      task add project:microsaas.billing tags:work,15min due:monday 'review stripe payout schedule' &&
+      task add project:microsaas.ops tags:work,bills,10min due:tuesday 'pay aws monthly infrastructure bill' &&
+      task add project:microsaas.ops tags:work,bills,5min due:wednesday 'renew cloudflare domain registration' &&
+      task add project:microsaas.marketing tags:work,bills,15min due:today 'renew monthly linkedin ads budget' &&
+      task add project:microsaas.dev tags:work,bug,30min 'fix memory leak in websocket handler' &&
+      task add project:microsaas.marketing tags:work,writing,3h due:monday 'draft blog post for q2 feature release' &&
+      task add project:hobbies.wood tags:shopping,45min 'pick up wood glue and 220 grit sandpaper' &&
+      task add project:home tags:chore,weekend,2h due:sunday 'deep clean the kitchen and defrost freezer' &&
+      task add project:home tags:chore,15min scheduled:wednesday 'call plumber to fix the guest bathroom leak' &&
+      task add project:hobbies.photo tags:creative,outdoors,4h 'golden hour shoot at the botanical gardens' &&
+      task add project:hobbies.photo tags:editing,2h scheduled:thursday 'process raw files from the weekend trip' &&
+      task add project:fitness tags:health,10min 'register for the local 10k charity run' &&
+      task sync &&
+      echo 'Client seeded. Ready to sync.' &&
+      exec tail -f /dev/null
+      "

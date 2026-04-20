@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylized Check Box / Frame -->
+    <path
+        android:fillColor="#F4F7F9"
+        android:pathData="M34,34h40a10,10 0,0 1 10,10v40a10,10 0,0 1 -10,10h-40a10,10 0,0 1 -10,-10v-40a10,10 0,0 1 10,-10z M34,38v36a6,6 0,0 0 6,6h36a6,6 0,0 0 6,-6v-36a6,6 0,0 0 -6,-6h-36a6,6 0,0 0 -6,6z" />
+
+    <!-- Bold "Champion" Checkmark -->
+    <path
+        android:fillColor="#F4F7F9"
+        android:pathData="M44,54l6,6 14,-14 3,3 -17,17 -9,-9z" />
+
+    <!-- Subtle "Champion" Star/Sparkle top right -->
+    <path
+        android:fillColor="#F4F7F9"
+        android:pathData="M78,30l1.5,4.5 4.5,1.5 -4.5,1.5 -1.5,4.5 -1.5,-4.5 -4.5,-1.5 4.5,-1.5z" />
+</vector>
