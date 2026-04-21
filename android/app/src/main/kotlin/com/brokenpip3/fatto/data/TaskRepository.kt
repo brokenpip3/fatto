@@ -55,10 +55,11 @@ class TaskRepository(
         due: String?,
         scheduled: String?,
         start: String? = null,
+        priority: String? = null,
     ) = withContext(Dispatchers.IO) {
         val r = replica ?: throw Exception("Replica not initialized")
         try {
-            r.addTask(description, project, tags, wait, due, scheduled, start)
+            r.addTask(description, project, tags, wait, due, scheduled, start, priority)
             loadTasks()
             triggerSync()
         } catch (e: Exception) {
@@ -81,6 +82,8 @@ class TaskRepository(
                     task.wait,
                     task.scheduled,
                     task.start,
+                    // priority not yet in Kotlin Task model
+                    null,
                 )
                 loadTasks()
                 triggerSync()

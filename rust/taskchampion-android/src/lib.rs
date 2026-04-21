@@ -71,6 +71,12 @@ impl From<TaskStatus> for taskchampion::Status {
 }
 
 #[derive(uniffi::Record, Debug, Clone)]
+pub struct UdaPair {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(uniffi::Record, Debug, Clone)]
 pub struct TaskData {
     pub uuid: String,
     pub description: String,
@@ -82,6 +88,12 @@ pub struct TaskData {
     pub wait: Option<String>,
     pub scheduled: Option<String>,
     pub start: Option<String>,
+    pub priority: Option<String>,
+    pub urgency: f32,
+    pub is_blocked: bool,
+    pub is_blocking: bool,
+    pub dependencies: Vec<String>,
+    pub udas: Vec<UdaPair>,
 }
 
 pub enum DynStorage {
@@ -139,7 +151,14 @@ impl ReplicaWrapper {
     pub fn all_task_data(&self) -> Result<Vec<TaskData>> {
         let mut replica = self.inner.lock().unwrap();
         let tasks = self.rt.block_on(replica.all_tasks())?;
-        Ok(tasks.into_values().map(map_task).collect())
+
+        let mut results = Vec::new();
+        for task in tasks.values() {
+            let is_blocked = task.is_blocked();
+            let is_blocking = task.is_blocking();
+            results.push(map_task(task.clone(), is_blocked, is_blocking));
+        }
+        Ok(results)
     }
 
     pub fn get_task(&self, uuid: String) -> Result<Option<TaskData>> {
@@ -147,7 +166,11 @@ impl ReplicaWrapper {
         let uuid =
             Uuid::parse_str(&uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
         let task = self.rt.block_on(replica.get_task(uuid))?;
-        Ok(task.map(map_task))
+        Ok(task.map(|t| {
+            let is_blocked = t.is_blocked();
+            let is_blocking = t.is_blocking();
+            map_task(t, is_blocked, is_blocking)
+        }))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -160,6 +183,7 @@ impl ReplicaWrapper {
         due: Option<String>,
         scheduled: Option<String>,
         start: Option<String>,
+        priority: Option<String>,
     ) -> Result<TaskData> {
         let mut replica = self.inner.lock().unwrap();
         let mut ops = Operations::new();
@@ -170,6 +194,7 @@ impl ReplicaWrapper {
         task.set_entry(Some(chrono::Utc::now()), &mut ops)?;
 
         task.set_value(String::from("project"), project, &mut ops)?;
+        task.set_value(String::from("priority"), priority, &mut ops)?;
 
         for tag_str in tags {
             let tag = Tag::from_str(&tag_str).map_err(|e| TaskError::Internal(e.to_string()))?;
@@ -184,7 +209,9 @@ impl ReplicaWrapper {
         task.set_timestamp("start", parse_rfc3339(start)?, &mut ops)?;
 
         self.rt.block_on(replica.commit_operations(ops))?;
-        Ok(map_task(task))
+        let is_blocked = task.is_blocked();
+        let is_blocking = task.is_blocking();
+        Ok(map_task(task, is_blocked, is_blocking))
     }
 
     pub fn update_task_status(&self, uuid: String, status: TaskStatus) -> Result<()> {
@@ -211,6 +238,7 @@ impl ReplicaWrapper {
         wait: Option<String>,
         scheduled: Option<String>,
         start: Option<String>,
+        priority: Option<String>,
     ) -> Result<()> {
         let mut replica = self.inner.lock().unwrap();
         let uuid =
@@ -221,8 +249,9 @@ impl ReplicaWrapper {
             task.set_description(description, &mut ops)?;
             task.set_status(status.into(), &mut ops)?;
 
-            // Handle project
+            // Handle project and priority
             task.set_value(String::from("project"), project, &mut ops)?;
+            task.set_value(String::from("priority"), priority, &mut ops)?;
 
             // Handle tags
             let current_tags: Vec<Tag> = task.get_tags().collect();
@@ -266,7 +295,113 @@ impl ReplicaWrapper {
     }
 }
 
-fn map_task(task: Task) -> TaskData {
+fn compute_task_urgency(task: &Task, is_blocked: bool, is_blocking: bool) -> f32 {
+    // Reference coefficients: https://taskwarrior.org/docs/urgency/
+    // This implementation follows the default weights of TaskWarrior.
+    let mut urgency = 0.0;
+
+    // Next tag (+15.0)
+    if task.get_tags().any(|t| t.to_string() == "next") {
+        urgency += 15.0;
+    }
+
+    // Due date (+12.0 coefficient)
+    // Reference: https://taskwarrior.org/docs/urgency/
+    if let Some(due) = task.get_due() {
+        let now = Utc::now();
+        let diff = (due - now).num_days();
+        if diff < 0 {
+            // Overdue tasks get the full coefficient
+            urgency += 12.0;
+        } else if diff < 7 {
+            // Scaling Period: 7 days (TaskWarrior default 'urgency.due' period)
+            // If due in 0 days (today), it gets +12.0.
+            // If due in 7 days, it gets +12.0 * 0.2 = +2.4.
+            // Formula: coeff * (1.0 - (0.8 * (days / period)))
+            urgency += 12.0 * (1.0 - (0.8 * (diff as f32 / 7.0)));
+        } else {
+            // Beyond 7 days, it gets a constant 20% of the coefficient
+            urgency += 2.4;
+        }
+    }
+
+    // Blocking others (+8.0)
+    if is_blocking {
+        urgency += 8.0;
+    }
+
+    // Priority (Coefficient matches TaskWarrior's default multiplier)
+    // Reference: https://taskwarrior.org/docs/priority/
+    if let Some(priority) = task.get_value("priority") {
+        match priority {
+            "H" => urgency += 6.0,
+            "M" => urgency += 3.9,
+            "L" => urgency += 1.8,
+            _ => {}
+        }
+    }
+
+    // Scheduled (+5.0)
+    if let Some(scheduled) = task.get_timestamp("scheduled") {
+        if scheduled <= Utc::now() {
+            urgency += 5.0;
+        }
+    }
+
+    // Active task (+4.0)
+    if task.get_timestamp("start").is_some() {
+        urgency += 4.0;
+    }
+
+    // Age (+2.0 coefficient)
+    // Scales linearly to 1.0 (full coefficient) at 365 days
+    if let Some(entry) = task.get_entry() {
+        let age_days = (Utc::now() - entry).num_days();
+        urgency += 2.0 * (age_days.min(365) as f32 / 365.0);
+    }
+
+    // User tags (+1.0 if any exist)
+    let tag_count = task.get_tags().filter(|t| t.is_user()).count();
+    if tag_count > 0 {
+        urgency += 1.0;
+    }
+
+    // Project presence (+1.0)
+    if task.get_value("project").is_some() {
+        urgency += 1.0;
+    }
+
+    // Waiting status (-3.0)
+    if let Some(wait) = task.get_wait() {
+        if wait > Utc::now() {
+            urgency -= 3.0;
+        }
+    }
+
+    // Blocked by others (-5.0)
+    if is_blocked {
+        urgency -= 5.0;
+    }
+
+    urgency
+}
+
+fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
+    let mut udas = Vec::new();
+    for (key, value) in task.get_user_defined_attributes() {
+        // Filter out keys that have dedicated fields in TaskData
+        match key {
+            "project" | "priority" | "description" | "status" | "wait" | "due" | "scheduled"
+            | "start" | "entry" => {}
+            _ => {
+                udas.push(UdaPair {
+                    key: key.to_string(),
+                    value: value.to_string(),
+                });
+            }
+        }
+    }
+
     TaskData {
         uuid: task.get_uuid().to_string(),
         description: task.get_description().to_string(),
@@ -281,6 +416,12 @@ fn map_task(task: Task) -> TaskData {
         wait: task.get_wait().map(|d| d.to_rfc3339()),
         scheduled: task.get_timestamp("scheduled").map(|d| d.to_rfc3339()),
         start: task.get_timestamp("start").map(|d| d.to_rfc3339()),
+        priority: task.get_value("priority").map(|p| p.to_string()),
+        urgency: compute_task_urgency(&task, is_blocked, is_blocking),
+        is_blocked,
+        is_blocking,
+        dependencies: task.get_dependencies().map(|u| u.to_string()).collect(),
+        udas,
     }
 }
 
@@ -298,7 +439,16 @@ mod tests {
     fn test_in_memory_replica() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task("Test task".into(), None, vec![], None, None, None, None)
+            .add_task(
+                "Test task".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .unwrap();
         assert_eq!(task.description, "Test task");
         assert_eq!(task.status, TaskStatus::Pending);
@@ -321,7 +471,16 @@ mod tests {
         {
             let wrapper = ReplicaWrapper::new_on_disk(db_path.clone()).unwrap();
             wrapper
-                .add_task("Disk task".into(), None, vec![], None, None, None, None)
+                .add_task(
+                    "Disk task".into(),
+                    None,
+                    vec![],
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
                 .unwrap();
         }
 
@@ -337,7 +496,16 @@ mod tests {
     fn test_update_status() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task("To complete".into(), None, vec![], None, None, None, None)
+            .add_task(
+                "To complete".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .unwrap();
         wrapper
             .update_task_status(task.uuid.clone(), TaskStatus::Completed)
@@ -349,6 +517,44 @@ mod tests {
     }
 
     #[test]
+    fn test_priority_and_urgency() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+
+        // High priority task
+        let task_h = wrapper
+            .add_task(
+                "High".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                Some("H".into()),
+            )
+            .unwrap();
+        assert_eq!(task_h.priority, Some("H".into()));
+        assert!(task_h.urgency >= 6.0);
+
+        // Low priority task
+        let task_l = wrapper
+            .add_task(
+                "Low".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                Some("L".into()),
+            )
+            .unwrap();
+        assert_eq!(task_l.priority, Some("L".into()));
+        assert!(task_l.urgency >= 1.8);
+        assert!(task_h.urgency > task_l.urgency);
+    }
+
+    #[test]
     fn test_update_task() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
@@ -356,6 +562,7 @@ mod tests {
                 "Original description".into(),
                 None,
                 vec![],
+                None,
                 None,
                 None,
                 None,
@@ -373,6 +580,7 @@ mod tests {
                 Some("2026-12-25T12:00:00Z".into()),
                 Some("2026-12-01T12:00:00Z".into()),
                 Some("2026-12-15T12:00:00Z".into()),
+                None,
                 None,
             )
             .unwrap();
@@ -402,6 +610,7 @@ mod tests {
                 None,
                 None,
                 Some(start_time.into()),
+                None,
             )
             .unwrap();
         assert_eq!(task.start, Some(expected_time.into()));
@@ -418,6 +627,7 @@ mod tests {
                 task.wait,
                 task.scheduled,
                 None,
+                None,
             )
             .unwrap();
         let updated_task = wrapper.get_task(task.uuid).unwrap().unwrap();
@@ -433,6 +643,7 @@ mod tests {
             vec![],
             None,
             Some("invalid-date".into()),
+            None,
             None,
             None,
         );
@@ -453,6 +664,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .unwrap();
         assert_eq!(task.description, description);
@@ -464,7 +676,7 @@ mod tests {
     fn test_empty_description() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task("".into(), None, vec![], None, None, None, None)
+            .add_task("".into(), None, vec![], None, None, None, None, None)
             .unwrap();
         assert_eq!(task.description, "");
     }
@@ -474,7 +686,16 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let long_desc = "a".repeat(1000);
         let task = wrapper
-            .add_task(long_desc.clone(), None, vec![], None, None, None, None)
+            .add_task(
+                long_desc.clone(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .unwrap();
         assert_eq!(task.description, long_desc);
     }
@@ -487,6 +708,7 @@ mod tests {
             "Task with bad tag".into(),
             None,
             vec!["tag with space".into()],
+            None,
             None,
             None,
             None,
@@ -514,6 +736,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .unwrap();
         assert_eq!(task.project, Some("InitialProject".into()));
@@ -530,6 +753,7 @@ mod tests {
                 task.wait,
                 task.scheduled,
                 task.start,
+                None,
             )
             .unwrap();
 
@@ -551,6 +775,7 @@ mod tests {
                 Some("2026-04-20T10:00:00Z".into()),
                 None,
                 None,
+                None,
             )
             .unwrap();
         assert_eq!(task.due, Some("2026-04-20T10:00:00+00:00".into()));
@@ -565,6 +790,7 @@ mod tests {
                 Some("2026-04-20T10:00:00+02:00".into()),
                 None,
                 None,
+                None,
             )
             .unwrap();
         assert_eq!(task2.due, Some("2026-04-20T08:00:00+00:00".into()));
@@ -576,6 +802,7 @@ mod tests {
             vec![],
             None,
             Some("2026-13-45T00:00:00Z".into()),
+            None,
             None,
             None,
         );
