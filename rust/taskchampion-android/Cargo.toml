@@ -12,8 +12,8 @@ path = "src/bin/uniffi-bindgen.rs"
 
 [dependencies]
 taskchampion = { version = "3.0", features = ["sync", "storage", "bundled"] }
-uniffi = { version = "0.28", features = ["build", "cli"] }
-thiserror = "1"
+uniffi = { version = "0.31", features = ["build", "cli"] }
+thiserror = "2"
 # we match taskchampion 3.0.0's rusqlite dependency to avoid link conflict
 rusqlite = { version = "0.37", features = ["bundled"] }
 tokio = { version = "1.51.1", features = ["full"] }
@@ -23,7 +23,7 @@ async-trait = "0.1.89"
 chrono = "0.4.44"
 
 [build-dependencies]
-uniffi = { version = "0.28", features = ["build"] }
+uniffi = { version = "0.31", features = ["build"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
