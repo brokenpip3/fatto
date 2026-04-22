@@ -14,6 +14,12 @@ data class Task(
     val wait: String?,
     val scheduled: String?,
     val start: String?,
+    val priority: String?,
+    val urgency: Float,
+    val isBlocked: Boolean,
+    val isBlocking: Boolean,
+    val dependencies: List<String>,
+    val udas: Map<String, String>,
 ) {
     val userTags: List<String>
         get() = tags.filter { !isSynthetic(it) }
@@ -35,4 +41,10 @@ fun TaskData.toModel(): Task =
         wait = wait,
         scheduled = scheduled,
         start = start,
+        priority = priority,
+        urgency = urgency,
+        isBlocked = isBlocked,
+        isBlocking = isBlocking,
+        dependencies = dependencies,
+        udas = udas.associate { it.key to it.value },
     )

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -44,11 +46,12 @@ fun AddTaskDialog(
     initialProject: String? = null,
     initialTags: List<String> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, String?, List<String>, String?, String?, String?, String?) -> Unit,
+    onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?) -> Unit,
 ) {
     var description by remember { mutableStateOf("") }
     var project by remember { mutableStateOf(initialProject ?: "") }
     var tags by remember { mutableStateOf(initialTags) }
+    var priority by remember { mutableStateOf<String?>(null) }
     var newTag by remember { mutableStateOf("") }
 
     var waitDate by remember { mutableStateOf<String?>(null) }
@@ -188,6 +191,50 @@ fun AddTaskDialog(
                     }
                 }
 
+                Text(text = "Priority", style = MaterialTheme.typography.labelLarge)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    for (p in listOf("H", "M", "L", null)) {
+                        val label =
+                            when (p) {
+                                "H" -> "High"
+                                "M" -> "Medium"
+                                "L" -> "Low"
+                                else -> "None"
+                            }
+                        Surface(
+                            onClick = { priority = p },
+                            color =
+                                if (priority == p) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                },
+                            shape = MaterialTheme.shapes.medium,
+                            border =
+                                if (priority == p) {
+                                    androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                                } else {
+                                    null
+                                },
+                        ) {
+                            Text(
+                                text = label,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color =
+                                    if (priority == p) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                            )
+                        }
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -218,10 +265,11 @@ fun AddTaskDialog(
                 onClick = {
                     if (description.isNotBlank()) {
                         val proj = if (project.isNotBlank()) project.trim() else null
-                        onConfirm(description, proj, tags, waitDate, dueDate, scheduledDate, null)
+                        onConfirm(description, proj, tags, waitDate, dueDate, scheduledDate, null, priority)
                         description = ""
                         project = ""
                         tags = emptyList()
+                        priority = null
                         waitDate = null
                         dueDate = null
                         scheduledDate = null

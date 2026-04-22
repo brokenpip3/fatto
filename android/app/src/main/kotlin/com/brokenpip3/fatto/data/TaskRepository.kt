@@ -82,8 +82,7 @@ class TaskRepository(
                     task.wait,
                     task.scheduled,
                     task.start,
-                    // priority not yet in Kotlin Task model
-                    null,
+                    task.priority,
                 )
                 loadTasks()
                 triggerSync()

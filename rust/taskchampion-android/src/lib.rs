@@ -390,9 +390,10 @@ fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
     let mut udas = Vec::new();
     for (key, value) in task.get_user_defined_attributes() {
         // Filter out keys that have dedicated fields in TaskData
+        // and internal or redundant fields
         match key {
             "project" | "priority" | "description" | "status" | "wait" | "due" | "scheduled"
-            | "start" | "entry" => {}
+            | "start" | "entry" | "tags" | "dependencies" | "modified" | "end" => {}
             _ => {
                 udas.push(UdaPair {
                     key: key.to_string(),
@@ -807,5 +808,61 @@ mod tests {
             None,
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_udas_filtering() {
+        let tmp_dir = tempdir().unwrap();
+        let db_path = tmp_dir
+            .path()
+            .join("tasks_uda.db")
+            .to_str()
+            .unwrap()
+            .to_string();
+        let wrapper = ReplicaWrapper::new_on_disk(db_path).unwrap();
+
+        let task = wrapper
+            .add_task(
+                "UDA test".into(),
+                None,
+                vec!["tag1".into()],
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        // Check that tag1 is in tags, but not in UDAs
+        assert!(task.tags.contains(&"tag1".into()));
+
+        // Test that a custom UDA is included
+        let mut replica = wrapper.inner.lock().unwrap();
+        let mut ops = Operations::new();
+        let uuid = Uuid::new_v4();
+        let mut rust_task = wrapper
+            .rt
+            .block_on(replica.create_task(uuid, &mut ops))
+            .unwrap();
+        rust_task
+            .set_value(
+                "custom_uda".to_string(),
+                Some("custom_value".to_string()),
+                &mut ops,
+            )
+            .unwrap();
+        wrapper.rt.block_on(replica.commit_operations(ops)).unwrap();
+
+        let task_data = map_task(rust_task, false, false);
+        let has_custom = task_data
+            .udas
+            .iter()
+            .any(|u| u.key == "custom_uda" && u.value == "custom_value");
+        assert!(
+            has_custom,
+            "UDAs should contain 'custom_uda': {:?}",
+            task_data.udas
+        );
     }
 }

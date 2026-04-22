@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
@@ -26,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -41,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Task
 import java.time.Instant
@@ -62,7 +66,9 @@ fun TaskDetailBottomSheet(
     var wait by remember(task) { mutableStateOf(task.wait) }
     var scheduled by remember(task) { mutableStateOf(task.scheduled) }
     var start by remember(task) { mutableStateOf(task.start) }
+    var priority by remember(task) { mutableStateOf(task.priority) }
     var newTag by remember { mutableStateOf("") }
+    var showAdvanced by remember { mutableStateOf(false) }
 
     val filteredProjects =
         remember(project, availableProjects) {
@@ -86,6 +92,7 @@ fun TaskDetailBottomSheet(
                 wait = wait,
                 scheduled = scheduled,
                 start = start,
+                priority = priority,
             ),
         )
         onDismiss()
@@ -106,6 +113,40 @@ fun TaskDetailBottomSheet(
                     .testTag("TaskDetailBottomSheet"),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (task.isBlocked || task.isBlocking) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (task.isBlocked) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = MaterialTheme.shapes.small,
+                        ) {
+                            Text(
+                                text = "Task is blocked",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
+                    if (task.isBlocking) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = MaterialTheme.shapes.small,
+                        ) {
+                            Text(
+                                text = "Blocking other tasks",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            )
+                        }
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -193,6 +234,50 @@ fun TaskDetailBottomSheet(
                 }
             }
 
+            Text(text = "Priority", style = MaterialTheme.typography.labelLarge)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                for (p in listOf("H", "M", "L", null)) {
+                    val label =
+                        when (p) {
+                            "H" -> "High"
+                            "M" -> "Medium"
+                            "L" -> "Low"
+                            else -> "None"
+                        }
+                    Surface(
+                        onClick = { priority = p },
+                        color =
+                            if (priority == p) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            },
+                        shape = MaterialTheme.shapes.medium,
+                        border =
+                            if (priority == p) {
+                                androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                            } else {
+                                null
+                            },
+                    ) {
+                        Text(
+                            text = label,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color =
+                                if (priority == p) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                        )
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -255,6 +340,66 @@ fun TaskDetailBottomSheet(
                     }
                 },
             )
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = { showAdvanced = !showAdvanced },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Icon(
+                        imageVector = if (showAdvanced) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                    )
+                    Text(if (showAdvanced) "Hide Advanced Details" else "Show Advanced Details")
+                }
+
+                if (showAdvanced) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "Urgency: ${"%.2f".format(task.urgency)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        if (task.dependencies.isNotEmpty()) {
+                            Text(text = "Dependencies", style = MaterialTheme.typography.labelLarge)
+                            for (dep in task.dependencies) {
+                                Text(
+                                    text = dep,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                )
+                            }
+                        }
+
+                        if (task.udas.isNotEmpty()) {
+                            Text(text = "Extra Attributes (UDAs)", style = MaterialTheme.typography.labelLarge)
+                            for ((key, value) in task.udas) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text(
+                                        text = key,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = value,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
