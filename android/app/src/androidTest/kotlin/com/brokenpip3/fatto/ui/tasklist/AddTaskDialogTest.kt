@@ -24,7 +24,7 @@ class AddTaskDialogTest {
                 availableTags = emptyList(),
                 initialProject = initialProject,
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _, _, _, _, _, _, _ -> },
             )
         }
 
@@ -43,7 +43,7 @@ class AddTaskDialogTest {
                 availableTags = listOf("urgent", "work", "home"),
                 initialTags = initialTags,
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _, _, _, _, _, _, _ -> },
             )
         }
 

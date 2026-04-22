@@ -71,6 +71,12 @@ impl From<TaskStatus> for taskchampion::Status {
 }
 
 #[derive(uniffi::Record, Debug, Clone)]
+pub struct UdaPair {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(uniffi::Record, Debug, Clone)]
 pub struct TaskData {
     pub uuid: String,
     pub description: String,
@@ -82,6 +88,12 @@ pub struct TaskData {
     pub wait: Option<String>,
     pub scheduled: Option<String>,
     pub start: Option<String>,
+    pub priority: Option<String>,
+    pub urgency: f32,
+    pub is_blocked: bool,
+    pub is_blocking: bool,
+    pub dependencies: Vec<String>,
+    pub udas: Vec<UdaPair>,
 }
 
 pub enum DynStorage {
@@ -139,7 +151,14 @@ impl ReplicaWrapper {
     pub fn all_task_data(&self) -> Result<Vec<TaskData>> {
         let mut replica = self.inner.lock().unwrap();
         let tasks = self.rt.block_on(replica.all_tasks())?;
-        Ok(tasks.into_values().map(map_task).collect())
+
+        let mut results = Vec::with_capacity(tasks.len());
+        for task in tasks.values() {
+            let is_blocked = task.is_blocked();
+            let is_blocking = task.is_blocking();
+            results.push(map_task(task.clone(), is_blocked, is_blocking));
+        }
+        Ok(results)
     }
 
     pub fn get_task(&self, uuid: String) -> Result<Option<TaskData>> {
@@ -147,7 +166,11 @@ impl ReplicaWrapper {
         let uuid =
             Uuid::parse_str(&uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
         let task = self.rt.block_on(replica.get_task(uuid))?;
-        Ok(task.map(map_task))
+        Ok(task.map(|t| {
+            let is_blocked = t.is_blocked();
+            let is_blocking = t.is_blocking();
+            map_task(t, is_blocked, is_blocking)
+        }))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -160,6 +183,8 @@ impl ReplicaWrapper {
         due: Option<String>,
         scheduled: Option<String>,
         start: Option<String>,
+        priority: Option<String>,
+        dependencies: Vec<String>,
     ) -> Result<TaskData> {
         let mut replica = self.inner.lock().unwrap();
         let mut ops = Operations::new();
@@ -170,6 +195,7 @@ impl ReplicaWrapper {
         task.set_entry(Some(chrono::Utc::now()), &mut ops)?;
 
         task.set_value(String::from("project"), project, &mut ops)?;
+        task.set_value(String::from("priority"), priority, &mut ops)?;
 
         for tag_str in tags {
             let tag = Tag::from_str(&tag_str).map_err(|e| TaskError::Internal(e.to_string()))?;
@@ -178,13 +204,20 @@ impl ReplicaWrapper {
             }
         }
 
+        for dep_str in dependencies {
+            let dep = Uuid::parse_str(&dep_str).map_err(|e| TaskError::Internal(e.to_string()))?;
+            task.add_dependency(dep, &mut ops)?;
+        }
+
         task.set_wait(parse_rfc3339(wait)?, &mut ops)?;
         task.set_due(parse_rfc3339(due)?, &mut ops)?;
         task.set_timestamp("scheduled", parse_rfc3339(scheduled)?, &mut ops)?;
         task.set_timestamp("start", parse_rfc3339(start)?, &mut ops)?;
 
         self.rt.block_on(replica.commit_operations(ops))?;
-        Ok(map_task(task))
+        let is_blocked = task.is_blocked();
+        let is_blocking = task.is_blocking();
+        Ok(map_task(task, is_blocked, is_blocking))
     }
 
     pub fn update_task_status(&self, uuid: String, status: TaskStatus) -> Result<()> {
@@ -211,6 +244,8 @@ impl ReplicaWrapper {
         wait: Option<String>,
         scheduled: Option<String>,
         start: Option<String>,
+        priority: Option<String>,
+        dependencies: Vec<String>,
     ) -> Result<()> {
         let mut replica = self.inner.lock().unwrap();
         let uuid =
@@ -221,8 +256,9 @@ impl ReplicaWrapper {
             task.set_description(description, &mut ops)?;
             task.set_status(status.into(), &mut ops)?;
 
-            // Handle project
+            // Handle project and priority
             task.set_value(String::from("project"), project, &mut ops)?;
+            task.set_value(String::from("priority"), priority, &mut ops)?;
 
             // Handle tags
             let current_tags: Vec<Tag> = task.get_tags().collect();
@@ -237,6 +273,17 @@ impl ReplicaWrapper {
                 if tag.is_user() {
                     task.add_tag(&tag, &mut ops)?;
                 }
+            }
+
+            // Handle dependencies
+            let current_deps: Vec<Uuid> = task.get_dependencies().collect();
+            for dep in current_deps {
+                task.remove_dependency(dep, &mut ops)?;
+            }
+            for dep_str in dependencies {
+                let dep =
+                    Uuid::parse_str(&dep_str).map_err(|e| TaskError::Internal(e.to_string()))?;
+                task.add_dependency(dep, &mut ops)?;
             }
 
             task.set_due(parse_rfc3339(due)?, &mut ops)?;
@@ -266,7 +313,114 @@ impl ReplicaWrapper {
     }
 }
 
-fn map_task(task: Task) -> TaskData {
+fn compute_task_urgency(task: &Task, is_blocked: bool, is_blocking: bool) -> f32 {
+    // Reference coefficients: https://taskwarrior.org/docs/urgency/
+    // This implementation follows the default weights of TaskWarrior.
+    let mut urgency = 0.0;
+    let now = Utc::now();
+
+    // Next tag (+15.0)
+    if task.get_tags().any(|t| t.to_string() == "next") {
+        urgency += 15.0;
+    }
+
+    // Due date (+12.0 coefficient)
+    // Reference: https://taskwarrior.org/docs/urgency/
+    if let Some(due) = task.get_due() {
+        let diff = (due - now).num_days();
+        if diff < 0 {
+            // Overdue tasks get the full coefficient
+            urgency += 12.0;
+        } else if diff < 7 {
+            // Scaling Period: 7 days (TaskWarrior default 'urgency.due' period)
+            // If due in 0 days (today), it gets +12.0.
+            // If due in 7 days, it gets +12.0 * 0.2 = +2.4.
+            // Formula: coeff * (1.0 - (0.8 * (days / period)))
+            urgency += 12.0 * (1.0 - (0.8 * (diff as f32 / 7.0)));
+        } else {
+            // Beyond 7 days, it gets a constant 20% of the coefficient
+            urgency += 2.4;
+        }
+    }
+
+    // Blocking others (+8.0)
+    if is_blocking {
+        urgency += 8.0;
+    }
+
+    // Priority (Coefficient matches TaskWarrior's default multiplier)
+    // Reference: https://taskwarrior.org/docs/priority/
+    if let Some(priority) = task.get_value("priority") {
+        match priority {
+            "H" => urgency += 6.0,
+            "M" => urgency += 3.9,
+            "L" => urgency += 1.8,
+            _ => {}
+        }
+    }
+
+    // Scheduled (+5.0)
+    if let Some(scheduled) = task.get_timestamp("scheduled") {
+        if scheduled <= now {
+            urgency += 5.0;
+        }
+    }
+
+    // Active task (+4.0)
+    if task.get_timestamp("start").is_some() {
+        urgency += 4.0;
+    }
+
+    // Age (+2.0 coefficient)
+    // Scales linearly to 1.0 (full coefficient) at 365 days
+    if let Some(entry) = task.get_entry() {
+        let age_days = (now - entry).num_days();
+        urgency += 2.0 * (age_days.min(365) as f32 / 365.0);
+    }
+
+    // User tags (+1.0 if any exist)
+    let tag_count = task.get_tags().filter(|t| t.is_user()).count();
+    if tag_count > 0 {
+        urgency += 1.0;
+    }
+
+    // Project presence (+1.0)
+    if task.get_value("project").is_some() {
+        urgency += 1.0;
+    }
+
+    // Waiting status (-3.0)
+    if let Some(wait) = task.get_wait() {
+        if wait > now {
+            urgency -= 3.0;
+        }
+    }
+
+    // Blocked by others (-5.0)
+    if is_blocked {
+        urgency -= 5.0;
+    }
+
+    urgency
+}
+
+fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
+    let mut udas = Vec::new();
+    for (key, value) in task.get_user_defined_attributes() {
+        // Filter out keys that have dedicated fields in TaskData
+        // and internal or redundant fields
+        match key {
+            "project" | "priority" | "description" | "status" | "wait" | "due" | "scheduled"
+            | "start" | "entry" | "tags" | "dependencies" | "modified" | "end" => {}
+            _ => {
+                udas.push(UdaPair {
+                    key: key.to_string(),
+                    value: value.to_string(),
+                });
+            }
+        }
+    }
+
     TaskData {
         uuid: task.get_uuid().to_string(),
         description: task.get_description().to_string(),
@@ -281,6 +435,12 @@ fn map_task(task: Task) -> TaskData {
         wait: task.get_wait().map(|d| d.to_rfc3339()),
         scheduled: task.get_timestamp("scheduled").map(|d| d.to_rfc3339()),
         start: task.get_timestamp("start").map(|d| d.to_rfc3339()),
+        priority: task.get_value("priority").map(|p| p.to_string()),
+        urgency: compute_task_urgency(&task, is_blocked, is_blocking),
+        is_blocked,
+        is_blocking,
+        dependencies: task.get_dependencies().map(|u| u.to_string()).collect(),
+        udas,
     }
 }
 
@@ -298,7 +458,17 @@ mod tests {
     fn test_in_memory_replica() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task("Test task".into(), None, vec![], None, None, None, None)
+            .add_task(
+                "Test task".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+                vec![],
+            )
             .unwrap();
         assert_eq!(task.description, "Test task");
         assert_eq!(task.status, TaskStatus::Pending);
@@ -321,7 +491,17 @@ mod tests {
         {
             let wrapper = ReplicaWrapper::new_on_disk(db_path.clone()).unwrap();
             wrapper
-                .add_task("Disk task".into(), None, vec![], None, None, None, None)
+                .add_task(
+                    "Disk task".into(),
+                    None,
+                    vec![],
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    vec![],
+                )
                 .unwrap();
         }
 
@@ -337,7 +517,17 @@ mod tests {
     fn test_update_status() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task("To complete".into(), None, vec![], None, None, None, None)
+            .add_task(
+                "To complete".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+                vec![],
+            )
             .unwrap();
         wrapper
             .update_task_status(task.uuid.clone(), TaskStatus::Completed)
@@ -346,6 +536,46 @@ mod tests {
         let tasks = wrapper.all_task_data().unwrap();
         let updated_task = tasks.iter().find(|t| t.uuid == task.uuid).unwrap();
         assert_eq!(updated_task.status, TaskStatus::Completed);
+    }
+
+    #[test]
+    fn test_priority_and_urgency() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+
+        // High priority task
+        let task_h = wrapper
+            .add_task(
+                "High".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                Some("H".into()),
+                vec![],
+            )
+            .unwrap();
+        assert_eq!(task_h.priority, Some("H".into()));
+        assert!(task_h.urgency >= 6.0);
+
+        // Low priority task
+        let task_l = wrapper
+            .add_task(
+                "Low".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                Some("L".into()),
+                vec![],
+            )
+            .unwrap();
+        assert_eq!(task_l.priority, Some("L".into()));
+        assert!(task_l.urgency >= 1.8);
+        assert!(task_h.urgency > task_l.urgency);
     }
 
     #[test]
@@ -360,6 +590,8 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
+                vec![],
             )
             .unwrap();
 
@@ -374,6 +606,8 @@ mod tests {
                 Some("2026-12-01T12:00:00Z".into()),
                 Some("2026-12-15T12:00:00Z".into()),
                 None,
+                None,
+                vec![],
             )
             .unwrap();
 
@@ -402,6 +636,8 @@ mod tests {
                 None,
                 None,
                 Some(start_time.into()),
+                None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.start, Some(expected_time.into()));
@@ -418,6 +654,8 @@ mod tests {
                 task.wait,
                 task.scheduled,
                 None,
+                None,
+                vec![],
             )
             .unwrap();
         let updated_task = wrapper.get_task(task.uuid).unwrap().unwrap();
@@ -435,6 +673,8 @@ mod tests {
             Some("invalid-date".into()),
             None,
             None,
+            None,
+            vec![],
         );
         assert!(result.is_err());
     }
@@ -453,6 +693,8 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.description, description);
@@ -464,7 +706,17 @@ mod tests {
     fn test_empty_description() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task("".into(), None, vec![], None, None, None, None)
+            .add_task(
+                "".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+                vec![],
+            )
             .unwrap();
         assert_eq!(task.description, "");
     }
@@ -474,7 +726,17 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let long_desc = "a".repeat(1000);
         let task = wrapper
-            .add_task(long_desc.clone(), None, vec![], None, None, None, None)
+            .add_task(
+                long_desc.clone(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+                vec![],
+            )
             .unwrap();
         assert_eq!(task.description, long_desc);
     }
@@ -491,6 +753,8 @@ mod tests {
             None,
             None,
             None,
+            None,
+            vec![],
         );
         assert!(result.is_err());
     }
@@ -514,6 +778,8 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.project, Some("InitialProject".into()));
@@ -530,6 +796,8 @@ mod tests {
                 task.wait,
                 task.scheduled,
                 task.start,
+                None,
+                vec![],
             )
             .unwrap();
 
@@ -551,6 +819,8 @@ mod tests {
                 Some("2026-04-20T10:00:00Z".into()),
                 None,
                 None,
+                None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.due, Some("2026-04-20T10:00:00+00:00".into()));
@@ -565,6 +835,8 @@ mod tests {
                 Some("2026-04-20T10:00:00+02:00".into()),
                 None,
                 None,
+                None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task2.due, Some("2026-04-20T08:00:00+00:00".into()));
@@ -578,7 +850,66 @@ mod tests {
             Some("2026-13-45T00:00:00Z".into()),
             None,
             None,
+            None,
+            vec![],
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_udas_filtering() {
+        let tmp_dir = tempdir().unwrap();
+        let db_path = tmp_dir
+            .path()
+            .join("tasks_uda.db")
+            .to_str()
+            .unwrap()
+            .to_string();
+        let wrapper = ReplicaWrapper::new_on_disk(db_path).unwrap();
+
+        let task = wrapper
+            .add_task(
+                "UDA test".into(),
+                None,
+                vec!["tag1".into()],
+                None,
+                None,
+                None,
+                None,
+                None,
+                vec![],
+            )
+            .unwrap();
+
+        // Check that tag1 is in tags, but not in UDAs
+        assert!(task.tags.contains(&"tag1".into()));
+
+        // Test that a custom UDA is included
+        let mut replica = wrapper.inner.lock().unwrap();
+        let mut ops = Operations::new();
+        let uuid = Uuid::new_v4();
+        let mut rust_task = wrapper
+            .rt
+            .block_on(replica.create_task(uuid, &mut ops))
+            .unwrap();
+        rust_task
+            .set_value(
+                "custom_uda".to_string(),
+                Some("custom_value".to_string()),
+                &mut ops,
+            )
+            .unwrap();
+        wrapper.rt.block_on(replica.commit_operations(ops)).unwrap();
+
+        let task_data = map_task(rust_task, false, false);
+        let has_custom = task_data
+            .udas
+            .iter()
+            .any(|u| u.key == "custom_uda" && u.value == "custom_value");
+        assert!(
+            has_custom,
+            "UDAs should contain 'custom_uda': {:?}",
+            task_data.udas
+        );
     }
 }

@@ -22,6 +22,8 @@ import java.time.temporal.ChronoUnit
 enum class SortOrder {
     DATE_CREATED,
     DUE_DATE,
+    PRIORITY,
+    URGENCY,
     ALPHABETICAL,
     SCHEDULED_DATE,
 }
@@ -83,6 +85,24 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                         val dueB = b.due ?: "9999"
                         dueA.compareTo(dueB)
                     }
+                    SortOrder.PRIORITY -> {
+                        val pA =
+                            when (a.priority) {
+                                "H" -> 0
+                                "M" -> 1
+                                "L" -> 2
+                                else -> 3
+                            }
+                        val pB =
+                            when (b.priority) {
+                                "H" -> 0
+                                "M" -> 1
+                                "L" -> 2
+                                else -> 3
+                            }
+                        pA.compareTo(pB)
+                    }
+                    SortOrder.URGENCY -> b.urgency.compareTo(a.urgency)
                     SortOrder.ALPHABETICAL -> a.description.lowercase().compareTo(b.description.lowercase())
                     SortOrder.SCHEDULED_DATE -> {
                         val schA = a.scheduled ?: "9999"
@@ -285,10 +305,12 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         due: String?,
         scheduled: String?,
         start: String? = null,
+        priority: String? = null,
+        dependencies: List<String> = emptyList(),
     ) {
         viewModelScope.launch {
             try {
-                repository.addTask(description, project, tags, wait, due, scheduled, start)
+                repository.addTask(description, project, tags, wait, due, scheduled, start, priority, dependencies)
             } catch (e: Exception) {
                 _syncEvent.emit("Failed to add task: ${e.message}")
             }
