@@ -67,8 +67,8 @@ fun TaskDetailBottomSheet(
     var scheduled by remember(task) { mutableStateOf(task.scheduled) }
     var start by remember(task) { mutableStateOf(task.start) }
     var priority by remember(task) { mutableStateOf(task.priority) }
-    var newTag by remember { mutableStateOf("") }
-    var showAdvanced by remember { mutableStateOf(false) }
+    var newTag by remember(task) { mutableStateOf("") }
+    var showAdvanced by remember(task) { mutableStateOf(false) }
 
     val filteredProjects =
         remember(project, availableProjects) {

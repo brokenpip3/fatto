@@ -20,6 +20,7 @@ fn test_sync_integration() {
             None,
             None,
             None,
+            vec![],
         )
         .unwrap();
 
@@ -76,6 +77,7 @@ fn test_sync_deletion_integration() {
             None,
             None,
             None,
+            vec![],
         )
         .unwrap();
     rep1.sync(sync_url.clone(), client_id.clone(), sync_secret.clone())
@@ -115,6 +117,7 @@ fn test_sync_conflict_integration() {
             None,
             None,
             None,
+            vec![],
         )
         .unwrap();
     rep1.sync(sync_url.clone(), client_id.clone(), sync_secret.clone())
@@ -158,13 +161,14 @@ fn test_task_properties_integration() {
             None,
             None,
             Some("H".into()),
+            vec![],
         )
         .unwrap();
     assert_eq!(task_h.priority, Some("H".into()));
     assert!(task_h.urgency >= 6.0); // 6.0 (priority H) + some age
 
     // 2. Test Dependencies & Blocking
-    let _task_blocking = rep
+    let task_blocking = rep
         .add_task(
             "Blocking task".into(),
             None,
@@ -174,6 +178,7 @@ fn test_task_properties_integration() {
             None,
             None,
             None,
+            vec![],
         )
         .unwrap();
 
@@ -187,6 +192,7 @@ fn test_task_properties_integration() {
             None,
             None,
             None,
+            vec![],
         )
         .unwrap();
 
@@ -202,6 +208,12 @@ fn test_task_properties_integration() {
         None,
         None,
         None,
+        vec![task_blocking.uuid.clone()],
     )
     .unwrap();
+
+    let tasks = rep.all_task_data().unwrap();
+    let updated_blocked = tasks.iter().find(|t| t.uuid == task_blocked.uuid).unwrap();
+    assert!(updated_blocked.is_blocked);
+    assert_eq!(updated_blocked.dependencies, vec![task_blocking.uuid]);
 }

@@ -152,7 +152,7 @@ impl ReplicaWrapper {
         let mut replica = self.inner.lock().unwrap();
         let tasks = self.rt.block_on(replica.all_tasks())?;
 
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(tasks.len());
         for task in tasks.values() {
             let is_blocked = task.is_blocked();
             let is_blocking = task.is_blocking();
@@ -184,6 +184,7 @@ impl ReplicaWrapper {
         scheduled: Option<String>,
         start: Option<String>,
         priority: Option<String>,
+        dependencies: Vec<String>,
     ) -> Result<TaskData> {
         let mut replica = self.inner.lock().unwrap();
         let mut ops = Operations::new();
@@ -201,6 +202,11 @@ impl ReplicaWrapper {
             if tag.is_user() {
                 task.add_tag(&tag, &mut ops)?;
             }
+        }
+
+        for dep_str in dependencies {
+            let dep = Uuid::parse_str(&dep_str).map_err(|e| TaskError::Internal(e.to_string()))?;
+            task.add_dependency(dep, &mut ops)?;
         }
 
         task.set_wait(parse_rfc3339(wait)?, &mut ops)?;
@@ -239,6 +245,7 @@ impl ReplicaWrapper {
         scheduled: Option<String>,
         start: Option<String>,
         priority: Option<String>,
+        dependencies: Vec<String>,
     ) -> Result<()> {
         let mut replica = self.inner.lock().unwrap();
         let uuid =
@@ -266,6 +273,17 @@ impl ReplicaWrapper {
                 if tag.is_user() {
                     task.add_tag(&tag, &mut ops)?;
                 }
+            }
+
+            // Handle dependencies
+            let current_deps: Vec<Uuid> = task.get_dependencies().collect();
+            for dep in current_deps {
+                task.remove_dependency(dep, &mut ops)?;
+            }
+            for dep_str in dependencies {
+                let dep =
+                    Uuid::parse_str(&dep_str).map_err(|e| TaskError::Internal(e.to_string()))?;
+                task.add_dependency(dep, &mut ops)?;
             }
 
             task.set_due(parse_rfc3339(due)?, &mut ops)?;
@@ -299,6 +317,7 @@ fn compute_task_urgency(task: &Task, is_blocked: bool, is_blocking: bool) -> f32
     // Reference coefficients: https://taskwarrior.org/docs/urgency/
     // This implementation follows the default weights of TaskWarrior.
     let mut urgency = 0.0;
+    let now = Utc::now();
 
     // Next tag (+15.0)
     if task.get_tags().any(|t| t.to_string() == "next") {
@@ -308,7 +327,6 @@ fn compute_task_urgency(task: &Task, is_blocked: bool, is_blocking: bool) -> f32
     // Due date (+12.0 coefficient)
     // Reference: https://taskwarrior.org/docs/urgency/
     if let Some(due) = task.get_due() {
-        let now = Utc::now();
         let diff = (due - now).num_days();
         if diff < 0 {
             // Overdue tasks get the full coefficient
@@ -343,7 +361,7 @@ fn compute_task_urgency(task: &Task, is_blocked: bool, is_blocking: bool) -> f32
 
     // Scheduled (+5.0)
     if let Some(scheduled) = task.get_timestamp("scheduled") {
-        if scheduled <= Utc::now() {
+        if scheduled <= now {
             urgency += 5.0;
         }
     }
@@ -356,7 +374,7 @@ fn compute_task_urgency(task: &Task, is_blocked: bool, is_blocking: bool) -> f32
     // Age (+2.0 coefficient)
     // Scales linearly to 1.0 (full coefficient) at 365 days
     if let Some(entry) = task.get_entry() {
-        let age_days = (Utc::now() - entry).num_days();
+        let age_days = (now - entry).num_days();
         urgency += 2.0 * (age_days.min(365) as f32 / 365.0);
     }
 
@@ -373,7 +391,7 @@ fn compute_task_urgency(task: &Task, is_blocked: bool, is_blocking: bool) -> f32
 
     // Waiting status (-3.0)
     if let Some(wait) = task.get_wait() {
-        if wait > Utc::now() {
+        if wait > now {
             urgency -= 3.0;
         }
     }
@@ -449,6 +467,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.description, "Test task");
@@ -481,6 +500,7 @@ mod tests {
                     None,
                     None,
                     None,
+                    vec![],
                 )
                 .unwrap();
         }
@@ -506,6 +526,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         wrapper
@@ -532,6 +553,7 @@ mod tests {
                 None,
                 None,
                 Some("H".into()),
+                vec![],
             )
             .unwrap();
         assert_eq!(task_h.priority, Some("H".into()));
@@ -548,6 +570,7 @@ mod tests {
                 None,
                 None,
                 Some("L".into()),
+                vec![],
             )
             .unwrap();
         assert_eq!(task_l.priority, Some("L".into()));
@@ -568,6 +591,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
 
@@ -583,6 +607,7 @@ mod tests {
                 Some("2026-12-15T12:00:00Z".into()),
                 None,
                 None,
+                vec![],
             )
             .unwrap();
 
@@ -612,6 +637,7 @@ mod tests {
                 None,
                 Some(start_time.into()),
                 None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.start, Some(expected_time.into()));
@@ -629,6 +655,7 @@ mod tests {
                 task.scheduled,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         let updated_task = wrapper.get_task(task.uuid).unwrap().unwrap();
@@ -647,6 +674,7 @@ mod tests {
             None,
             None,
             None,
+            vec![],
         );
         assert!(result.is_err());
     }
@@ -666,6 +694,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.description, description);
@@ -677,7 +706,17 @@ mod tests {
     fn test_empty_description() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task("".into(), None, vec![], None, None, None, None, None)
+            .add_task(
+                "".into(),
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                None,
+                None,
+                vec![],
+            )
             .unwrap();
         assert_eq!(task.description, "");
     }
@@ -696,6 +735,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.description, long_desc);
@@ -714,6 +754,7 @@ mod tests {
             None,
             None,
             None,
+            vec![],
         );
         assert!(result.is_err());
     }
@@ -738,6 +779,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.project, Some("InitialProject".into()));
@@ -755,6 +797,7 @@ mod tests {
                 task.scheduled,
                 task.start,
                 None,
+                vec![],
             )
             .unwrap();
 
@@ -777,6 +820,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task.due, Some("2026-04-20T10:00:00+00:00".into()));
@@ -792,6 +836,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
         assert_eq!(task2.due, Some("2026-04-20T08:00:00+00:00".into()));
@@ -806,6 +851,7 @@ mod tests {
             None,
             None,
             None,
+            vec![],
         );
         assert!(result.is_err());
     }
@@ -831,6 +877,7 @@ mod tests {
                 None,
                 None,
                 None,
+                vec![],
             )
             .unwrap();
 

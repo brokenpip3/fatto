@@ -56,10 +56,11 @@ class TaskRepository(
         scheduled: String?,
         start: String? = null,
         priority: String? = null,
+        dependencies: List<String> = emptyList(),
     ) = withContext(Dispatchers.IO) {
         val r = replica ?: throw Exception("Replica not initialized")
         try {
-            r.addTask(description, project, tags, wait, due, scheduled, start, priority)
+            r.addTask(description, project, tags, wait, due, scheduled, start, priority, dependencies)
             loadTasks()
             triggerSync()
         } catch (e: Exception) {
@@ -83,6 +84,7 @@ class TaskRepository(
                     task.scheduled,
                     task.start,
                     task.priority,
+                    task.dependencies,
                 )
                 loadTasks()
                 triggerSync()

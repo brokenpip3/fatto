@@ -46,7 +46,7 @@ fun AddTaskDialog(
     initialProject: String? = null,
     initialTags: List<String> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?) -> Unit,
+    onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>) -> Unit,
 ) {
     var description by remember { mutableStateOf("") }
     var project by remember { mutableStateOf(initialProject ?: "") }
@@ -85,6 +85,7 @@ fun AddTaskDialog(
         description = ""
         project = ""
         tags = emptyList()
+        priority = null
         waitDate = null
         dueDate = null
         scheduledDate = null
@@ -265,7 +266,7 @@ fun AddTaskDialog(
                 onClick = {
                     if (description.isNotBlank()) {
                         val proj = if (project.isNotBlank()) project.trim() else null
-                        onConfirm(description, proj, tags, waitDate, dueDate, scheduledDate, null, priority)
+                        onConfirm(description, proj, tags, waitDate, dueDate, scheduledDate, null, priority, emptyList())
                         description = ""
                         project = ""
                         tags = emptyList()

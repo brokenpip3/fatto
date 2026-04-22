@@ -306,10 +306,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         scheduled: String?,
         start: String? = null,
         priority: String? = null,
+        dependencies: List<String> = emptyList(),
     ) {
         viewModelScope.launch {
             try {
-                repository.addTask(description, project, tags, wait, due, scheduled, start, priority)
+                repository.addTask(description, project, tags, wait, due, scheduled, start, priority, dependencies)
             } catch (e: Exception) {
                 _syncEvent.emit("Failed to add task: ${e.message}")
             }

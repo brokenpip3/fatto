@@ -171,8 +171,8 @@ class MainActivity : ComponentActivity() {
                                     initialProject = activeProject,
                                     initialTags = selectedTags.toList(),
                                     onDismiss = { showAddTaskDialog = false },
-                                    onConfirm = { description, project, tags, wait, due, scheduled, start, priority ->
-                                        taskViewModel.addTask(description, project, tags, wait, due, scheduled, start, priority)
+                                    onConfirm = { desc, proj, tgs, w, d, sch, st, p, deps ->
+                                        taskViewModel.addTask(desc, proj, tgs, w, d, sch, st, p, deps)
                                         showAddTaskDialog = false
                                     },
                                 )
