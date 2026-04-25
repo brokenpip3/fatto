@@ -1,8 +1,7 @@
-name: Beta Release
+name: Release
 on:
   release:
     types: [published]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,10 +10,8 @@ jobs:
   build-rust:
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'release' &&
-       startsWith(github.event.release.tag_name, 'v') &&
-       endsWith(github.event.release.tag_name, '-beta'))
+      github.event_name == 'release' &&
+      startsWith(github.event.release.tag_name, 'v')
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Maximize Runner Space
@@ -78,22 +75,32 @@ jobs:
           key: ${{ runner.os }}-gradle-fatto-ci-kotlin-${{ hashFiles('flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-fatto-ci-kotlin-${{ hashFiles('flake.lock') }}
+
       - name: Build Beta APK
+        if: endsWith(github.event.release.tag_name, '-beta')
         run: nix develop .#fatto-ci-kotlin --no-update-lock-file --command just build-beta-apk
         env:
-          BETA_KEYSTORE_BASE64: ${{ secrets.BETA_KEYSTORE_BASE64 }}
-          BETA_KEYSTORE_PASSWORD: ${{ secrets.BETA_KEYSTORE_PASSWORD }}
-          BETA_KEY_ALIAS: ${{ secrets.BETA_KEY_ALIAS }}
-          BETA_KEY_PASSWORD: ${{ secrets.BETA_KEY_PASSWORD }}
+          FATTO_KEYSTORE_BASE64: ${{ secrets.FATTO_KEYSTORE_BASE64 }}
+          FATTO_KEYSTORE_PASSWORD: ${{ secrets.FATTO_KEYSTORE_PASSWORD }}
+          FATTO_KEY_ALIAS: ${{ secrets.FATTO_KEY_ALIAS }}
+
+      - name: Build Stable APK
+        if: "!endsWith(github.event.release.tag_name, '-beta')"
+        run: nix develop .#fatto-ci-kotlin --no-update-lock-file --command just build-release-apk
+        env:
+          FATTO_KEYSTORE_BASE64: ${{ secrets.FATTO_KEYSTORE_BASE64 }}
+          FATTO_KEYSTORE_PASSWORD: ${{ secrets.FATTO_KEYSTORE_PASSWORD }}
+          FATTO_KEY_ALIAS: ${{ secrets.FATTO_KEY_ALIAS }}
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: beta-apk
-          path: dist/*-beta.apk
+          name: release-apks
+          path: dist/*.apk
+
       - name: Attach APK to Release
-        if: github.event_name == 'release'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          files: dist/*-beta.apk
+          files: dist/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
