@@ -234,54 +234,14 @@ fun TaskDetailBottomSheet(
                 }
             }
 
-            Text(text = "Priority", style = MaterialTheme.typography.labelLarge)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                for (p in listOf("H", "M", "L", null)) {
-                    val label =
-                        when (p) {
-                            "H" -> "High"
-                            "M" -> "Medium"
-                            "L" -> "Low"
-                            else -> "None"
-                        }
-                    Surface(
-                        onClick = { priority = p },
-                        color =
-                            if (priority == p) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            },
-                        shape = MaterialTheme.shapes.medium,
-                        border =
-                            if (priority == p) {
-                                androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                            } else {
-                                null
-                            },
-                    ) {
-                        Text(
-                            text = label,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color =
-                                if (priority == p) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                        )
-                    }
-                }
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
+                PriorityIconButton(
+                    priority = priority,
+                    onPriorityChange = { priority = it },
+                )
                 DatePickerIconButton(
                     label = "Due",
                     date = due,

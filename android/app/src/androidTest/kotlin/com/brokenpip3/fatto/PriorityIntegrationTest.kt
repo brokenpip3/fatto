@@ -45,6 +45,7 @@ class PriorityIntegrationTest {
         composeTestRule.onNodeWithText("Description").performTextInput(description)
 
         // Select High Priority
+        composeTestRule.onNodeWithContentDescription("Set Priority").performClick()
         composeTestRule.onNodeWithText("High").performClick()
 
         composeTestRule.onNodeWithText("Create").performClick()
