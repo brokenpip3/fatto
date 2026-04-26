@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.vm
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.brokenpip3.fatto.data.TaskRepository
+import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.isSynthetic
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -137,13 +138,13 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 tasks.filter { it.status == TaskStatus.COMPLETED }
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val internalTags = setOf("BLOCKING", "ACTIVE", "BLOCKED", "WAITING")
+    val showInternalTags: StateFlow<Boolean> = repository.showInternalTags
 
     val availableTags: StateFlow<Set<String>> =
         repository.tasks
             .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
                 tasks.flatMap { it.tags }
-                    .filter { tag -> !isSynthetic(tag) && (showInternal || !internalTags.contains(tag.uppercase())) }
+                    .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
                     .toSet()
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
@@ -210,7 +211,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
                 tasks.filter { it.status == TaskStatus.PENDING }
                     .flatMap { it.tags }
-                    .filter { tag -> !isSynthetic(tag) && (showInternal || !internalTags.contains(tag.uppercase())) }
+                    .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
                     .groupingBy { it }
                     .eachCount()
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
