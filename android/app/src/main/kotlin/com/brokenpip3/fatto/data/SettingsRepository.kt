@@ -190,7 +190,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     }
 
     override fun getShowInternalTags(): Boolean {
-        return sharedPreferences?.getBoolean("show_internal_tags", true) ?: true
+        return sharedPreferences?.getBoolean("show_internal_tags", false) ?: false
     }
 
     override fun setShowInternalTags(show: Boolean) {

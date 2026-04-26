@@ -146,7 +146,7 @@ fun AddTaskDialog(
                     value = newTag,
                     onValueChange = { newTag = it },
                     label = { Text("Add Tag") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "TagInput" },
                     singleLine = true,
                     colors =
                         TextFieldDefaults.colors(
