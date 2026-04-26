@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import java.time.Instant
 import java.time.ZoneId
@@ -58,6 +59,7 @@ fun TaskDetailBottomSheet(
     onDismiss: () -> Unit,
     onSave: (Task) -> Unit,
     availableProjects: List<String>,
+    showInternalTags: Boolean = true,
 ) {
     var description by remember(task) { mutableStateOf(task.description) }
     var project by remember(task) { mutableStateOf(task.project ?: "") }
@@ -264,9 +266,10 @@ fun TaskDetailBottomSheet(
 
             Text(text = "Tags", style = MaterialTheme.typography.labelLarge)
 
-            if (tags.isNotEmpty()) {
+            val displayTags = if (showInternalTags) tags else tags.filter { !INTERNAL_TAGS.contains(it.uppercase()) }
+            if (displayTags.isNotEmpty()) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(tags) { tag ->
+                    items(displayTags) { tag ->
                         TagChip(tag = tag, onRemove = { tags = tags - tag })
                     }
                 }
