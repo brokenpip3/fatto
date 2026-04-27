@@ -244,8 +244,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 
-    private val _syncEvent = MutableSharedFlow<String>()
-    val syncEvent = _syncEvent.asSharedFlow()
+    private val _uiEvent = MutableSharedFlow<String>()
+    val uiEvent = _uiEvent.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -312,8 +312,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.addTask(description, project, tags, wait, due, scheduled, start, priority, dependencies)
+                _uiEvent.emit("Task created")
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to add task: ${e.message}")
+                _uiEvent.emit("Failed to add task: ${e.message}")
             }
         }
     }
@@ -323,7 +324,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             try {
                 repository.updateTask(task)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to update task: ${e.message}")
+                _uiEvent.emit("Failed to update task: ${e.message}")
             }
         }
     }
@@ -333,7 +334,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             try {
                 repository.completeTask(uuid)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to complete task: ${e.message}")
+                _uiEvent.emit("Failed to complete task: ${e.message}")
             }
         }
     }
@@ -343,7 +344,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             try {
                 repository.deleteTask(uuid)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to delete task: ${e.message}")
+                _uiEvent.emit("Failed to delete task: ${e.message}")
             }
         }
     }
@@ -357,7 +358,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                     )
                 repository.updateTask(updatedTask)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to toggle task active state: ${e.message}")
+                _uiEvent.emit("Failed to toggle task active state: ${e.message}")
             }
         }
     }
@@ -369,9 +370,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             _isSyncing.value = true
             try {
                 repository.sync()
-                _syncEvent.emit("Sync successful")
+                _uiEvent.emit("Sync successful")
             } catch (e: Exception) {
-                _syncEvent.emit("Sync failed: ${e.message}")
+                _uiEvent.emit("Sync failed: ${e.message}")
             } finally {
                 _isSyncing.value = false
             }
