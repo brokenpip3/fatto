@@ -157,6 +157,7 @@ class MainActivity : ComponentActivity() {
                             val hierarchicalProjects by taskViewModel.hierarchicalProjects.collectAsState()
                             val activeProject by taskViewModel.activeProject.collectAsState()
                             val selectedTags by taskViewModel.selectedTags.collectAsState()
+                            val showInternalTags by taskViewModel.showInternalTags.collectAsState()
 
                             TaskListScreen(
                                 viewModel = taskViewModel,
@@ -181,11 +182,12 @@ class MainActivity : ComponentActivity() {
                             selectedTask?.let { task ->
                                 TaskDetailBottomSheet(
                                     task = task,
-                                    availableProjects = hierarchicalProjects.map { it.fullName },
                                     onDismiss = { selectedTask = null },
                                     onSave = { updatedTask ->
                                         taskViewModel.updateTask(updatedTask)
                                     },
+                                    availableProjects = hierarchicalProjects.map { it.fullName },
+                                    showInternalTags = showInternalTags,
                                 )
                             }
                         }

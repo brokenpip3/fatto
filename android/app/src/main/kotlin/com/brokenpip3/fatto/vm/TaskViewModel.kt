@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.vm
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.brokenpip3.fatto.data.TaskRepository
+import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.isSynthetic
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -137,13 +138,13 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 tasks.filter { it.status == TaskStatus.COMPLETED }
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val internalTags = setOf("BLOCKING", "ACTIVE", "BLOCKED", "WAITING")
+    val showInternalTags: StateFlow<Boolean> = repository.showInternalTags
 
     val availableTags: StateFlow<Set<String>> =
         repository.tasks
             .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
                 tasks.flatMap { it.tags }
-                    .filter { tag -> !isSynthetic(tag) && (showInternal || !internalTags.contains(tag.uppercase())) }
+                    .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
                     .toSet()
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
@@ -210,7 +211,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
                 tasks.filter { it.status == TaskStatus.PENDING }
                     .flatMap { it.tags }
-                    .filter { tag -> !isSynthetic(tag) && (showInternal || !internalTags.contains(tag.uppercase())) }
+                    .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
                     .groupingBy { it }
                     .eachCount()
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
@@ -243,8 +244,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 
-    private val _syncEvent = MutableSharedFlow<String>()
-    val syncEvent = _syncEvent.asSharedFlow()
+    private val _uiEvent = MutableSharedFlow<String>()
+    val uiEvent = _uiEvent.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -311,8 +312,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.addTask(description, project, tags, wait, due, scheduled, start, priority, dependencies)
+                _uiEvent.emit("Task created")
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to add task: ${e.message}")
+                _uiEvent.emit("Failed to add task: ${e.message}")
             }
         }
     }
@@ -322,7 +324,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             try {
                 repository.updateTask(task)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to update task: ${e.message}")
+                _uiEvent.emit("Failed to update task: ${e.message}")
             }
         }
     }
@@ -332,7 +334,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             try {
                 repository.completeTask(uuid)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to complete task: ${e.message}")
+                _uiEvent.emit("Failed to complete task: ${e.message}")
             }
         }
     }
@@ -342,7 +344,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             try {
                 repository.deleteTask(uuid)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to delete task: ${e.message}")
+                _uiEvent.emit("Failed to delete task: ${e.message}")
             }
         }
     }
@@ -356,7 +358,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                     )
                 repository.updateTask(updatedTask)
             } catch (e: Exception) {
-                _syncEvent.emit("Failed to toggle task active state: ${e.message}")
+                _uiEvent.emit("Failed to toggle task active state: ${e.message}")
             }
         }
     }
@@ -368,9 +370,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             _isSyncing.value = true
             try {
                 repository.sync()
-                _syncEvent.emit("Sync successful")
+                _uiEvent.emit("Sync successful")
             } catch (e: Exception) {
-                _syncEvent.emit("Sync failed: ${e.message}")
+                _uiEvent.emit("Sync failed: ${e.message}")
             } finally {
                 _isSyncing.value = false
             }

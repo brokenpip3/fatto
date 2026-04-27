@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,7 +18,6 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -148,7 +146,7 @@ fun AddTaskDialog(
                     value = newTag,
                     onValueChange = { newTag = it },
                     label = { Text("Add Tag") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "TagInput" },
                     singleLine = true,
                     colors =
                         TextFieldDefaults.colors(
@@ -192,54 +190,14 @@ fun AddTaskDialog(
                     }
                 }
 
-                Text(text = "Priority", style = MaterialTheme.typography.labelLarge)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    for (p in listOf("H", "M", "L", null)) {
-                        val label =
-                            when (p) {
-                                "H" -> "High"
-                                "M" -> "Medium"
-                                "L" -> "Low"
-                                else -> "None"
-                            }
-                        Surface(
-                            onClick = { priority = p },
-                            color =
-                                if (priority == p) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                },
-                            shape = MaterialTheme.shapes.medium,
-                            border =
-                                if (priority == p) {
-                                    androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                                } else {
-                                    null
-                                },
-                        ) {
-                            Text(
-                                text = label,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                color =
-                                    if (priority == p) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                            )
-                        }
-                    }
-                }
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
+                    PriorityIconButton(
+                        priority = priority,
+                        onPriorityChange = { priority = it },
+                    )
                     DatePickerIconButton(
                         label = "Due",
                         date = dueDate,

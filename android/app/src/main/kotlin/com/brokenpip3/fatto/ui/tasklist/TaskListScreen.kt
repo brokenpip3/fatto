@@ -73,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.ui.theme.NordicFrost
 import com.brokenpip3.fatto.ui.theme.NordicMidnight
@@ -94,6 +95,7 @@ fun TaskListScreen(
     val selectedTags by viewModel.selectedTags.collectAsState()
     val activeProject by viewModel.activeProject.collectAsState()
     val availableTags by viewModel.availableTags.collectAsState()
+    val showInternalTags by viewModel.showInternalTags.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
 
@@ -104,7 +106,7 @@ fun TaskListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        viewModel.syncEvent.collect { message ->
+        viewModel.uiEvent.collect { message ->
             snackbarHostState.showSnackbar(message)
         }
     }
@@ -360,6 +362,7 @@ fun TaskListScreen(
                         onClick = { onTaskClick(task) },
                         onComplete = { viewModel.completeTask(task.uuid) },
                         onDelete = { viewModel.deleteTask(task.uuid) },
+                        showInternalTags = showInternalTags,
                     )
                 }
 
@@ -380,6 +383,7 @@ fun TaskListScreen(
                                 onClick = { onTaskClick(task) },
                                 onComplete = { },
                                 onDelete = { viewModel.deleteTask(task.uuid) },
+                                showInternalTags = showInternalTags,
                             )
                         }
                     }
@@ -425,6 +429,7 @@ fun TaskItem(
     onClick: () -> Unit,
     onComplete: () -> Unit,
     onDelete: () -> Unit,
+    showInternalTags: Boolean = true,
 ) {
     Card(
         modifier =
@@ -506,7 +511,7 @@ fun TaskItem(
                                 )
                             }
 
-                            task.userTags.forEach { tag ->
+                            task.userTags.filter { showInternalTags || !INTERNAL_TAGS.contains(it.uppercase()) }.forEach { tag ->
                                 TagChip(tag = tag)
                             }
                         }

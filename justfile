@@ -35,30 +35,50 @@ build-debug-only:
 build-debug: build-bindings
     cd android && ./gradlew assembleDebug
 
-# build and bundle release aab/apk
-build-release: build-rust-all build-bindings
+# build release apk (assumes rust libs and bindings are already built)
+build-release-apk:
+    @if [ -z "${FATTO_KEYSTORE_BASE64:-}" ]; then \
+        echo "Error: FATTO_KEYSTORE_BASE64 not set. Release builds must be signed."; \
+        exit 1; \
+    fi
+    @echo "Decoding release keystore..."
+    @echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks
+    @export FATTO_KEYSTORE_PATH=release.jks; \
+    trap 'rm -f android/app/release.jks' EXIT; \
     cd android && ./gradlew assembleRelease
     @mkdir -p dist
     @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2); \
-    cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/fatto-v$VERSION.apk || \
-    cp android/app/build/outputs/apk/release/app-release.apk dist/fatto-v$VERSION.apk
-    @echo "Release APK created at: dist/fatto-v$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2).apk"
+    if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then \
+        cp android/app/build/outputs/apk/release/app-release.apk dist/fatto-v$VERSION.apk; \
+    else \
+        cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/fatto-v$VERSION.apk; \
+    fi; \
+    echo "Release APK created at: dist/fatto-v$VERSION.apk"
+
+# build and bundle release aab/apk
+build-release: build-rust-all build-bindings build-release-apk
 
 # build signed beta release
 build-beta: build-rust-all build-bindings build-beta-apk
 
 # build signed beta apk (assumes rust libs and bindings are already built)
 build-beta-apk:
-    @if [ -z "$BETA_KEYSTORE_BASE64" ]; then echo "Error: BETA_KEYSTORE_BASE64 not set"; exit 1; fi
+    @if [ -z "${FATTO_KEYSTORE_BASE64:-}" ]; then \
+        echo "Error: FATTO_KEYSTORE_BASE64 not set. Beta builds must be signed."; \
+        exit 1; \
+    fi
     @echo "Decoding beta keystore..."
-    @echo "$BETA_KEYSTORE_BASE64" | base64 -d > android/app/beta.jks
-    @trap 'rm -f android/app/beta.jks' EXIT; \
-    export BETA_KEYSTORE_FILE=beta.jks; \
-    export BETA_KEY_PASSWORD="$BETA_KEYSTORE_PASSWORD"; \
+    @echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks
+    @export FATTO_KEYSTORE_PATH=release.jks; \
+    trap 'rm -f android/app/release.jks' EXIT; \
     cd android && ./gradlew assembleBeta
     @mkdir -p dist
-    @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2) && \
-    cp android/app/build/outputs/apk/beta/app-beta.apk dist/fatto-v$VERSION-beta.apk && \
+    @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2); \
+    if [ -f android/app/build/outputs/apk/beta/app-beta.apk ]; then \
+        cp android/app/build/outputs/apk/beta/app-beta.apk dist/fatto-v$VERSION-beta.apk; \
+    else \
+        cp android/app/build/outputs/apk/beta/app-beta-unsigned.apk dist/fatto-v$VERSION-beta.apk; \
+    fi; \
     echo "Beta APK created at: dist/fatto-v$VERSION-beta.apk"
 
 # run fast unit tests (Rust unit + Kotlin unit)

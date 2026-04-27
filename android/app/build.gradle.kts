@@ -47,31 +47,22 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val keystorePath = System.getenv("FATTO_KEYSTORE_PATH")
             if (keystorePath != null) {
                 storeFile = file(keystorePath)
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-            } else {
-                // Fallback to debug key so the build doesn't fail
-                val debugKeystore = file(System.getProperty("user.home") + "/.android/debug.keystore")
-                if (debugKeystore.exists()) {
-                    storeFile = debugKeystore
-                    storePassword = "android"
-                    keyAlias = "androiddebugkey"
-                    keyPassword = "android"
-                }
+                storePassword = System.getenv("FATTO_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("FATTO_KEY_ALIAS")
+                keyPassword = System.getenv("FATTO_KEYSTORE_PASSWORD")
             }
         }
 
         create("beta") {
-            val keystorePath = System.getenv("BETA_KEYSTORE_FILE")
+            val keystorePath = System.getenv("FATTO_KEYSTORE_PATH")
             if (keystorePath != null) {
                 storeFile = file(keystorePath)
-                storePassword = System.getenv("BETA_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("BETA_KEY_ALIAS")
-                keyPassword = System.getenv("BETA_KEY_PASSWORD")
+                storePassword = System.getenv("FATTO_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("FATTO_KEY_ALIAS")
+                keyPassword = System.getenv("FATTO_KEYSTORE_PASSWORD")
             }
         }
     }

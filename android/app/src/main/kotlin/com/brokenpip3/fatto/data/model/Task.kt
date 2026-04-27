@@ -22,8 +22,10 @@ data class Task(
     val udas: Map<String, String>,
 ) {
     val userTags: List<String>
-        get() = tags.filter { !isSynthetic(it) }
+        get() = tags.filter { !isSynthetic(it) }.sorted()
 }
+
+val INTERNAL_TAGS = setOf("BLOCKING", "ACTIVE", "BLOCKED", "WAITING")
 
 fun isSynthetic(tag: String): Boolean {
     return tag == "PENDING" || tag == "COMPLETED" || tag == "DELETED" || tag == "UNBLOCKED"

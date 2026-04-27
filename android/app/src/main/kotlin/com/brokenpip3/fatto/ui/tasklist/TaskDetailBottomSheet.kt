@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import java.time.Instant
 import java.time.ZoneId
@@ -58,6 +59,7 @@ fun TaskDetailBottomSheet(
     onDismiss: () -> Unit,
     onSave: (Task) -> Unit,
     availableProjects: List<String>,
+    showInternalTags: Boolean = true,
 ) {
     var description by remember(task) { mutableStateOf(task.description) }
     var project by remember(task) { mutableStateOf(task.project ?: "") }
@@ -234,54 +236,14 @@ fun TaskDetailBottomSheet(
                 }
             }
 
-            Text(text = "Priority", style = MaterialTheme.typography.labelLarge)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                for (p in listOf("H", "M", "L", null)) {
-                    val label =
-                        when (p) {
-                            "H" -> "High"
-                            "M" -> "Medium"
-                            "L" -> "Low"
-                            else -> "None"
-                        }
-                    Surface(
-                        onClick = { priority = p },
-                        color =
-                            if (priority == p) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            },
-                        shape = MaterialTheme.shapes.medium,
-                        border =
-                            if (priority == p) {
-                                androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                            } else {
-                                null
-                            },
-                    ) {
-                        Text(
-                            text = label,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color =
-                                if (priority == p) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                        )
-                    }
-                }
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
+                PriorityIconButton(
+                    priority = priority,
+                    onPriorityChange = { priority = it },
+                )
                 DatePickerIconButton(
                     label = "Due",
                     date = due,
@@ -304,9 +266,10 @@ fun TaskDetailBottomSheet(
 
             Text(text = "Tags", style = MaterialTheme.typography.labelLarge)
 
-            if (tags.isNotEmpty()) {
+            val displayTags = if (showInternalTags) tags else tags.filter { !INTERNAL_TAGS.contains(it.uppercase()) }
+            if (displayTags.isNotEmpty()) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(tags) { tag ->
+                    items(displayTags) { tag ->
                         TagChip(tag = tag, onRemove = { tags = tags - tag })
                     }
                 }
