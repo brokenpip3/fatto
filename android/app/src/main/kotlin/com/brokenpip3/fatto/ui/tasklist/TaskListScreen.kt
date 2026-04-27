@@ -106,7 +106,7 @@ fun TaskListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        viewModel.syncEvent.collect { message ->
+        viewModel.uiEvent.collect { message ->
             snackbarHostState.showSnackbar(message)
         }
     }
