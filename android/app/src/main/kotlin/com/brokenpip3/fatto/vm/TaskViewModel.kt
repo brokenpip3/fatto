@@ -227,11 +227,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
 
                     val dates =
                         listOfNotNull(task.due, task.scheduled).mapNotNull { dateStr ->
-                            try {
-                                java.time.LocalDate.parse(dateStr.take(10))
-                            } catch (e: Exception) {
-                                null
-                            }
+                            com.brokenpip3.fatto.data.DateTimeUtils.parseToLocalDate(dateStr)
                         }.distinct()
 
                     dates.forEach { date ->

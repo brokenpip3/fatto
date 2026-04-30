@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import java.time.Instant
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Calendar
 import java.util.Locale
@@ -378,13 +377,8 @@ fun TaskDetailBottomSheet(
             confirmButton = {
                 TextButton(onClick = {
                     val date =
-                        datePickerState.selectedDateMillis?.let {
-                            Instant.ofEpochMilli(it)
-                                .atZone(ZoneId.systemDefault())
-                                .toLocalDate()
-                                .atStartOfDay(ZoneId.systemDefault())
-                                .toInstant()
-                                .toString()
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            Instant.ofEpochMilli(millis).toString()
                         }
                     when (activePicker) {
                         DatePickerType.DUE -> due = date

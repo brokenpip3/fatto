@@ -128,7 +128,7 @@ fun DatePickerIconButton(
             )
         }
         Text(
-            text = date?.take(10) ?: label,
+            text = com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(date) ?: label,
             style = MaterialTheme.typography.labelSmall,
             color = if (date != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         )

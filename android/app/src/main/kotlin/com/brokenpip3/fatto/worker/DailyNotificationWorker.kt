@@ -16,7 +16,6 @@ import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import uniffi.taskchampion_android.TaskStatus
-import java.time.LocalDate
 
 class DailyNotificationWorker(
     appContext: Context,
@@ -37,23 +36,13 @@ class DailyNotificationWorker(
             val includeScheduled = settingsRepository.getIncludeScheduledToday()
             val includeOverdue = settingsRepository.getIncludeOverdue()
 
-            val today = LocalDate.now()
-            val todayStr = today.toString()
-
             val tasksToNotify =
                 taskRepository.tasks.value.filter { task ->
                     if (task.status != TaskStatus.PENDING) return@filter false
 
-                    val isDueToday = includeDue && task.due?.startsWith(todayStr) == true
-                    val isScheduledToday = includeScheduled && task.scheduled?.startsWith(todayStr) == true
-                    val isOverdue =
-                        includeOverdue && task.due?.let {
-                            try {
-                                LocalDate.parse(it.take(10)).isBefore(today)
-                            } catch (e: Exception) {
-                                false
-                            }
-                        } == true
+                    val isDueToday = includeDue && com.brokenpip3.fatto.data.DateTimeUtils.isToday(task.due)
+                    val isScheduledToday = includeScheduled && com.brokenpip3.fatto.data.DateTimeUtils.isToday(task.scheduled)
+                    val isOverdue = includeOverdue && com.brokenpip3.fatto.data.DateTimeUtils.isOverdue(task.due)
 
                     isDueToday || isScheduledToday || isOverdue
                 }
