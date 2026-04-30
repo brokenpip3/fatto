@@ -43,6 +43,9 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _includeOverdue = MutableStateFlow(false)
     val includeOverdue = _includeOverdue.asStateFlow()
 
+    private val _firstDayOfWeek = MutableStateFlow(java.util.Calendar.MONDAY)
+    val firstDayOfWeek = _firstDayOfWeek.asStateFlow()
+
     init {
         load()
     }
@@ -66,6 +69,7 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _includeDueToday.value = repository.getIncludeDueToday()
         _includeScheduledToday.value = repository.getIncludeScheduledToday()
         _includeOverdue.value = repository.getIncludeOverdue()
+        _firstDayOfWeek.value = repository.getFirstDayOfWeek()
     }
 
     fun onUrlChange(value: String) {
@@ -123,6 +127,11 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun onTagsPerLineChange(value: Int) {
         _tagsPerLine.value = value
         repository.setTagsPerLine(value)
+    }
+
+    fun onFirstDayOfWeekChange(value: Int) {
+        _firstDayOfWeek.value = value
+        repository.setFirstDayOfWeek(value)
     }
 
     fun save() {

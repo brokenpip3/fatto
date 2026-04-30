@@ -1,5 +1,6 @@
 package com.brokenpip3.fatto.ui.tasklist
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,17 +25,21 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.format.DateTimeFormatter
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +50,7 @@ fun AddTaskDialog(
     initialTags: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>) -> Unit,
+    firstDayOfWeek: Int = Calendar.MONDAY,
 ) {
     var description by remember { mutableStateOf("") }
     var project by remember { mutableStateOf(initialProject ?: "") }
@@ -287,7 +293,14 @@ fun AddTaskDialog(
                 }
             },
         ) {
-            DatePicker(state = datePickerState)
+            val currentConfig = LocalConfiguration.current
+            val config = Configuration(currentConfig)
+            val targetLocale = if (firstDayOfWeek == Calendar.SUNDAY) Locale.US else Locale.UK
+            config.setLocale(targetLocale)
+
+            CompositionLocalProvider(LocalConfiguration provides config) {
+                DatePicker(state = datePickerState)
+            }
         }
     }
 }

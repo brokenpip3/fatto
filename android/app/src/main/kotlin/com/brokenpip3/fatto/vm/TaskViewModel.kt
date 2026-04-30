@@ -241,6 +241,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 map
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    val firstDayOfWeek: StateFlow<Int> = repository.firstDayOfWeek
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 

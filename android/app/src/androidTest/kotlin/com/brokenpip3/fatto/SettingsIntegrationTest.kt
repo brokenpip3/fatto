@@ -30,4 +30,31 @@ class SettingsIntegrationTest {
         // Verify Build date exists (partial match)
         composeTestRule.onNodeWithText("Built on:", substring = true).assertExists()
     }
+
+    @Test
+    fun testCalendarStartDaySetting() {
+        // Go to settings
+        composeTestRule.onNodeWithText("Settings").performClick()
+
+        // Select Sunday as the first day of the week
+        composeTestRule.onNodeWithText("Sunday").performClick()
+
+        // Go to Calendar
+        composeTestRule.onNodeWithText("Calendar").performClick()
+
+        // Assert "Sun" is present
+        composeTestRule.onNodeWithText("Sun").assertExists()
+
+        // Go back to settings
+        composeTestRule.onNodeWithText("Settings").performClick()
+
+        // Select Monday
+        composeTestRule.onNodeWithText("Monday").performClick()
+
+        // Go back to Calendar
+        composeTestRule.onNodeWithText("Calendar").performClick()
+
+        // Assert "Mon" is present
+        composeTestRule.onNodeWithText("Mon").assertExists()
+    }
 }

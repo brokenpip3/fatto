@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto.ui.tasklist
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -32,20 +34,15 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -176,7 +173,7 @@ fun TaskListScreen(
                         }
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort")
+                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                             }
                             DropdownMenu(
                                 expanded = showSortMenu,
@@ -279,40 +276,50 @@ fun TaskListScreen(
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                     )
-                                    SuggestionChip(label = "project:xxx") {
-                                        val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
-                                        viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}project:")
-                                    }
-                                    SuggestionChip(label = "tags:xxx,yyy") {
-                                        val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
-                                        viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}tags:")
-                                    }
+                                    SuggestionChip(
+                                        onClick = {
+                                            val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
+                                            viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}project:")
+                                        },
+                                        label = "project:xxx",
+                                    )
+                                    SuggestionChip(
+                                        onClick = {
+                                            val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
+                                            viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}tags:")
+                                        },
+                                        label = "tags:xxx,yyy",
+                                    )
                                 }
                             }
 
                             if (activeProject != null) {
-                                InputChip(
-                                    selected = true,
+                                Surface(
                                     onClick = { viewModel.setActiveProject(null) },
-                                    label = { Text("Project: $activeProject", style = MaterialTheme.typography.labelSmall) },
-                                    trailingIcon = {
+                                    color = activeProject!!.toNordicColor().copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, activeProject!!.toNordicColor()),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = "Project: $activeProject",
+                                            modifier =
+                                                Modifier
+                                                    .weight(1f)
+                                                    .padding(start = 12.dp, top = 6.dp, bottom = 6.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = activeProject!!.toNordicColor(),
+                                        )
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = null,
-                                            modifier = Modifier.size(14.dp),
+                                            modifier = Modifier.size(14.dp).padding(4.dp),
                                         )
-                                    },
-                                    colors =
-                                        InputChipDefaults.inputChipColors(
-                                            selectedContainerColor = activeProject!!.toNordicColor().copy(alpha = 0.1f),
-                                            selectedLabelColor = activeProject!!.toNordicColor(),
-                                        ),
-                                    border =
-                                        InputChipDefaults.inputChipBorder(
-                                            selectedBorderColor = activeProject!!.toNordicColor(),
-                                            selectedBorderWidth = 1.dp,
-                                        ),
-                                )
+                                    }
+                                }
                             }
 
                             if (availableTags.isNotEmpty()) {
@@ -321,28 +328,38 @@ fun TaskListScreen(
                                     contentPadding = PaddingValues(bottom = 8.dp),
                                 ) {
                                     items(availableTags.toList()) { tag ->
-                                        FilterChip(
-                                            selected = selectedTags.contains(tag),
+                                        Surface(
                                             onClick = { viewModel.toggleTag(tag) },
-                                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
-                                            colors =
-                                                FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = tag.toNordicColor().copy(alpha = 0.2f),
-                                                    selectedLabelColor = tag.toNordicColor(),
-                                                ),
+                                            color =
+                                                if (selectedTags.contains(tag)) {
+                                                    tag.toNordicColor().copy(alpha = 0.2f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                },
+                                            shape = RoundedCornerShape(16.dp),
                                             border =
-                                                FilterChipDefaults.filterChipBorder(
-                                                    borderColor =
-                                                        if (selectedTags.contains(
-                                                                tag,
-                                                            )
-                                                        ) {
+                                                BorderStroke(
+                                                    width = 1.dp,
+                                                    color =
+                                                        if (selectedTags.contains(tag)) {
                                                             tag.toNordicColor()
                                                         } else {
                                                             MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                                                         },
                                                 ),
-                                        )
+                                        ) {
+                                            Text(
+                                                text = tag,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color =
+                                                    if (selectedTags.contains(tag)) {
+                                                        tag.toNordicColor()
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    },
+                                            )
+                                        }
                                     }
                                 }
                             }

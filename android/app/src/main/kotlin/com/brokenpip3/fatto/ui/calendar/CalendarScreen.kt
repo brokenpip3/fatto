@@ -45,9 +45,11 @@ import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.ui.tasklist.TaskItem
 import com.brokenpip3.fatto.vm.TaskViewModel
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
+import java.util.Calendar
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,16 +59,20 @@ fun CalendarScreen(
     onTaskClick: (Task) -> Unit,
 ) {
     val tasksByDate by viewModel.tasksByDate.collectAsState()
+    val firstDayOfWeekSetting by viewModel.firstDayOfWeek.collectAsState()
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
 
     val daysInMonth = currentMonth.lengthOfMonth()
-    val firstDayOfWeek = currentMonth.atDay(1).dayOfWeek.value % 7 // 0 = Sunday
+    // Convert Calendar constant (Sun=1, Mon=2) to DayOfWeek value (Mon=1, Sun=7)
+    val startDayOfWeek =
+        if (firstDayOfWeekSetting == Calendar.SUNDAY) DayOfWeek.SUNDAY.value else firstDayOfWeekSetting - 1
+    val offset = (currentMonth.atDay(1).dayOfWeek.value - startDayOfWeek + 7) % 7
 
     val days =
-        remember(currentMonth) {
+        remember(currentMonth, firstDayOfWeekSetting) {
             val list = mutableListOf<LocalDate?>()
-            for (i in 0 until firstDayOfWeek) list.add(null)
+            for (i in 0 until offset) list.add(null)
             for (i in 1..daysInMonth) list.add(currentMonth.atDay(i))
             list
         }
@@ -108,7 +114,13 @@ fun CalendarScreen(
 
             // Weekday labels
             Row(modifier = Modifier.fillMaxWidth()) {
-                val weekdays = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                val allLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                val weekdays =
+                    if (firstDayOfWeekSetting == Calendar.MONDAY) {
+                        allLabels
+                    } else {
+                        listOf("Sun") + allLabels.dropLast(1)
+                    }
                 weekdays.forEach { day ->
                     Text(
                         text = day,

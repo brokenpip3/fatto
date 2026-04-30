@@ -7,6 +7,7 @@ import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.Calendar
 
 data class SyncCredentials(
     val url: String,
@@ -24,6 +25,11 @@ interface SettingsRepository {
     val includeDueToday: StateFlow<Boolean>
     val includeScheduledToday: StateFlow<Boolean>
     val includeOverdue: StateFlow<Boolean>
+    val firstDayOfWeek: StateFlow<Int>
+
+    fun getFirstDayOfWeek(): Int
+
+    fun setFirstDayOfWeek(value: Int)
 
     fun getCredentials(): SyncCredentials?
 
@@ -120,6 +126,18 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private val _includeOverdue = MutableStateFlow(getIncludeOverdue())
     override val includeOverdue: StateFlow<Boolean> = _includeOverdue.asStateFlow()
+
+    private val _firstDayOfWeek = MutableStateFlow(getFirstDayOfWeek())
+    override val firstDayOfWeek: StateFlow<Int> = _firstDayOfWeek.asStateFlow()
+
+    override fun getFirstDayOfWeek(): Int {
+        return sharedPreferences?.getInt("first_day_of_week", Calendar.MONDAY) ?: Calendar.MONDAY
+    }
+
+    override fun setFirstDayOfWeek(value: Int) {
+        sharedPreferences?.edit()?.putInt("first_day_of_week", value)?.apply()
+        _firstDayOfWeek.value = value
+    }
 
     override fun getCredentials(): SyncCredentials? {
         val prefs = sharedPreferences ?: return null
