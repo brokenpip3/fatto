@@ -12,10 +12,10 @@
 - [x] suggest tags and projects when adding a task
 - [x] support calendar view
 - [x] show notification for due, scheduled, and overdue tasks
-- [ ] support task dependencies
-- [ ] support priority in tasks
+- [x] support task dependencies
+- [x] support priority in tasks
 - [ ] support task annotations
 - [ ] support recurring tasks
 - [ ] better notification: when tap the notification, open the app and show the task details
 - [ ] support builtin UDA like tag and project colours
-- [ ] support custom UDA
+- [x] support custom UDA
