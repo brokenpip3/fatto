@@ -85,6 +85,7 @@ fun TaskListScreen(
     viewModel: TaskViewModel,
     onTaskClick: (Task) -> Unit,
     onAddTaskClick: () -> Unit,
+    confirmActions: Boolean,
 ) {
     val tasks by viewModel.activeTasks.collectAsState()
     val completedTasks by viewModel.completedTasks.collectAsState()
@@ -99,6 +100,9 @@ fun TaskListScreen(
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showCompleted by remember { mutableStateOf(false) }
+
+    var taskToComplete by remember { mutableStateOf<Task?>(null) }
+    var taskToDelete by remember { mutableStateOf<Task?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -377,8 +381,20 @@ fun TaskListScreen(
                     TaskItem(
                         task = task,
                         onClick = { onTaskClick(task) },
-                        onComplete = { viewModel.completeTask(task.uuid) },
-                        onDelete = { viewModel.deleteTask(task.uuid) },
+                        onComplete = {
+                            if (confirmActions) {
+                                taskToComplete = task
+                            } else {
+                                viewModel.completeTask(task.uuid)
+                            }
+                        },
+                        onDelete = {
+                            if (confirmActions) {
+                                taskToDelete = task
+                            } else {
+                                viewModel.deleteTask(task.uuid)
+                            }
+                        },
                         showInternalTags = showInternalTags,
                     )
                 }
@@ -399,12 +415,64 @@ fun TaskListScreen(
                                 task = task,
                                 onClick = { onTaskClick(task) },
                                 onComplete = { },
-                                onDelete = { viewModel.deleteTask(task.uuid) },
+                                onDelete = {
+                                    if (confirmActions) {
+                                        taskToDelete = task
+                                    } else {
+                                        viewModel.deleteTask(task.uuid)
+                                    }
+                                },
                                 showInternalTags = showInternalTags,
                             )
                         }
                     }
                 }
+            }
+
+            if (taskToComplete != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { taskToComplete = null },
+                    title = { Text("Complete Task") },
+                    text = { Text("Are you sure you want to mark this task as completed?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                taskToComplete?.let { viewModel.completeTask(it.uuid) }
+                                taskToComplete = null
+                            },
+                        ) {
+                            Text("Confirm")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { taskToComplete = null }) {
+                            Text("Cancel")
+                        }
+                    },
+                )
+            }
+
+            if (taskToDelete != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { taskToDelete = null },
+                    title = { Text("Delete Task") },
+                    text = { Text("Are you sure you want to delete this task?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                taskToDelete?.let { viewModel.deleteTask(it.uuid) }
+                                taskToDelete = null
+                            },
+                        ) {
+                            Text("Confirm")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { taskToDelete = null }) {
+                            Text("Cancel")
+                        }
+                    },
+                )
             }
         }
     }

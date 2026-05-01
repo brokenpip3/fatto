@@ -159,11 +159,13 @@ class MainActivity : ComponentActivity() {
                             val selectedTags by taskViewModel.selectedTags.collectAsState()
                             val showInternalTags by taskViewModel.showInternalTags.collectAsState()
                             val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
+                            val confirmActions by settingsViewModel.confirmActions.collectAsState()
 
                             TaskListScreen(
                                 viewModel = taskViewModel,
                                 onAddTaskClick = { showAddTaskDialog = true },
                                 onTaskClick = { selectedTask = it },
+                                confirmActions = confirmActions,
                             )
 
                             if (showAddTaskDialog) {

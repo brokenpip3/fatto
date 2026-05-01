@@ -76,6 +76,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val includeScheduledToday by viewModel.includeScheduledToday.collectAsState()
     val includeOverdue by viewModel.includeOverdue.collectAsState()
     val firstDayOfWeek by viewModel.firstDayOfWeek.collectAsState()
+    val confirmActions by viewModel.confirmActions.collectAsState()
 
     var secretVisible by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -474,6 +475,29 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 )
                 Text(
                     text = "Show empty projects",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.onConfirmActionsChange(!confirmActions) }
+                        .padding(vertical = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = confirmActions,
+                    onCheckedChange = { viewModel.onConfirmActionsChange(it) },
+                    colors =
+                        CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                        ),
+                )
+                Text(
+                    text = "Confirm complete/delete",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(start = 8.dp),
                 )
