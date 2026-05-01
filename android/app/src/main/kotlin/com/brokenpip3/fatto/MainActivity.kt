@@ -9,9 +9,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Icon
@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
-        ) { isGranted: Boolean ->
+        ) { _: Boolean ->
             // Permission result handled
         }
 
@@ -109,12 +109,12 @@ class MainActivity : ComponentActivity() {
                                     icon = {
                                         val icon =
                                             when (screen) {
-                                                "tasks" -> Icons.Default.List
+                                                "tasks" -> Icons.AutoMirrored.Filled.List
                                                 "projects" -> Icons.Default.AccountTree
                                                 "calendar" -> Icons.Default.DateRange
                                                 "tags" -> Icons.Default.Tag
                                                 "settings" -> Icons.Default.Settings
-                                                else -> Icons.Default.List
+                                                else -> Icons.AutoMirrored.Filled.List
                                             }
                                         Icon(icon, contentDescription = null)
                                     },
@@ -158,11 +158,14 @@ class MainActivity : ComponentActivity() {
                             val activeProject by taskViewModel.activeProject.collectAsState()
                             val selectedTags by taskViewModel.selectedTags.collectAsState()
                             val showInternalTags by taskViewModel.showInternalTags.collectAsState()
+                            val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
+                            val confirmActions by settingsViewModel.confirmActions.collectAsState()
 
                             TaskListScreen(
                                 viewModel = taskViewModel,
                                 onAddTaskClick = { showAddTaskDialog = true },
                                 onTaskClick = { selectedTask = it },
+                                confirmActions = confirmActions,
                             )
 
                             if (showAddTaskDialog) {
@@ -176,6 +179,7 @@ class MainActivity : ComponentActivity() {
                                         taskViewModel.addTask(desc, proj, tgs, w, d, sch, st, p, deps)
                                         showAddTaskDialog = false
                                     },
+                                    firstDayOfWeek = firstDayOfWeek,
                                 )
                             }
 
@@ -188,6 +192,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     availableProjects = hierarchicalProjects.map { it.fullName },
                                     showInternalTags = showInternalTags,
+                                    firstDayOfWeek = firstDayOfWeek,
                                 )
                             }
                         }

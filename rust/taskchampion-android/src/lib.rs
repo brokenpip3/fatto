@@ -96,6 +96,34 @@ pub struct TaskData {
     pub udas: Vec<UdaPair>,
 }
 
+#[derive(uniffi::Record, Debug, Clone)]
+pub struct TaskUpdateProps {
+    pub uuid: String,
+    pub description: String,
+    pub status: TaskStatus,
+    pub project: Option<String>,
+    pub tags: Vec<String>,
+    pub due: Option<String>,
+    pub wait: Option<String>,
+    pub scheduled: Option<String>,
+    pub start: Option<String>,
+    pub priority: Option<String>,
+    pub dependencies: Vec<String>,
+}
+
+#[derive(uniffi::Record, Debug, Clone)]
+pub struct TaskAddProps {
+    pub description: String,
+    pub project: Option<String>,
+    pub tags: Vec<String>,
+    pub due: Option<String>,
+    pub wait: Option<String>,
+    pub scheduled: Option<String>,
+    pub start: Option<String>,
+    pub priority: Option<String>,
+    pub dependencies: Vec<String>,
+}
+
 pub enum DynStorage {
     Sqlite(SqliteStorage),
     InMemory(InMemoryStorage),
@@ -173,46 +201,34 @@ impl ReplicaWrapper {
         }))
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_task(
-        &self,
-        description: String,
-        project: Option<String>,
-        tags: Vec<String>,
-        wait: Option<String>,
-        due: Option<String>,
-        scheduled: Option<String>,
-        start: Option<String>,
-        priority: Option<String>,
-        dependencies: Vec<String>,
-    ) -> Result<TaskData> {
+    pub fn add_task(&self, props: TaskAddProps) -> Result<TaskData> {
         let mut replica = self.inner.lock().unwrap();
         let mut ops = Operations::new();
         let uuid = Uuid::new_v4();
         let mut task = self.rt.block_on(replica.create_task(uuid, &mut ops))?;
-        task.set_description(description, &mut ops)?;
+        task.set_description(props.description, &mut ops)?;
         task.set_status(taskchampion::Status::Pending, &mut ops)?;
         task.set_entry(Some(chrono::Utc::now()), &mut ops)?;
 
-        task.set_value(String::from("project"), project, &mut ops)?;
-        task.set_value(String::from("priority"), priority, &mut ops)?;
+        task.set_value(String::from("project"), props.project, &mut ops)?;
+        task.set_value(String::from("priority"), props.priority, &mut ops)?;
 
-        for tag_str in tags {
+        for tag_str in props.tags {
             let tag = Tag::from_str(&tag_str).map_err(|e| TaskError::Internal(e.to_string()))?;
             if tag.is_user() {
                 task.add_tag(&tag, &mut ops)?;
             }
         }
 
-        for dep_str in dependencies {
+        for dep_str in props.dependencies {
             let dep = Uuid::parse_str(&dep_str).map_err(|e| TaskError::Internal(e.to_string()))?;
             task.add_dependency(dep, &mut ops)?;
         }
 
-        task.set_wait(parse_rfc3339(wait)?, &mut ops)?;
-        task.set_due(parse_rfc3339(due)?, &mut ops)?;
-        task.set_timestamp("scheduled", parse_rfc3339(scheduled)?, &mut ops)?;
-        task.set_timestamp("start", parse_rfc3339(start)?, &mut ops)?;
+        task.set_wait(parse_rfc3339(props.wait)?, &mut ops)?;
+        task.set_due(parse_rfc3339(props.due)?, &mut ops)?;
+        task.set_timestamp("scheduled", parse_rfc3339(props.scheduled)?, &mut ops)?;
+        task.set_timestamp("start", parse_rfc3339(props.start)?, &mut ops)?;
 
         self.rt.block_on(replica.commit_operations(ops))?;
         let is_blocked = task.is_blocked();
@@ -232,33 +248,19 @@ impl ReplicaWrapper {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn update_task(
-        &self,
-        uuid: String,
-        description: String,
-        status: TaskStatus,
-        project: Option<String>,
-        tags: Vec<String>,
-        due: Option<String>,
-        wait: Option<String>,
-        scheduled: Option<String>,
-        start: Option<String>,
-        priority: Option<String>,
-        dependencies: Vec<String>,
-    ) -> Result<()> {
+    pub fn update_task(&self, props: TaskUpdateProps) -> Result<()> {
         let mut replica = self.inner.lock().unwrap();
         let uuid =
-            Uuid::parse_str(&uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
+            Uuid::parse_str(&props.uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
         let mut ops = Operations::new();
 
         if let Some(mut task) = self.rt.block_on(replica.get_task(uuid))? {
-            task.set_description(description, &mut ops)?;
-            task.set_status(status.into(), &mut ops)?;
+            task.set_description(props.description, &mut ops)?;
+            task.set_status(props.status.into(), &mut ops)?;
 
             // Handle project and priority
-            task.set_value(String::from("project"), project, &mut ops)?;
-            task.set_value(String::from("priority"), priority, &mut ops)?;
+            task.set_value(String::from("project"), props.project, &mut ops)?;
+            task.set_value(String::from("priority"), props.priority, &mut ops)?;
 
             // Handle tags
             let current_tags: Vec<Tag> = task.get_tags().collect();
@@ -267,7 +269,7 @@ impl ReplicaWrapper {
                     task.remove_tag(&tag, &mut ops)?;
                 }
             }
-            for tag_str in tags {
+            for tag_str in props.tags {
                 let tag =
                     Tag::from_str(&tag_str).map_err(|e| TaskError::Internal(e.to_string()))?;
                 if tag.is_user() {
@@ -280,16 +282,16 @@ impl ReplicaWrapper {
             for dep in current_deps {
                 task.remove_dependency(dep, &mut ops)?;
             }
-            for dep_str in dependencies {
+            for dep_str in props.dependencies {
                 let dep =
                     Uuid::parse_str(&dep_str).map_err(|e| TaskError::Internal(e.to_string()))?;
                 task.add_dependency(dep, &mut ops)?;
             }
 
-            task.set_due(parse_rfc3339(due)?, &mut ops)?;
-            task.set_wait(parse_rfc3339(wait)?, &mut ops)?;
-            task.set_timestamp("scheduled", parse_rfc3339(scheduled)?, &mut ops)?;
-            task.set_timestamp("start", parse_rfc3339(start)?, &mut ops)?;
+            task.set_due(parse_rfc3339(props.due)?, &mut ops)?;
+            task.set_wait(parse_rfc3339(props.wait)?, &mut ops)?;
+            task.set_timestamp("scheduled", parse_rfc3339(props.scheduled)?, &mut ops)?;
+            task.set_timestamp("start", parse_rfc3339(props.start)?, &mut ops)?;
 
             self.rt.block_on(replica.commit_operations(ops))?;
         }
@@ -458,17 +460,17 @@ mod tests {
     fn test_in_memory_replica() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task(
-                "Test task".into(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "Test task".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task.description, "Test task");
         assert_eq!(task.status, TaskStatus::Pending);
@@ -491,17 +493,17 @@ mod tests {
         {
             let wrapper = ReplicaWrapper::new_on_disk(db_path.clone()).unwrap();
             wrapper
-                .add_task(
-                    "Disk task".into(),
-                    None,
-                    vec![],
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    vec![],
-                )
+                .add_task(TaskAddProps {
+                    description: "Disk task".into(),
+                    project: None,
+                    tags: vec![],
+                    wait: None,
+                    due: None,
+                    scheduled: None,
+                    start: None,
+                    priority: None,
+                    dependencies: vec![],
+                })
                 .unwrap();
         }
 
@@ -517,17 +519,17 @@ mod tests {
     fn test_update_status() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task(
-                "To complete".into(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "To complete".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         wrapper
             .update_task_status(task.uuid.clone(), TaskStatus::Completed)
@@ -544,34 +546,34 @@ mod tests {
 
         // High priority task
         let task_h = wrapper
-            .add_task(
-                "High".into(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                Some("H".into()),
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "High".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: Some("H".into()),
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task_h.priority, Some("H".into()));
         assert!(task_h.urgency >= 6.0);
 
         // Low priority task
         let task_l = wrapper
-            .add_task(
-                "Low".into(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                Some("L".into()),
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "Low".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: Some("L".into()),
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task_l.priority, Some("L".into()));
         assert!(task_l.urgency >= 1.8);
@@ -582,33 +584,33 @@ mod tests {
     fn test_update_task() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task(
-                "Original description".into(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "Original description".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
 
         wrapper
-            .update_task(
-                task.uuid.clone(),
-                "Updated description".into(),
-                TaskStatus::Pending,
-                Some("NewProject".into()),
-                vec!["tag1".into(), "tag2".into()],
-                Some("2026-12-25T12:00:00Z".into()),
-                Some("2026-12-01T12:00:00Z".into()),
-                Some("2026-12-15T12:00:00Z".into()),
-                None,
-                None,
-                vec![],
-            )
+            .update_task(TaskUpdateProps {
+                uuid: task.uuid.clone(),
+                description: "Updated description".into(),
+                status: TaskStatus::Pending,
+                project: Some("NewProject".into()),
+                tags: vec!["tag1".into(), "tag2".into()],
+                due: Some("2026-12-25T12:00:00Z".into()),
+                wait: Some("2026-12-25T12:00:00Z".into()),
+                scheduled: Some("2026-12-01T12:00:00Z".into()),
+                start: Some("2026-12-15T12:00:00Z".into()),
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
 
         let updated_task = wrapper.get_task(task.uuid).unwrap().unwrap();
@@ -628,35 +630,35 @@ mod tests {
         let start_time = "2026-04-17T12:00:00Z";
         let expected_time = "2026-04-17T12:00:00+00:00";
         let task = wrapper
-            .add_task(
-                "Active task".into(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                Some(start_time.into()),
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "Active task".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: Some(start_time.into()),
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task.start, Some(expected_time.into()));
 
         // Update to clear start
         wrapper
-            .update_task(
-                task.uuid.clone(),
-                task.description,
-                task.status,
-                task.project,
-                task.tags,
-                task.due,
-                task.wait,
-                task.scheduled,
-                None,
-                None,
-                vec![],
-            )
+            .update_task(TaskUpdateProps {
+                uuid: task.uuid.clone(),
+                description: task.description.clone(),
+                status: task.status,
+                project: task.project.clone(),
+                tags: task.tags.clone(),
+                due: task.due.clone(),
+                wait: task.wait.clone(),
+                scheduled: task.scheduled.clone(),
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         let updated_task = wrapper.get_task(task.uuid).unwrap().unwrap();
         assert_eq!(updated_task.start, None);
@@ -665,17 +667,17 @@ mod tests {
     #[test]
     fn test_invalid_date_format() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
-        let result = wrapper.add_task(
-            "Task with bad date".into(),
-            None,
-            vec![],
-            None,
-            Some("invalid-date".into()),
-            None,
-            None,
-            None,
-            vec![],
-        );
+        let result = wrapper.add_task(TaskAddProps {
+            description: "Task with bad date".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: Some("invalid-date".into()),
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        });
         assert!(result.is_err());
     }
 
@@ -685,17 +687,17 @@ mod tests {
         let description = "Emoji description: 🚀🔥";
         let project = "Project/Sub: 🏢";
         let task = wrapper
-            .add_task(
-                description.into(),
-                Some(project.into()),
-                vec!["tag_✨".into()],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: description.into(),
+                project: Some(project.into()),
+                tags: vec!["tag_✨".into()],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task.description, description);
         assert_eq!(task.project, Some(project.into()));
@@ -706,17 +708,17 @@ mod tests {
     fn test_empty_description() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task(
-                "".into(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task.description, "");
     }
@@ -726,17 +728,17 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let long_desc = "a".repeat(1000);
         let task = wrapper
-            .add_task(
-                long_desc.clone(),
-                None,
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: long_desc.clone(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task.description, long_desc);
     }
@@ -745,17 +747,17 @@ mod tests {
     fn test_invalid_tag_format() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         // Tags cannot have spaces
-        let result = wrapper.add_task(
-            "Task with bad tag".into(),
-            None,
-            vec!["tag with space".into()],
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![],
-        );
+        let result = wrapper.add_task(TaskAddProps {
+            description: "Task with bad tag".into(),
+            project: None,
+            tags: vec!["tag with space".into()],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        });
         assert!(result.is_err());
     }
 
@@ -770,35 +772,35 @@ mod tests {
     fn test_remove_project() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
-            .add_task(
-                "Task with project".into(),
-                Some("InitialProject".into()),
-                vec![],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "Task with project".into(),
+                project: Some("InitialProject".into()),
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task.project, Some("InitialProject".into()));
 
         // Update to remove project
         wrapper
-            .update_task(
-                task.uuid.clone(),
-                task.description,
-                task.status,
-                None, // Remove project
-                task.tags,
-                task.due,
-                task.wait,
-                task.scheduled,
-                task.start,
-                None,
-                vec![],
-            )
+            .update_task(TaskUpdateProps {
+                uuid: task.uuid.clone(),
+                description: task.description.clone(),
+                status: task.status,
+                project: None,
+                tags: task.tags.clone(),
+                due: task.due.clone(),
+                wait: task.wait.clone(),
+                scheduled: task.scheduled.clone(),
+                start: task.start.clone(),
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
 
         let updated_task = wrapper.get_task(task.uuid).unwrap().unwrap();
@@ -811,48 +813,48 @@ mod tests {
 
         // Valid UTC date
         let task = wrapper
-            .add_task(
-                "Date test".into(),
-                None,
-                vec![],
-                None,
-                Some("2026-04-20T10:00:00Z".into()),
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "Date test".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: Some("2026-04-20T10:00:00Z".into()),
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task.due, Some("2026-04-20T10:00:00+00:00".into()));
 
         // Valid offset date (should be converted to UTC)
         let task2 = wrapper
-            .add_task(
-                "Offset test".into(),
-                None,
-                vec![],
-                None,
-                Some("2026-04-20T10:00:00+02:00".into()),
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "Offset test".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: Some("2026-04-20T10:00:00+02:00".into()),
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
         assert_eq!(task2.due, Some("2026-04-20T08:00:00+00:00".into()));
 
         // Invalid date should fail
-        let result = wrapper.add_task(
-            "Bad date".into(),
-            None,
-            vec![],
-            None,
-            Some("2026-13-45T00:00:00Z".into()),
-            None,
-            None,
-            None,
-            vec![],
-        );
+        let result = wrapper.add_task(TaskAddProps {
+            description: "Bad date".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: Some("2026-13-45T00:00:00Z".into()),
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        });
         assert!(result.is_err());
     }
 
@@ -868,17 +870,17 @@ mod tests {
         let wrapper = ReplicaWrapper::new_on_disk(db_path).unwrap();
 
         let task = wrapper
-            .add_task(
-                "UDA test".into(),
-                None,
-                vec!["tag1".into()],
-                None,
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            )
+            .add_task(TaskAddProps {
+                description: "UDA test".into(),
+                project: None,
+                tags: vec!["tag1".into()],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
             .unwrap();
 
         // Check that tag1 is in tags, but not in UDAs

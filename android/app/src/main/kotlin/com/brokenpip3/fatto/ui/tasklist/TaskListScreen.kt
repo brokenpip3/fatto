@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto.ui.tasklist
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -32,20 +34,15 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -88,6 +85,7 @@ fun TaskListScreen(
     viewModel: TaskViewModel,
     onTaskClick: (Task) -> Unit,
     onAddTaskClick: () -> Unit,
+    confirmActions: Boolean,
 ) {
     val tasks by viewModel.activeTasks.collectAsState()
     val completedTasks by viewModel.completedTasks.collectAsState()
@@ -102,6 +100,9 @@ fun TaskListScreen(
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showCompleted by remember { mutableStateOf(false) }
+
+    var taskToComplete by remember { mutableStateOf<Task?>(null) }
+    var taskToDelete by remember { mutableStateOf<Task?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -176,7 +177,7 @@ fun TaskListScreen(
                         }
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort")
+                                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                             }
                             DropdownMenu(
                                 expanded = showSortMenu,
@@ -279,40 +280,50 @@ fun TaskListScreen(
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                     )
-                                    SuggestionChip(label = "project:xxx") {
-                                        val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
-                                        viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}project:")
-                                    }
-                                    SuggestionChip(label = "tags:xxx,yyy") {
-                                        val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
-                                        viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}tags:")
-                                    }
+                                    SuggestionChip(
+                                        onClick = {
+                                            val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
+                                            viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}project:")
+                                        },
+                                        label = "project:xxx",
+                                    )
+                                    SuggestionChip(
+                                        onClick = {
+                                            val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
+                                            viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}tags:")
+                                        },
+                                        label = "tags:xxx,yyy",
+                                    )
                                 }
                             }
 
                             if (activeProject != null) {
-                                InputChip(
-                                    selected = true,
+                                Surface(
                                     onClick = { viewModel.setActiveProject(null) },
-                                    label = { Text("Project: $activeProject", style = MaterialTheme.typography.labelSmall) },
-                                    trailingIcon = {
+                                    color = activeProject!!.toNordicColor().copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, activeProject!!.toNordicColor()),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = "Project: $activeProject",
+                                            modifier =
+                                                Modifier
+                                                    .weight(1f)
+                                                    .padding(start = 12.dp, top = 6.dp, bottom = 6.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = activeProject!!.toNordicColor(),
+                                        )
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = null,
-                                            modifier = Modifier.size(14.dp),
+                                            modifier = Modifier.size(14.dp).padding(4.dp),
                                         )
-                                    },
-                                    colors =
-                                        InputChipDefaults.inputChipColors(
-                                            selectedContainerColor = activeProject!!.toNordicColor().copy(alpha = 0.1f),
-                                            selectedLabelColor = activeProject!!.toNordicColor(),
-                                        ),
-                                    border =
-                                        InputChipDefaults.inputChipBorder(
-                                            selectedBorderColor = activeProject!!.toNordicColor(),
-                                            selectedBorderWidth = 1.dp,
-                                        ),
-                                )
+                                    }
+                                }
                             }
 
                             if (availableTags.isNotEmpty()) {
@@ -321,28 +332,38 @@ fun TaskListScreen(
                                     contentPadding = PaddingValues(bottom = 8.dp),
                                 ) {
                                     items(availableTags.toList()) { tag ->
-                                        FilterChip(
-                                            selected = selectedTags.contains(tag),
+                                        Surface(
                                             onClick = { viewModel.toggleTag(tag) },
-                                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
-                                            colors =
-                                                FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = tag.toNordicColor().copy(alpha = 0.2f),
-                                                    selectedLabelColor = tag.toNordicColor(),
-                                                ),
+                                            color =
+                                                if (selectedTags.contains(tag)) {
+                                                    tag.toNordicColor().copy(alpha = 0.2f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                },
+                                            shape = RoundedCornerShape(16.dp),
                                             border =
-                                                FilterChipDefaults.filterChipBorder(
-                                                    borderColor =
-                                                        if (selectedTags.contains(
-                                                                tag,
-                                                            )
-                                                        ) {
+                                                BorderStroke(
+                                                    width = 1.dp,
+                                                    color =
+                                                        if (selectedTags.contains(tag)) {
                                                             tag.toNordicColor()
                                                         } else {
                                                             MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                                                         },
                                                 ),
-                                        )
+                                        ) {
+                                            Text(
+                                                text = tag,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color =
+                                                    if (selectedTags.contains(tag)) {
+                                                        tag.toNordicColor()
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -360,8 +381,20 @@ fun TaskListScreen(
                     TaskItem(
                         task = task,
                         onClick = { onTaskClick(task) },
-                        onComplete = { viewModel.completeTask(task.uuid) },
-                        onDelete = { viewModel.deleteTask(task.uuid) },
+                        onComplete = {
+                            if (confirmActions) {
+                                taskToComplete = task
+                            } else {
+                                viewModel.completeTask(task.uuid)
+                            }
+                        },
+                        onDelete = {
+                            if (confirmActions) {
+                                taskToDelete = task
+                            } else {
+                                viewModel.deleteTask(task.uuid)
+                            }
+                        },
                         showInternalTags = showInternalTags,
                     )
                 }
@@ -382,12 +415,64 @@ fun TaskListScreen(
                                 task = task,
                                 onClick = { onTaskClick(task) },
                                 onComplete = { },
-                                onDelete = { viewModel.deleteTask(task.uuid) },
+                                onDelete = {
+                                    if (confirmActions) {
+                                        taskToDelete = task
+                                    } else {
+                                        viewModel.deleteTask(task.uuid)
+                                    }
+                                },
                                 showInternalTags = showInternalTags,
                             )
                         }
                     }
                 }
+            }
+
+            if (taskToComplete != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { taskToComplete = null },
+                    title = { Text("Complete Task") },
+                    text = { Text("Are you sure you want to mark this task as completed?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                taskToComplete?.let { viewModel.completeTask(it.uuid) }
+                                taskToComplete = null
+                            },
+                        ) {
+                            Text("Confirm")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { taskToComplete = null }) {
+                            Text("Cancel")
+                        }
+                    },
+                )
+            }
+
+            if (taskToDelete != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { taskToDelete = null },
+                    title = { Text("Delete Task") },
+                    text = { Text("Are you sure you want to delete this task?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                taskToDelete?.let { viewModel.deleteTask(it.uuid) }
+                                taskToDelete = null
+                            },
+                        ) {
+                            Text("Confirm")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { taskToDelete = null }) {
+                            Text("Cancel")
+                        }
+                    },
+                )
             }
         }
     }
@@ -438,7 +523,24 @@ fun TaskItem(
             },
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (task.start != null) {
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+            ),
+        border =
+            if (task.start != null) {
+                BorderStroke(
+                    width = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                )
+            } else {
+                null
+            },
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
@@ -497,7 +599,7 @@ fun TaskItem(
 
                             task.due?.let {
                                 Text(
-                                    text = "Due: ${it.take(10)}",
+                                    text = "Due: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                                 )
@@ -505,7 +607,7 @@ fun TaskItem(
 
                             task.scheduled?.let {
                                 Text(
-                                    text = "Sch: ${it.take(10)}",
+                                    text = "Sch: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                                 )

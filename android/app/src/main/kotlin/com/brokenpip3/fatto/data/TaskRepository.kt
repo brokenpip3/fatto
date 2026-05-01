@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import uniffi.taskchampion_android.ReplicaWrapper
+import uniffi.taskchampion_android.TaskAddProps
 import uniffi.taskchampion_android.TaskStatus
+import uniffi.taskchampion_android.TaskUpdateProps
 import java.io.File
 
 class TaskRepository(
@@ -25,6 +27,7 @@ class TaskRepository(
     val showInternalTags: StateFlow<Boolean> = settingsRepository.showInternalTags
     val showEmptyProjects: StateFlow<Boolean> = settingsRepository.showEmptyProjects
     val tagsPerLine: StateFlow<Int> = settingsRepository.tagsPerLine
+    val firstDayOfWeek: StateFlow<Int> = settingsRepository.firstDayOfWeek
 
     suspend fun init() =
         withContext(Dispatchers.IO) {
@@ -60,7 +63,19 @@ class TaskRepository(
     ) = withContext(Dispatchers.IO) {
         val r = replica ?: throw Exception("Replica not initialized")
         try {
-            r.addTask(description, project, tags, wait, due, scheduled, start, priority, dependencies)
+            val props =
+                TaskAddProps(
+                    description = description,
+                    project = project,
+                    tags = tags,
+                    due = due,
+                    wait = wait,
+                    scheduled = scheduled,
+                    start = start,
+                    priority = priority,
+                    dependencies = dependencies,
+                )
+            r.addTask(props)
             loadTasks()
             triggerSync()
         } catch (e: Exception) {
@@ -73,19 +88,21 @@ class TaskRepository(
         withContext(Dispatchers.IO) {
             val r = replica ?: throw Exception("Replica not initialized")
             try {
-                r.updateTask(
-                    task.uuid,
-                    task.description,
-                    task.status,
-                    task.project,
-                    task.tags,
-                    task.due,
-                    task.wait,
-                    task.scheduled,
-                    task.start,
-                    task.priority,
-                    task.dependencies,
-                )
+                val props =
+                    TaskUpdateProps(
+                        uuid = task.uuid,
+                        description = task.description,
+                        status = task.status,
+                        project = task.project,
+                        tags = task.tags,
+                        due = task.due,
+                        wait = task.wait,
+                        scheduled = task.scheduled,
+                        start = task.start,
+                        priority = task.priority,
+                        dependencies = task.dependencies,
+                    )
+                r.updateTask(props)
                 loadTasks()
                 triggerSync()
             } catch (e: Exception) {

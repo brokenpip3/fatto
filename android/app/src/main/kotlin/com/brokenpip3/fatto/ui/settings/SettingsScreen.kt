@@ -28,7 +28,9 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -73,6 +75,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val includeDueToday by viewModel.includeDueToday.collectAsState()
     val includeScheduledToday by viewModel.includeScheduledToday.collectAsState()
     val includeOverdue by viewModel.includeOverdue.collectAsState()
+    val firstDayOfWeek by viewModel.firstDayOfWeek.collectAsState()
+    val confirmActions by viewModel.confirmActions.collectAsState()
 
     var secretVisible by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -310,7 +314,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                             ),
                         modifier =
                             Modifier
-                                .menuAnchor()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth(),
                     )
                     ExposedDropdownMenu(
@@ -476,6 +480,29 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 )
             }
 
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.onConfirmActionsChange(!confirmActions) }
+                        .padding(vertical = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = confirmActions,
+                    onCheckedChange = { viewModel.onConfirmActionsChange(it) },
+                    colors =
+                        CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                        ),
+                )
+                Text(
+                    text = "Confirm complete/delete",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(
                     text = "Tags per line: $tagsPerLine",
@@ -491,6 +518,44 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                             thumbColor = MaterialTheme.colorScheme.primary,
                             activeTrackColor = MaterialTheme.colorScheme.primary,
                         ),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "First day of week",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = firstDayOfWeek == java.util.Calendar.MONDAY,
+                    onClick = { viewModel.onFirstDayOfWeekChange(java.util.Calendar.MONDAY) },
+                )
+                Text(
+                    text = "Monday",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier =
+                        Modifier
+                            .clickable { viewModel.onFirstDayOfWeekChange(java.util.Calendar.MONDAY) }
+                            .padding(start = 8.dp, end = 24.dp),
+                )
+
+                RadioButton(
+                    selected = firstDayOfWeek == java.util.Calendar.SUNDAY,
+                    onClick = { viewModel.onFirstDayOfWeekChange(java.util.Calendar.SUNDAY) },
+                )
+                Text(
+                    text = "Sunday",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier =
+                        Modifier
+                            .clickable { viewModel.onFirstDayOfWeekChange(java.util.Calendar.SUNDAY) }
+                            .padding(start = 8.dp),
                 )
             }
         }

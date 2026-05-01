@@ -43,6 +43,12 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _includeOverdue = MutableStateFlow(false)
     val includeOverdue = _includeOverdue.asStateFlow()
 
+    private val _firstDayOfWeek = MutableStateFlow(java.util.Calendar.MONDAY)
+    val firstDayOfWeek = _firstDayOfWeek.asStateFlow()
+
+    private val _confirmActions = MutableStateFlow(true)
+    val confirmActions = _confirmActions.asStateFlow()
+
     init {
         load()
     }
@@ -66,6 +72,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _includeDueToday.value = repository.getIncludeDueToday()
         _includeScheduledToday.value = repository.getIncludeScheduledToday()
         _includeOverdue.value = repository.getIncludeOverdue()
+        _firstDayOfWeek.value = repository.getFirstDayOfWeek()
+        _confirmActions.value = repository.getConfirmActions()
     }
 
     fun onUrlChange(value: String) {
@@ -125,6 +133,16 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         repository.setTagsPerLine(value)
     }
 
+    fun onFirstDayOfWeekChange(value: Int) {
+        _firstDayOfWeek.value = value
+        repository.setFirstDayOfWeek(value)
+    }
+
+    fun onConfirmActionsChange(value: Boolean) {
+        _confirmActions.value = value
+        repository.setConfirmActions(value)
+    }
+
     fun save() {
         val url = _syncUrl.value.trim()
         val clientIdValue = _clientId.value.trim()
@@ -142,5 +160,7 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _encryptionSecret.value = ""
         _showCompleted.value = true
         repository.setShowCompleted(true)
+        _confirmActions.value = true
+        repository.setConfirmActions(true)
     }
 }

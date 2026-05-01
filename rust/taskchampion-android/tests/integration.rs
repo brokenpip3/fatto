@@ -1,5 +1,5 @@
 use std::env;
-use taskchampion_android::{ReplicaWrapper, TaskStatus};
+use taskchampion_android::{ReplicaWrapper, TaskAddProps, TaskStatus, TaskUpdateProps};
 
 #[test]
 fn test_sync_integration() {
@@ -11,17 +11,17 @@ fn test_sync_integration() {
     // 1. Create first replica and add a task
     let rep1 = ReplicaWrapper::new_in_memory().unwrap();
     let task1 = rep1
-        .add_task(
-            "Task from replica 1".into(),
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![],
-        )
+        .add_task(TaskAddProps {
+            description: "Task from replica 1".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        })
         .unwrap();
 
     // 2. Sync first replica
@@ -68,17 +68,17 @@ fn test_sync_deletion_integration() {
 
     let rep1 = ReplicaWrapper::new_in_memory().unwrap();
     let task1 = rep1
-        .add_task(
-            "To be deleted".into(),
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![],
-        )
+        .add_task(TaskAddProps {
+            description: "To be deleted".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        })
         .unwrap();
     rep1.sync(sync_url.clone(), client_id.clone(), sync_secret.clone())
         .unwrap();
@@ -108,17 +108,17 @@ fn test_sync_conflict_integration() {
 
     let rep1 = ReplicaWrapper::new_in_memory().unwrap();
     let task1 = rep1
-        .add_task(
-            "Conflict task".into(),
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![],
-        )
+        .add_task(TaskAddProps {
+            description: "Conflict task".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        })
         .unwrap();
     rep1.sync(sync_url.clone(), client_id.clone(), sync_secret.clone())
         .unwrap();
@@ -152,64 +152,64 @@ fn test_task_properties_integration() {
 
     // 1. Test Priority & Urgency
     let task_h = rep
-        .add_task(
-            "High priority".into(),
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            Some("H".into()),
-            vec![],
-        )
+        .add_task(TaskAddProps {
+            description: "High priority".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: Some("H".into()),
+            dependencies: vec![],
+        })
         .unwrap();
     assert_eq!(task_h.priority, Some("H".into()));
     assert!(task_h.urgency >= 6.0); // 6.0 (priority H) + some age
 
     // 2. Test Dependencies & Blocking
     let task_blocking = rep
-        .add_task(
-            "Blocking task".into(),
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![],
-        )
+        .add_task(TaskAddProps {
+            description: "Blocking task".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        })
         .unwrap();
 
     let task_blocked = rep
-        .add_task(
-            "Blocked task".into(),
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![],
-        )
+        .add_task(TaskAddProps {
+            description: "Blocked task".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        })
         .unwrap();
 
     // Link them: blocked depends on blocking
-    rep.update_task(
-        task_blocked.uuid.clone(),
-        task_blocked.description.clone(),
-        task_blocked.status,
-        None,
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        None,
-        vec![task_blocking.uuid.clone()],
-    )
+    rep.update_task(TaskUpdateProps {
+        uuid: task_blocked.uuid.clone(),
+        description: task_blocked.description.clone(),
+        status: task_blocked.status,
+        project: None,
+        tags: vec![],
+        wait: None,
+        due: None,
+        scheduled: None,
+        start: None,
+        priority: None,
+        dependencies: vec![task_blocking.uuid.clone()],
+    })
     .unwrap();
 
     let tasks = rep.all_task_data().unwrap();

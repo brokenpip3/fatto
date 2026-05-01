@@ -237,7 +237,7 @@ fun ProjectCard(
                 modifier = Modifier.size(48.dp),
             ) {
                 CircularProgressIndicator(
-                    progress = progress,
+                    progress = { progress },
                     modifier = Modifier.fillMaxSize(),
                     color = color,
                     strokeWidth = 4.dp,
