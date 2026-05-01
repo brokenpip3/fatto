@@ -523,7 +523,24 @@ fun TaskItem(
             },
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (task.start != null) {
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+            ),
+        border =
+            if (task.start != null) {
+                BorderStroke(
+                    width = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                )
+            } else {
+                null
+            },
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
