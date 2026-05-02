@@ -1,0 +1,14 @@
+Fatto is a TaskWarrior client for Android. It syncs with any taskchampion-sync-server and provides a mobile interface for managing TaskWarrior 3.x tasks.
+
+Key Features:
+- Bi-directional sync with any taskchampion-sync-server.
+- Task management with filtering, sorting, and detail editing.
+- Hierarchical project management with pending task counts.
+- Tag management with pending task counts.
+- Smart suggestions for projects and tags during task creation.
+- Date pickers for due and scheduled dates.
+- Daily notifications for due and scheduled tasks.
+- Privacy-focused: Bundled fonts, local storage, and no tracking.
+- Urgency, priority, UDAs and dependencies support
+
+Fatto is built with Rust and Kotlin, using the TaskChampion sync engine to manage your TaskWarrior database on Android.
