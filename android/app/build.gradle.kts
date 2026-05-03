@@ -70,8 +70,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            val releaseSigning = signingConfigs.getByName("release")
-            if (releaseSigning.storeFile != null) {
+            val releaseSigning = signingConfigs.findByName("release")
+            if (releaseSigning?.storeFile != null) {
                 signingConfig = releaseSigning
             }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -82,8 +82,8 @@ android {
             applicationIdSuffix = ".beta"
             versionNameSuffix = "-beta"
             manifestPlaceholders["appLabel"] = "Fatto Beta"
-            val betaSigning = signingConfigs.getByName("beta")
-            if (betaSigning.storeFile != null) {
+            val betaSigning = signingConfigs.findByName("beta")
+            if (betaSigning?.storeFile != null) {
                 signingConfig = betaSigning
             }
         }
