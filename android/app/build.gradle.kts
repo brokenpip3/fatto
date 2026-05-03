@@ -1,7 +1,10 @@
 import org.gradle.api.JavaVersion
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Calendar
+import java.util.Date
 import java.util.Properties
+import java.util.TimeZone
 
 plugins {
     id("com.android.application")
@@ -22,7 +25,19 @@ android {
             }
         }
 
-    val buildTime = OffsetDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+    val buildTime =
+        System.getenv("SOURCE_DATE_EPOCH")
+            ?.toLongOrNull()
+            ?.let { epoch ->
+                val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                cal.time = Date(epoch * 1000L)
+                "%04d-%02d-%02d".format(
+                    cal.get(Calendar.YEAR),
+                    cal.get(Calendar.MONTH) + 1,
+                    cal.get(Calendar.DAY_OF_MONTH),
+                )
+            }
+            ?: OffsetDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
 
     defaultConfig {
         applicationId = "com.brokenpip3.fatto"
@@ -38,11 +53,16 @@ android {
             useSupportLibrary = true
         }
 
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
-        }
-
         manifestPlaceholders["appLabel"] = "Fatto"
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
     }
 
     signingConfigs {
