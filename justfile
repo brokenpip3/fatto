@@ -43,17 +43,19 @@ build-release-apk:
     fi
     @echo "Decoding release keystore..."
     @echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks
-    @export FATTO_KEYSTORE_PATH=release.jks; \
+    @export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct); \
+    export FATTO_KEYSTORE_PATH=release.jks; \
     trap 'rm -f android/app/release.jks' EXIT; \
     cd android && ./gradlew assembleRelease
     @mkdir -p dist
     @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2); \
-    if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then \
-        cp android/app/build/outputs/apk/release/app-release.apk dist/fatto-v$VERSION.apk; \
-    else \
-        cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/fatto-v$VERSION.apk; \
-    fi; \
-    echo "Release APK created at: dist/fatto-v$VERSION.apk"
+    for apk in android/app/build/outputs/apk/release/*.apk; do \
+        if [ ! -f "$apk" ]; then continue; fi; \
+        base=$(basename "$apk"); \
+        new_name=$(echo "$base" | sed -E "s/^app(-)?(.*)-release(-unsigned)?\.apk$/fatto-v$VERSION\1\2\3.apk/"); \
+        cp "$apk" "dist/$new_name"; \
+        echo "Release APK created at: dist/$new_name"; \
+    done
 
 # build and bundle release aab/apk
 build-release: build-rust-all build-bindings build-release-apk
@@ -69,17 +71,19 @@ build-beta-apk:
     fi
     @echo "Decoding beta keystore..."
     @echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks
-    @export FATTO_KEYSTORE_PATH=release.jks; \
+    @export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct); \
+    export FATTO_KEYSTORE_PATH=release.jks; \
     trap 'rm -f android/app/release.jks' EXIT; \
     cd android && ./gradlew assembleBeta
     @mkdir -p dist
     @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2); \
-    if [ -f android/app/build/outputs/apk/beta/app-beta.apk ]; then \
-        cp android/app/build/outputs/apk/beta/app-beta.apk dist/fatto-v$VERSION-beta.apk; \
-    else \
-        cp android/app/build/outputs/apk/beta/app-beta-unsigned.apk dist/fatto-v$VERSION-beta.apk; \
-    fi; \
-    echo "Beta APK created at: dist/fatto-v$VERSION-beta.apk"
+    for apk in android/app/build/outputs/apk/beta/*.apk; do \
+        if [ ! -f "$apk" ]; then continue; fi; \
+        base=$(basename "$apk"); \
+        new_name=$(echo "$base" | sed -E "s/^app(-)?(.*)-beta(-unsigned)?\.apk$/fatto-v$VERSION\1\2-beta\3.apk/"); \
+        cp "$apk" "dist/$new_name"; \
+        echo "Beta APK created at: dist/$new_name"; \
+    done
 
 # run fast unit tests (Rust unit + Kotlin unit)
 test-fast: test-rust test-kotlin
