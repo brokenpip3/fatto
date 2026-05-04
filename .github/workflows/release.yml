@@ -13,7 +13,7 @@ jobs:
       github.event_name == 'release' &&
       startsWith(github.event.release.tag_name, 'v')
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Maximize Runner Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -49,7 +49,7 @@ jobs:
     needs: build-rust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Maximize Runner Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -99,7 +99,7 @@ jobs:
           path: dist/*.apk
 
       - name: Attach APK to Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: dist/*.apk
         env:
