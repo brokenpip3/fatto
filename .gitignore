@@ -4,8 +4,8 @@ dist/
 build/
 android/.gradle/
 android/app/build/
-android/app/src/main/jniLibs/
-android/app/src/main/uniffi/
+android/app/src/main/jniLibs
+android/app/src/main/uniffi
 rust/taskchampion-android/target/
 rust/taskchampion-android/.cargo/config.toml
 *.so
@@ -29,3 +29,4 @@ local.properties
 .env
 .env.*
 .gradle-home/
+result
