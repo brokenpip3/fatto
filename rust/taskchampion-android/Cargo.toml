@@ -16,7 +16,7 @@ uniffi = { version = "0.31", features = ["build", "cli"] }
 thiserror = "2"
 # we match taskchampion 3.0.0's rusqlite dependency to avoid link conflict
 rusqlite = { version = "0.37", features = ["bundled"] }
-tokio = { version = "1.51.1", features = ["full"] }
+tokio = { version = "1.52.3", features = ["full"] }
 futures-util = "0.3.32"
 anyhow = "1.0.102"
 async-trait = "0.1.89"
