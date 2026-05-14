@@ -85,6 +85,16 @@ build-beta-apk:
         echo "Beta APK created at: dist/$new_name"; \
     done
 
+# build rust libs and uniffi bindings via nix (reproducible)
+build-nix-libs:
+    nix build .#taskchampion-android
+    rm -rf android/app/src/main/jniLibs android/app/src/main/uniffi
+    ln -sf $(pwd)/result/jniLibs android/app/src/main/jniLibs
+    ln -sf $(pwd)/result/uniffi android/app/src/main/uniffi
+
+# reproducible release build using nix for rust layer
+build-release-repro: build-nix-libs build-release-apk
+
 # run fast unit tests (Rust unit + Kotlin unit)
 test-fast: test-rust test-kotlin
 

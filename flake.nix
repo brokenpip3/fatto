@@ -69,6 +69,40 @@
           ];
         };
 
+        fattoRustPlatform = pkgs.makeRustPlatform {
+          cargo = rustToolchain;
+          rustc = rustToolchain;
+        };
+
+        taskchampionAndroid = fattoRustPlatform.buildRustPackage {
+          pname = "taskchampion-android";
+          version = "0.2.0";
+          src = ./rust/taskchampion-android;
+          cargoLock.lockFile = ./rust/taskchampion-android/Cargo.lock;
+
+          nativeBuildInputs = [
+            pkgs.cargo-ndk
+            androidSdkBase
+          ];
+
+          ANDROID_NDK_ROOT = "${androidSdkBase}/libexec/android-sdk/ndk/26.1.10909125";
+          RUSTFLAGS = "--remap-path-prefix ./=/c --remap-path-prefix ${rustToolchain}=/cargo -C link-arg=-Wl,--build-id=none";
+
+          buildPhase = ''
+            export HOME=$(mktemp -d)
+            cargo ndk -t arm64-v8a -t x86_64 -o $out/jniLibs build --release
+            cargo build --release
+          '';
+
+          installPhase = ''
+            cargo run --bin uniffi-bindgen generate \
+              --library target/release/libtaskchampion_android.so \
+              --language kotlin --no-format \
+              --out-dir $out/uniffi
+          '';
+
+          doCheck = false;
+        };
       in
       let
         mkFattoShell =
@@ -135,12 +169,12 @@
               );
 
               shellHook = ''
-                 export PATH="${pkgs.lib.optionalString includeJdk "$JAVA_HOME/bin:"}${pkgs.lib.optionalString includeSdk "$ANDROID_HOME/platform-tools:${pkgs.lib.optionalString hasEmulator "$ANDROID_HOME/emulator:"}$ANDROID_HOME/build-tools/34.0.0:"}$PATH"
-                 export GRADLE_USER_HOME="$(git rev-parse --show-toplevel)/.gradle-home"
-                 mkdir -p "$GRADLE_USER_HOME"
-                  ${pkgs.lib.optionalString (includeSdk && useAapt2Override) ''
-                  echo "android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/34.0.0/aapt2" > "$GRADLE_USER_HOME/gradle.properties"
-                ''}
+                export PATH="${pkgs.lib.optionalString includeJdk "$JAVA_HOME/bin:"}${pkgs.lib.optionalString includeSdk "$ANDROID_HOME/platform-tools:${pkgs.lib.optionalString hasEmulator "$ANDROID_HOME/emulator:"}$ANDROID_HOME/build-tools/34.0.0:"}$PATH"
+                export GRADLE_USER_HOME="$(git rev-parse --show-toplevel)/.gradle-home"
+                mkdir -p "$GRADLE_USER_HOME"
+                 ${pkgs.lib.optionalString (includeSdk && useAapt2Override) ''
+                   echo "android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/34.0.0/aapt2" > "$GRADLE_USER_HOME/gradle.properties"
+                 ''}
               '';
             }
             // pkgs.lib.optionalAttrs includeJdk { JAVA_HOME = pkgs.jdk17.home; }
@@ -154,6 +188,7 @@
           );
       in
       {
+        packages.taskchampion-android = taskchampionAndroid;
         devShells.default = mkFattoShell {
           name = "fatto-dev";
           sdk = androidSdkFull;
