@@ -2,7 +2,8 @@ tw_cmd := "docker compose exec taskwarrior-client task"
 
 # clean jni libraries
 build-clean-jni:
-    rm -rf android/app/src/main/jniLibs/*
+    rm -rf android/app/src/main/jniLibs
+    mkdir -p android/app/src/main/jniLibs
 
 # build rust lib for specific targets (default: arm64-v8a)
 build-rust targets="arm64-v8a":
@@ -19,6 +20,7 @@ build-rust-all: build-clean-jni
 
 # generate uniffi bindings for kotlin
 build-bindings: (build-rust "x86_64")
+    rm -rf android/app/src/main/uniffi && mkdir -p android/app/src/main/uniffi
     cd rust/taskchampion-android && \
     cargo build --release && \
     cargo run --bin uniffi-bindgen generate \
@@ -38,15 +40,18 @@ build-debug: build-bindings
 # build release apk (assumes rust libs and bindings are already built)
 build-release-apk:
     @if [ -z "${FATTO_KEYSTORE_BASE64:-}" ]; then \
-        echo "Error: FATTO_KEYSTORE_BASE64 not set. Release builds must be signed."; \
-        exit 1; \
+        echo "Warning: FATTO_KEYSTORE_BASE64 not set. Building unsigned release."; \
+        cd android && ./gradlew assembleRelease; \
+    else \
+        echo "Decoding release keystore..."; \
+        echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks; \
+        export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct); \
+        export FATTO_KEYSTORE_PATH=release.jks; \
+        export FATTO_KEYSTORE_PASSWORD="${FATTO_KEYSTORE_PASSWORD:-}"; \
+        export FATTO_KEY_ALIAS="${FATTO_KEY_ALIAS:-}"; \
+        trap 'rm -f android/app/release.jks' EXIT; \
+        cd android && ./gradlew assembleRelease; \
     fi
-    @echo "Decoding release keystore..."
-    @echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks
-    @export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct); \
-    export FATTO_KEYSTORE_PATH=release.jks; \
-    trap 'rm -f android/app/release.jks' EXIT; \
-    cd android && ./gradlew assembleRelease
     @mkdir -p dist
     @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2); \
     for apk in android/app/build/outputs/apk/release/*.apk; do \
@@ -66,15 +71,18 @@ build-beta: build-rust-all build-bindings build-beta-apk
 # build signed beta apk (assumes rust libs and bindings are already built)
 build-beta-apk:
     @if [ -z "${FATTO_KEYSTORE_BASE64:-}" ]; then \
-        echo "Error: FATTO_KEYSTORE_BASE64 not set. Beta builds must be signed."; \
-        exit 1; \
+        echo "Warning: FATTO_KEYSTORE_BASE64 not set. Building unsigned beta."; \
+        cd android && ./gradlew assembleBeta; \
+    else \
+        echo "Decoding beta keystore..."; \
+        echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks; \
+        export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct); \
+        export FATTO_KEYSTORE_PATH=release.jks; \
+        export FATTO_KEYSTORE_PASSWORD="${FATTO_KEYSTORE_PASSWORD:-}"; \
+        export FATTO_KEY_ALIAS="${FATTO_KEY_ALIAS:-}"; \
+        trap 'rm -f android/app/release.jks' EXIT; \
+        cd android && ./gradlew assembleBeta; \
     fi
-    @echo "Decoding beta keystore..."
-    @echo "${FATTO_KEYSTORE_BASE64:-}" | base64 -d > android/app/release.jks
-    @export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct); \
-    export FATTO_KEYSTORE_PATH=release.jks; \
-    trap 'rm -f android/app/release.jks' EXIT; \
-    cd android && ./gradlew assembleBeta
     @mkdir -p dist
     @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2); \
     for apk in android/app/build/outputs/apk/beta/*.apk; do \
