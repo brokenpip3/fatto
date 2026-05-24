@@ -49,6 +49,12 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _confirmActions = MutableStateFlow(true)
     val confirmActions = _confirmActions.asStateFlow()
 
+    private val _hideBlockedTasksWaiting = MutableStateFlow(false)
+    val hideBlockedTasksWaiting = _hideBlockedTasksWaiting.asStateFlow()
+
+    private val _showWaitingTasks = MutableStateFlow(true)
+    val showWaitingTasks = _showWaitingTasks.asStateFlow()
+
     init {
         load()
     }
@@ -74,6 +80,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _includeOverdue.value = repository.getIncludeOverdue()
         _firstDayOfWeek.value = repository.getFirstDayOfWeek()
         _confirmActions.value = repository.getConfirmActions()
+        _hideBlockedTasksWaiting.value = repository.getHideBlockedTasksWaiting()
+        _showWaitingTasks.value = repository.getShowWaitingTasks()
     }
 
     fun onUrlChange(value: String) {
@@ -141,6 +149,16 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun onConfirmActionsChange(value: Boolean) {
         _confirmActions.value = value
         repository.setConfirmActions(value)
+    }
+
+    fun onHideBlockedTasksWaitingChange(value: Boolean) {
+        _hideBlockedTasksWaiting.value = value
+        repository.setHideBlockedTasksWaiting(value)
+    }
+
+    fun onShowWaitingTasksChange(value: Boolean) {
+        _showWaitingTasks.value = value
+        repository.setShowWaitingTasks(value)
     }
 
     fun save() {

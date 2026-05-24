@@ -88,6 +88,7 @@ fun TaskListScreen(
     confirmActions: Boolean,
 ) {
     val tasks by viewModel.activeTasks.collectAsState()
+    val waitingTasks by viewModel.waitingTasks.collectAsState()
     val completedTasks by viewModel.completedTasks.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTags by viewModel.selectedTags.collectAsState()
@@ -100,6 +101,7 @@ fun TaskListScreen(
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showCompleted by remember { mutableStateOf(false) }
+    var showWaiting by remember { mutableStateOf(false) }
 
     var taskToComplete by remember { mutableStateOf<Task?>(null) }
     var taskToDelete by remember { mutableStateOf<Task?>(null) }
@@ -397,6 +399,41 @@ fun TaskListScreen(
                         },
                         showInternalTags = showInternalTags,
                     )
+                }
+
+                if (waitingTasks.isNotEmpty()) {
+                    item {
+                        CollapsibleHeader(
+                            title = "Waiting",
+                            count = waitingTasks.size,
+                            isExpanded = showWaiting,
+                            onClick = { showWaiting = !showWaiting },
+                        )
+                    }
+
+                    if (showWaiting) {
+                        items(waitingTasks, key = { it.uuid }) { task ->
+                            TaskItem(
+                                task = task,
+                                onClick = { onTaskClick(task) },
+                                onComplete = {
+                                    if (confirmActions) {
+                                        taskToComplete = task
+                                    } else {
+                                        viewModel.completeTask(task.uuid)
+                                    }
+                                },
+                                onDelete = {
+                                    if (confirmActions) {
+                                        taskToDelete = task
+                                    } else {
+                                        viewModel.deleteTask(task.uuid)
+                                    }
+                                },
+                                showInternalTags = showInternalTags,
+                            )
+                        }
+                    }
                 }
 
                 if (completedTasks.isNotEmpty()) {

@@ -33,6 +33,7 @@ class TaskSortTest {
         Dispatchers.setMain(testDispatcher)
         every { repository.tasks } returns tasksFlow
         every { repository.showCompleted } returns MutableStateFlow(false)
+        every { repository.hideBlockedTasksWaiting } returns MutableStateFlow(false)
     }
 
     @After
