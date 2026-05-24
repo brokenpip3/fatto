@@ -117,20 +117,43 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val activeTasks: StateFlow<List<Task>> =
-        baseFilteredTasks
-            .combine(MutableStateFlow(Instant.now())) { tasks, now ->
-                tasks.filter { task ->
-                    task.status == TaskStatus.PENDING && (task.wait == null || Instant.parse(task.wait).isBefore(now))
+        combine(
+            baseFilteredTasks,
+            repository.tasks,
+            repository.hideBlockedTasksWaiting,
+            MutableStateFlow(Instant.now()),
+        ) { tasks, allTasks, hideBlocked, now ->
+            tasks.filter { task ->
+                if (task.status != TaskStatus.PENDING) return@filter false
+                if (task.wait != null && Instant.parse(task.wait).isAfter(now)) return@filter false
+
+                if (hideBlocked && task.isBlocked) {
+                    val blockingDeps =
+                        task.dependencies.mapNotNull { depUuid ->
+                            allTasks.find { it.uuid == depUuid }
+                        }.filter { it.status != TaskStatus.COMPLETED }
+
+                    if (blockingDeps.isNotEmpty()) {
+                        val hasDepsWait = blockingDeps.all { it.wait != null && Instant.parse(it.wait).isAfter(now) }
+                        if (hasDepsWait) return@filter false
+                    }
                 }
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+                true
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val waitingTasks: StateFlow<List<Task>> =
-        baseFilteredTasks
-            .combine(MutableStateFlow(Instant.now())) { tasks, now ->
-                tasks.filter { task ->
-                    task.status == TaskStatus.PENDING && task.wait != null && Instant.parse(task.wait).isAfter(now)
-                }
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        combine(
+            baseFilteredTasks,
+            repository.showWaitingTasks,
+            MutableStateFlow(Instant.now()),
+        ) { tasks, showWaiting, now ->
+            if (!showWaiting) return@combine emptyList()
+            tasks.filter { task ->
+                task.status == TaskStatus.PENDING && task.wait != null && Instant.parse(task.wait).isAfter(now)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val completedTasks: StateFlow<List<Task>> =
         baseFilteredTasks

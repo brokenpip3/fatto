@@ -28,6 +28,8 @@ class TaskRepository(
     val showEmptyProjects: StateFlow<Boolean> = settingsRepository.showEmptyProjects
     val tagsPerLine: StateFlow<Int> = settingsRepository.tagsPerLine
     val firstDayOfWeek: StateFlow<Int> = settingsRepository.firstDayOfWeek
+    val hideBlockedTasksWaiting: StateFlow<Boolean> = settingsRepository.hideBlockedTasksWaiting
+    val showWaitingTasks: StateFlow<Boolean> = settingsRepository.showWaitingTasks
 
     suspend fun init() =
         withContext(Dispatchers.IO) {

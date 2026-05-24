@@ -27,6 +27,8 @@ interface SettingsRepository {
     val includeOverdue: StateFlow<Boolean>
     val firstDayOfWeek: StateFlow<Int>
     val confirmActions: StateFlow<Boolean>
+    val hideBlockedTasksWaiting: StateFlow<Boolean>
+    val showWaitingTasks: StateFlow<Boolean>
 
     fun getFirstDayOfWeek(): Int
 
@@ -35,6 +37,14 @@ interface SettingsRepository {
     fun getConfirmActions(): Boolean
 
     fun setConfirmActions(enabled: Boolean)
+
+    fun getHideBlockedTasksWaiting(): Boolean
+
+    fun setHideBlockedTasksWaiting(value: Boolean)
+
+    fun getShowWaitingTasks(): Boolean
+
+    fun setShowWaitingTasks(value: Boolean)
 
     fun getCredentials(): SyncCredentials?
 
@@ -138,6 +148,12 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private val _confirmActions = MutableStateFlow(getConfirmActions())
     override val confirmActions: StateFlow<Boolean> = _confirmActions.asStateFlow()
 
+    private val _hideBlockedTasksWaiting = MutableStateFlow(getHideBlockedTasksWaiting())
+    override val hideBlockedTasksWaiting: StateFlow<Boolean> = _hideBlockedTasksWaiting.asStateFlow()
+
+    private val _showWaitingTasks = MutableStateFlow(getShowWaitingTasks())
+    override val showWaitingTasks: StateFlow<Boolean> = _showWaitingTasks.asStateFlow()
+
     override fun getFirstDayOfWeek(): Int {
         return sharedPreferences?.getInt("first_day_of_week", Calendar.MONDAY) ?: Calendar.MONDAY
     }
@@ -154,6 +170,24 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setConfirmActions(enabled: Boolean) {
         sharedPreferences?.edit()?.putBoolean("confirm_actions", enabled)?.apply()
         _confirmActions.value = enabled
+    }
+
+    override fun getHideBlockedTasksWaiting(): Boolean {
+        return sharedPreferences?.getBoolean("hide_blocked_tasks_waiting", false) ?: false
+    }
+
+    override fun setHideBlockedTasksWaiting(value: Boolean) {
+        sharedPreferences?.edit()?.putBoolean("hide_blocked_tasks_waiting", value)?.apply()
+        _hideBlockedTasksWaiting.value = value
+    }
+
+    override fun getShowWaitingTasks(): Boolean {
+        return sharedPreferences?.getBoolean("show_waiting_tasks", true) ?: true
+    }
+
+    override fun setShowWaitingTasks(value: Boolean) {
+        sharedPreferences?.edit()?.putBoolean("show_waiting_tasks", value)?.apply()
+        _showWaitingTasks.value = value
     }
 
     override fun getCredentials(): SyncCredentials? {

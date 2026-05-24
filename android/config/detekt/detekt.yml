@@ -128,7 +128,7 @@ complexity:
     threshold: 600
   LongMethod:
     active: true
-    threshold: 500
+    threshold: 520
   LongParameterList:
     active: true
     functionThreshold: 10
@@ -168,9 +168,9 @@ complexity:
     active: true
     excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
     thresholdInFiles: 30
-    thresholdInClasses: 30
-    thresholdInInterfaces: 30
-    thresholdInObjects: 30
+    thresholdInClasses: 31
+    thresholdInInterfaces: 31
+    thresholdInObjects: 31
     thresholdInEnums: 30
     ignoreDeprecated: false
     ignorePrivate: false

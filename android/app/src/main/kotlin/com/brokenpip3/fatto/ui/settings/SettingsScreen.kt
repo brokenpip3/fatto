@@ -77,6 +77,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val includeOverdue by viewModel.includeOverdue.collectAsState()
     val firstDayOfWeek by viewModel.firstDayOfWeek.collectAsState()
     val confirmActions by viewModel.confirmActions.collectAsState()
+    val hideBlockedTasksWaiting by viewModel.hideBlockedTasksWaiting.collectAsState()
+    val showWaitingTasks by viewModel.showWaitingTasks.collectAsState()
 
     var secretVisible by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -475,6 +477,52 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 )
                 Text(
                     text = "Show empty projects",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.onShowWaitingTasksChange(!showWaitingTasks) }
+                        .padding(vertical = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = showWaitingTasks,
+                    onCheckedChange = { viewModel.onShowWaitingTasksChange(it) },
+                    colors =
+                        CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                        ),
+                )
+                Text(
+                    text = "Show waiting tasks",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.onHideBlockedTasksWaitingChange(!hideBlockedTasksWaiting) }
+                        .padding(vertical = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = hideBlockedTasksWaiting,
+                    onCheckedChange = { viewModel.onHideBlockedTasksWaitingChange(it) },
+                    colors =
+                        CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                        ),
+                )
+                Text(
+                    text = "Hide blocked tasks (waiting-only deps)",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(start = 8.dp),
                 )
