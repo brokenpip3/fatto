@@ -29,7 +29,7 @@ class BlockedTasksFilterTest {
     private val showCompletedFlow = MutableStateFlow(false)
     private val hideBlockedFlow = MutableStateFlow(false)
 
-    private val futureWait = "2026-05-24T12:00:00Z"
+    private val futureWait = "2099-12-31T12:00:00Z"
     private val pastWait = "2026-05-22T12:00:00Z"
 
     @Before
@@ -38,6 +38,7 @@ class BlockedTasksFilterTest {
         every { repository.tasks } returns tasksFlow
         every { repository.showCompleted } returns showCompletedFlow
         every { repository.hideBlockedTasksWaiting } returns hideBlockedFlow
+        every { repository.showWaitingTasks } returns MutableStateFlow(true)
     }
 
     @After

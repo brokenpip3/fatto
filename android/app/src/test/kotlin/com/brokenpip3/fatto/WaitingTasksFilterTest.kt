@@ -30,7 +30,7 @@ class WaitingTasksFilterTest {
     private val hideBlockedFlow = MutableStateFlow(false)
     private val showWaitingTasksFlow = MutableStateFlow(true)
 
-    private val futureWait = "2026-05-24T12:00:00Z"
+    private val futureWait = "2099-12-31T12:00:00Z"
     private val pastWait = "2026-05-22T12:00:00Z"
 
     @Before

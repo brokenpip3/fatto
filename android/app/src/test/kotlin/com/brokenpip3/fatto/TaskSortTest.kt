@@ -34,6 +34,7 @@ class TaskSortTest {
         every { repository.tasks } returns tasksFlow
         every { repository.showCompleted } returns MutableStateFlow(false)
         every { repository.hideBlockedTasksWaiting } returns MutableStateFlow(false)
+        every { repository.showWaitingTasks } returns MutableStateFlow(true)
     }
 
     @After
