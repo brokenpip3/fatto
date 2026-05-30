@@ -194,7 +194,7 @@
           sdk = androidSdkFull;
           hasEmulator = true;
           withGui = true;
-          extraInputs = [ pkgs.gemini-cli ];
+          extraInputs = [ pkgs.gemini-cli pkgs.git-cliff ];
         };
 
         devShells.fatto-ci = mkFattoShell {
@@ -206,6 +206,7 @@
           name = "fatto-ci-rust";
           includeSdk = false;
           includeJdk = false;
+          extraInputs = [ pkgs.git-cliff ];
         };
 
         devShells.fatto-ci-kotlin = mkFattoShell {
