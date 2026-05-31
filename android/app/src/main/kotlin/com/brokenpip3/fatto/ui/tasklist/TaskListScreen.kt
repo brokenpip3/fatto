@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -57,11 +58,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -69,6 +75,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
@@ -78,6 +85,8 @@ import com.brokenpip3.fatto.ui.theme.toNordicColor
 import com.brokenpip3.fatto.vm.SortOrder
 import com.brokenpip3.fatto.vm.TaskViewModel
 import uniffi.taskchampion_android.TaskStatus
+
+private const val PULL_TO_REFRESH_THRESHOLD = 100f
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -102,6 +111,55 @@ fun TaskListScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showCompleted by remember { mutableStateOf(false) }
     var showWaiting by remember { mutableStateOf(false) }
+
+    val lazyListState = rememberLazyListState()
+    var pullAccumulator by remember { mutableFloatStateOf(0f) }
+
+    val pullToRefreshConnection =
+        remember {
+            object : NestedScrollConnection {
+                override fun onPreScroll(
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset {
+                    if (available.y < 0f ||
+                        lazyListState.firstVisibleItemIndex != 0 ||
+                        lazyListState.firstVisibleItemScrollOffset != 0
+                    ) {
+                        pullAccumulator = 0f
+                    }
+                    return Offset.Zero
+                }
+
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset {
+                    if (source == NestedScrollSource.UserInput &&
+                        lazyListState.firstVisibleItemIndex == 0 &&
+                        lazyListState.firstVisibleItemScrollOffset == 0 &&
+                        available.y > 0f
+                    ) {
+                        pullAccumulator += available.y
+                        if (pullAccumulator >= PULL_TO_REFRESH_THRESHOLD) {
+                            pullAccumulator = 0f
+                            viewModel.sync()
+                        }
+                        return Offset(0f, available.y)
+                    }
+                    return Offset.Zero
+                }
+
+                override suspend fun onPostFling(
+                    consumed: Velocity,
+                    available: Velocity,
+                ): Velocity {
+                    pullAccumulator = 0f
+                    return Velocity.Zero
+                }
+            }
+        }
 
     var taskToComplete by remember { mutableStateOf<Task?>(null) }
     var taskToDelete by remember { mutableStateOf<Task?>(null) }
@@ -375,7 +433,12 @@ fun TaskListScreen(
             }
 
             LazyColumn(
-                modifier = Modifier.weight(1f).testTag("TaskList"),
+                state = lazyListState,
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .testTag("TaskList")
+                        .nestedScroll(pullToRefreshConnection),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
