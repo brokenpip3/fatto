@@ -28,7 +28,17 @@ see [roadmap](./ROADMAP.md) for the plan for future features and improvements.
 
 ## Installation
 
-I'm working on getting it on fdroid, but in the meantime you can grab the latest `beta` apk from the releases page.
+### From F-Droid
+
+[<img height="80" alt="Get it on F-Droid"
+src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+/>](https://f-droid.org/app/com.brokenpip3.fatto)
+
+### Manually and beta testing
+
+You can download the latest apk from the [releases](https://github.com/brokenpip3/fatto/releases/latest) page.
+
+By time to time we also release beta versions, you can test it without interfering with the stable version, the stable version is a different app from an android perspective, so you can keep both or only use the stable one.
 
 ## Architecture
 

@@ -233,3 +233,11 @@ version-bump name="":
 # display the current version
 version-current:
     @cat android/version.properties
+
+# generate F-Droid changelog since last tag
+version-changelog:
+    @VERSION_CODE=$(grep 'VERSION_CODE=' android/version.properties | cut -d'=' -f2); \
+    PREV_TAG=$(git tag --sort=-creatordate | head -1); \
+    echo "Generating changelog for version code $VERSION_CODE (since $PREV_TAG)..."; \
+    git cliff "$PREV_TAG..HEAD" > "fastlane/metadata/android/en-US/changelogs/$VERSION_CODE"; \
+    echo "Written to fastlane/metadata/android/en-US/changelogs/$VERSION_CODE"
