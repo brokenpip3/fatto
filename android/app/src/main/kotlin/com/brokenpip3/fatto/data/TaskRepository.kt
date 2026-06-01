@@ -30,6 +30,11 @@ class TaskRepository(
     val firstDayOfWeek: StateFlow<Int> = settingsRepository.firstDayOfWeek
     val hideBlockedTasksWaiting: StateFlow<Boolean> = settingsRepository.hideBlockedTasksWaiting
     val showWaitingTasks: StateFlow<Boolean> = settingsRepository.showWaitingTasks
+    val sortOrder: StateFlow<String> = settingsRepository.sortOrder
+
+    fun setSortOrder(order: String) {
+        settingsRepository.setSortOrder(order)
+    }
 
     suspend fun init() =
         withContext(Dispatchers.IO) {

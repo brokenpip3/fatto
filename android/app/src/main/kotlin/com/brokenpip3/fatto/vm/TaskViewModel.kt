@@ -53,7 +53,14 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _currentProjectPath = MutableStateFlow<String?>(null)
     val currentProjectPath = _currentProjectPath.asStateFlow()
 
-    private val _sortOrder = MutableStateFlow(SortOrder.DATE_CREATED)
+    private val _sortOrder =
+        MutableStateFlow(
+            try {
+                SortOrder.valueOf(repository.sortOrder.value)
+            } catch (_: IllegalArgumentException) {
+                SortOrder.DATE_CREATED
+            },
+        )
     val sortOrder = _sortOrder.asStateFlow()
 
     private val baseFilteredTasks: StateFlow<List<Task>> =
@@ -317,6 +324,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
 
     fun setSortOrder(order: SortOrder) {
         _sortOrder.value = order
+        repository.setSortOrder(order.name)
     }
 
     fun addTask(

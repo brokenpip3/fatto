@@ -40,6 +40,7 @@ class WaitingTasksFilterTest {
         every { repository.showCompleted } returns showCompletedFlow
         every { repository.hideBlockedTasksWaiting } returns hideBlockedFlow
         every { repository.showWaitingTasks } returns showWaitingTasksFlow
+        every { repository.sortOrder } returns MutableStateFlow("DATE_CREATED")
     }
 
     @After
