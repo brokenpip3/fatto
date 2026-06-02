@@ -79,6 +79,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val confirmActions by viewModel.confirmActions.collectAsState()
     val hideBlockedTasksWaiting by viewModel.hideBlockedTasksWaiting.collectAsState()
     val showWaitingTasks by viewModel.showWaitingTasks.collectAsState()
+    val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
+    val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
 
     var secretVisible by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -271,28 +273,11 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 color = MaterialTheme.colorScheme.primary,
             )
 
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onDailyNotificationsChange(!dailyNotificationsEnabled) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = dailyNotificationsEnabled,
-                    onCheckedChange = { viewModel.onDailyNotificationsChange(it) },
-                    colors =
-                        CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
-                Text(
-                    text = "Enable daily notifications",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            SettingsCheckboxRow(
+                checked = dailyNotificationsEnabled,
+                onCheckedChange = { viewModel.onDailyNotificationsChange(it) },
+                label = "Enable daily notifications",
+            )
 
             if (dailyNotificationsEnabled) {
                 var expanded by remember { mutableStateOf(false) }
@@ -335,74 +320,23 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     }
                 }
 
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.onIncludeDueTodayChange(!includeDueToday) }
-                            .padding(vertical = 4.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = includeDueToday,
-                        onCheckedChange = { viewModel.onIncludeDueTodayChange(it) },
-                        colors =
-                            CheckboxDefaults.colors(
-                                checkedColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    )
-                    Text(
-                        text = "Include tasks due today",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
+                SettingsCheckboxRow(
+                    checked = includeDueToday,
+                    onCheckedChange = { viewModel.onIncludeDueTodayChange(it) },
+                    label = "Include tasks due today",
+                )
 
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.onIncludeScheduledTodayChange(!includeScheduledToday) }
-                            .padding(vertical = 4.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = includeScheduledToday,
-                        onCheckedChange = { viewModel.onIncludeScheduledTodayChange(it) },
-                        colors =
-                            CheckboxDefaults.colors(
-                                checkedColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    )
-                    Text(
-                        text = "Include tasks scheduled today",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
+                SettingsCheckboxRow(
+                    checked = includeScheduledToday,
+                    onCheckedChange = { viewModel.onIncludeScheduledTodayChange(it) },
+                    label = "Include tasks scheduled today",
+                )
 
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.onIncludeOverdueChange(!includeOverdue) }
-                            .padding(vertical = 4.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = includeOverdue,
-                        onCheckedChange = { viewModel.onIncludeOverdueChange(it) },
-                        colors =
-                            CheckboxDefaults.colors(
-                                checkedColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    )
-                    Text(
-                        text = "Include overdue tasks",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
+                SettingsCheckboxRow(
+                    checked = includeOverdue,
+                    onCheckedChange = { viewModel.onIncludeOverdueChange(it) },
+                    label = "Include overdue tasks",
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -413,143 +347,53 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 color = MaterialTheme.colorScheme.primary,
             )
 
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onShowCompletedChange(!showCompleted) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = showCompleted,
-                    onCheckedChange = { viewModel.onShowCompletedChange(it) },
-                    colors =
-                        CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
-                Text(
-                    text = "Show completed tasks",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            SettingsCheckboxRow(
+                checked = showCompleted,
+                onCheckedChange = { viewModel.onShowCompletedChange(it) },
+                label = "Show completed tasks",
+            )
 
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onShowInternalTagsChange(!showInternalTags) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = showInternalTags,
-                    onCheckedChange = { viewModel.onShowInternalTagsChange(it) },
-                    colors =
-                        CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
-                Text(
-                    text = "Show internal tags",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            SettingsCheckboxRow(
+                checked = showInternalTags,
+                onCheckedChange = { viewModel.onShowInternalTagsChange(it) },
+                label = "Show internal tags",
+            )
 
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onShowEmptyProjectsChange(!showEmptyProjects) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = showEmptyProjects,
-                    onCheckedChange = { viewModel.onShowEmptyProjectsChange(it) },
-                    colors =
-                        CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
-                Text(
-                    text = "Show empty projects",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            SettingsCheckboxRow(
+                checked = showEmptyProjects,
+                onCheckedChange = { viewModel.onShowEmptyProjectsChange(it) },
+                label = "Show empty projects",
+            )
 
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onShowWaitingTasksChange(!showWaitingTasks) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = showWaitingTasks,
-                    onCheckedChange = { viewModel.onShowWaitingTasksChange(it) },
-                    colors =
-                        CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
-                Text(
-                    text = "Show waiting tasks",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            SettingsCheckboxRow(
+                checked = showWaitingTasks,
+                onCheckedChange = { viewModel.onShowWaitingTasksChange(it) },
+                label = "Show waiting tasks",
+            )
 
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onHideBlockedTasksWaitingChange(!hideBlockedTasksWaiting) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = hideBlockedTasksWaiting,
-                    onCheckedChange = { viewModel.onHideBlockedTasksWaitingChange(it) },
-                    colors =
-                        CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
-                Text(
-                    text = "Hide blocked tasks (waiting-only deps)",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            SettingsCheckboxRow(
+                checked = showPriorityBadge,
+                onCheckedChange = { viewModel.onShowPriorityBadgeChange(it) },
+                label = "Show priority badge",
+            )
 
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.onConfirmActionsChange(!confirmActions) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = confirmActions,
-                    onCheckedChange = { viewModel.onConfirmActionsChange(it) },
-                    colors =
-                        CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
-                Text(
-                    text = "Confirm complete/delete",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            SettingsCheckboxRow(
+                checked = showUrgencyBar,
+                onCheckedChange = { viewModel.onShowUrgencyBarChange(it) },
+                label = "Show urgency bar",
+            )
+
+            SettingsCheckboxRow(
+                checked = hideBlockedTasksWaiting,
+                onCheckedChange = { viewModel.onHideBlockedTasksWaitingChange(it) },
+                label = "Hide blocked tasks (waiting-only deps)",
+            )
+
+            SettingsCheckboxRow(
+                checked = confirmActions,
+                onCheckedChange = { viewModel.onConfirmActionsChange(it) },
+                label = "Confirm complete/delete",
+            )
 
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(
@@ -607,5 +451,35 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsCheckboxRow(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    label: String,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable { onCheckedChange(!checked) }
+                .padding(vertical = 8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors =
+                CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                ),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }

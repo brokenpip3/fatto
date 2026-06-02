@@ -193,6 +193,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val showInternalTags: StateFlow<Boolean> = repository.showInternalTags
+    val showPriorityBadge: StateFlow<Boolean> = repository.showPriorityBadge
+    val showUrgencyBar: StateFlow<Boolean> = repository.showUrgencyBar
 
     val availableTags: StateFlow<Set<String>> =
         repository.tasks

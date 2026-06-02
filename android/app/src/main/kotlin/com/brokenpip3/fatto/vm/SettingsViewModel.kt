@@ -55,6 +55,12 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _showWaitingTasks = MutableStateFlow(true)
     val showWaitingTasks = _showWaitingTasks.asStateFlow()
 
+    private val _showPriorityBadge = MutableStateFlow(false)
+    val showPriorityBadge = _showPriorityBadge.asStateFlow()
+
+    private val _showUrgencyBar = MutableStateFlow(false)
+    val showUrgencyBar = _showUrgencyBar.asStateFlow()
+
     init {
         load()
     }
@@ -82,6 +88,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _confirmActions.value = repository.getConfirmActions()
         _hideBlockedTasksWaiting.value = repository.getHideBlockedTasksWaiting()
         _showWaitingTasks.value = repository.getShowWaitingTasks()
+        _showPriorityBadge.value = repository.getShowPriorityBadge()
+        _showUrgencyBar.value = repository.getShowUrgencyBar()
     }
 
     fun onUrlChange(value: String) {
@@ -161,6 +169,16 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         repository.setShowWaitingTasks(value)
     }
 
+    fun onShowPriorityBadgeChange(value: Boolean) {
+        _showPriorityBadge.value = value
+        repository.setShowPriorityBadge(value)
+    }
+
+    fun onShowUrgencyBarChange(value: Boolean) {
+        _showUrgencyBar.value = value
+        repository.setShowUrgencyBar(value)
+    }
+
     fun save() {
         val url = _syncUrl.value.trim()
         val clientIdValue = _clientId.value.trim()
@@ -180,5 +198,9 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         repository.setShowCompleted(true)
         _confirmActions.value = true
         repository.setConfirmActions(true)
+        _showPriorityBadge.value = false
+        repository.setShowPriorityBadge(false)
+        _showUrgencyBar.value = false
+        repository.setShowUrgencyBar(false)
     }
 }

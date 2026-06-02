@@ -31,6 +31,8 @@ interface SettingsRepository {
     val showWaitingTasks: StateFlow<Boolean>
     val sortOrder: StateFlow<String>
     val sortDirection: StateFlow<String>
+    val showPriorityBadge: StateFlow<Boolean>
+    val showUrgencyBar: StateFlow<Boolean>
 
     fun getFirstDayOfWeek(): Int
 
@@ -103,6 +105,14 @@ interface SettingsRepository {
     fun getIncludeOverdue(): Boolean
 
     fun setIncludeOverdue(enabled: Boolean)
+
+    fun getShowPriorityBadge(): Boolean
+
+    fun setShowPriorityBadge(enabled: Boolean)
+
+    fun getShowUrgencyBar(): Boolean
+
+    fun setShowUrgencyBar(enabled: Boolean)
 }
 
 class SettingsRepositoryImpl(context: Context) : SettingsRepository {
@@ -169,6 +179,12 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private val _sortDirection = MutableStateFlow(getSortDirection())
     override val sortDirection: StateFlow<String> = _sortDirection.asStateFlow()
+
+    private val _showPriorityBadge = MutableStateFlow(getShowPriorityBadge())
+    override val showPriorityBadge: StateFlow<Boolean> = _showPriorityBadge.asStateFlow()
+
+    private val _showUrgencyBar = MutableStateFlow(getShowUrgencyBar())
+    override val showUrgencyBar: StateFlow<Boolean> = _showUrgencyBar.asStateFlow()
 
     override fun getFirstDayOfWeek(): Int {
         return sharedPreferences?.getInt("first_day_of_week", Calendar.MONDAY) ?: Calendar.MONDAY
@@ -362,5 +378,23 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setIncludeOverdue(enabled: Boolean) {
         sharedPreferences?.edit()?.putBoolean("include_overdue", enabled)?.apply()
         _includeOverdue.value = enabled
+    }
+
+    override fun getShowPriorityBadge(): Boolean {
+        return sharedPreferences?.getBoolean("show_priority_badge", false) ?: false
+    }
+
+    override fun setShowPriorityBadge(enabled: Boolean) {
+        sharedPreferences?.edit()?.putBoolean("show_priority_badge", enabled)?.apply()
+        _showPriorityBadge.value = enabled
+    }
+
+    override fun getShowUrgencyBar(): Boolean {
+        return sharedPreferences?.getBoolean("show_urgency_bar", false) ?: false
+    }
+
+    override fun setShowUrgencyBar(enabled: Boolean) {
+        sharedPreferences?.edit()?.putBoolean("show_urgency_bar", enabled)?.apply()
+        _showUrgencyBar.value = enabled
     }
 }

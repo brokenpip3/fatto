@@ -32,6 +32,8 @@ class TaskRepository(
     val showWaitingTasks: StateFlow<Boolean> = settingsRepository.showWaitingTasks
     val sortOrder: StateFlow<String> = settingsRepository.sortOrder
     val sortDirection: StateFlow<String> = settingsRepository.sortDirection
+    val showPriorityBadge: StateFlow<Boolean> = settingsRepository.showPriorityBadge
+    val showUrgencyBar: StateFlow<Boolean> = settingsRepository.showUrgencyBar
 
     fun setSortOrder(order: String) {
         settingsRepository.setSortOrder(order)
