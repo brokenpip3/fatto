@@ -106,6 +106,7 @@ fun TaskListScreen(
     val showInternalTags by viewModel.showInternalTags.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
+    val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
 
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -430,6 +431,20 @@ fun TaskListScreen(
                         }
                     }
                 }
+            }
+
+            AnimatedVisibility(
+                visible = syncStatusMessage != null,
+            ) {
+                Text(
+                    text = syncStatusMessage ?: "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                )
             }
 
             LazyColumn(

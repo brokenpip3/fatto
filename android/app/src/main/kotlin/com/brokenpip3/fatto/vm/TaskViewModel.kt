@@ -6,6 +6,7 @@ import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.isSynthetic
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -272,6 +273,12 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 
+    private var lastSyncTime: Long = 0L
+    private val syncCooldownMs = 30_000L
+
+    private val _syncStatusMessage = MutableStateFlow<String?>(null)
+    val syncStatusMessage: StateFlow<String?> = _syncStatusMessage.asStateFlow()
+
     private val _uiEvent = MutableSharedFlow<String>()
     val uiEvent = _uiEvent.asSharedFlow()
 
@@ -395,8 +402,22 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     fun sync() {
         if (_isSyncing.value) return
 
+        val now = System.currentTimeMillis()
+        val elapsed = now - lastSyncTime
+        if (elapsed < syncCooldownMs) {
+            val remainingSec = ((syncCooldownMs - elapsed) / 1000).toInt()
+            _syncStatusMessage.value = "Already up to date, wait ${remainingSec}s"
+            viewModelScope.launch {
+                delay(3000)
+                _syncStatusMessage.value = null
+            }
+            return
+        }
+        lastSyncTime = now
+
         viewModelScope.launch {
             _isSyncing.value = true
+            _syncStatusMessage.value = "Syncing..."
             try {
                 repository.sync()
                 _uiEvent.emit("Sync successful")
@@ -404,6 +425,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 _uiEvent.emit("Sync failed: ${e.message}")
             } finally {
                 _isSyncing.value = false
+                _syncStatusMessage.value = null
             }
         }
     }
