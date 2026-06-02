@@ -6,6 +6,7 @@ import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.isSynthetic
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,7 +28,18 @@ enum class SortOrder {
     URGENCY,
     ALPHABETICAL,
     SCHEDULED_DATE,
+    ;
+
+    val defaultDirection: SortDirection
+        get() =
+            when (this) {
+                DATE_CREATED -> SortDirection.DESCENDING
+                URGENCY -> SortDirection.DESCENDING
+                else -> SortDirection.ASCENDING
+            }
 }
+
+enum class SortDirection { ASCENDING, DESCENDING }
 
 data class ProjectNode(
     val name: String,
@@ -53,8 +65,25 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _currentProjectPath = MutableStateFlow<String?>(null)
     val currentProjectPath = _currentProjectPath.asStateFlow()
 
-    private val _sortOrder = MutableStateFlow(SortOrder.DATE_CREATED)
+    private val _sortOrder =
+        MutableStateFlow(
+            try {
+                SortOrder.valueOf(repository.sortOrder.value)
+            } catch (_: IllegalArgumentException) {
+                SortOrder.DATE_CREATED
+            },
+        )
     val sortOrder = _sortOrder.asStateFlow()
+
+    private val _sortDirection =
+        MutableStateFlow(
+            try {
+                SortDirection.valueOf(repository.sortDirection.value)
+            } catch (_: IllegalArgumentException) {
+                _sortOrder.value.defaultDirection
+            },
+        )
+    val sortDirection = _sortDirection.asStateFlow()
 
     private val baseFilteredTasks: StateFlow<List<Task>> =
         combine(
@@ -62,8 +91,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             _searchQuery,
             _selectedTags,
             _activeProject,
-            _sortOrder,
-        ) { tasks, query, tags, project, sort ->
+            combine(_sortOrder, _sortDirection) { order, dir -> order to dir },
+        ) { tasks, query, tags, project, (sort, direction) ->
             val parsed = com.brokenpip3.fatto.data.SearchParser.parse(query)
             val effectiveProject = parsed.project ?: project
             val effectiveTags = if (parsed.tags.isNotEmpty()) parsed.tags else tags
@@ -79,38 +108,40 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                         task.project?.startsWith("$effectiveProject.") == true
                 matchesUuid && matchesQuery && matchesTags && matchesProject
             }.sortedWith { a, b ->
-                when (sort) {
-                    SortOrder.DATE_CREATED -> (b.entry ?: "").compareTo(a.entry ?: "")
-                    SortOrder.DUE_DATE -> {
-                        val dueA = a.due ?: "9999"
-                        val dueB = b.due ?: "9999"
-                        dueA.compareTo(dueB)
+                val result =
+                    when (sort) {
+                        SortOrder.DATE_CREATED -> (a.entry ?: "").compareTo(b.entry ?: "")
+                        SortOrder.DUE_DATE -> {
+                            val dueA = a.due ?: "9999"
+                            val dueB = b.due ?: "9999"
+                            dueA.compareTo(dueB)
+                        }
+                        SortOrder.PRIORITY -> {
+                            val pA =
+                                when (a.priority) {
+                                    "H" -> 0
+                                    "M" -> 1
+                                    "L" -> 2
+                                    else -> 3
+                                }
+                            val pB =
+                                when (b.priority) {
+                                    "H" -> 0
+                                    "M" -> 1
+                                    "L" -> 2
+                                    else -> 3
+                                }
+                            pA.compareTo(pB)
+                        }
+                        SortOrder.URGENCY -> a.urgency.compareTo(b.urgency)
+                        SortOrder.ALPHABETICAL -> a.description.lowercase().compareTo(b.description.lowercase())
+                        SortOrder.SCHEDULED_DATE -> {
+                            val schA = a.scheduled ?: "9999"
+                            val schB = b.scheduled ?: "9999"
+                            schA.compareTo(schB)
+                        }
                     }
-                    SortOrder.PRIORITY -> {
-                        val pA =
-                            when (a.priority) {
-                                "H" -> 0
-                                "M" -> 1
-                                "L" -> 2
-                                else -> 3
-                            }
-                        val pB =
-                            when (b.priority) {
-                                "H" -> 0
-                                "M" -> 1
-                                "L" -> 2
-                                else -> 3
-                            }
-                        pA.compareTo(pB)
-                    }
-                    SortOrder.URGENCY -> b.urgency.compareTo(a.urgency)
-                    SortOrder.ALPHABETICAL -> a.description.lowercase().compareTo(b.description.lowercase())
-                    SortOrder.SCHEDULED_DATE -> {
-                        val schA = a.scheduled ?: "9999"
-                        val schB = b.scheduled ?: "9999"
-                        schA.compareTo(schB)
-                    }
-                }
+                if (direction == SortDirection.DESCENDING) -result else result
             }
         }.combine(repository.showCompleted) { tasks, showCompleted ->
             if (showCompleted) tasks else tasks.filter { it.status != TaskStatus.COMPLETED }
@@ -265,6 +296,12 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 
+    private var lastSyncTime: Long = 0L
+    private val syncCooldownMs = 30_000L
+
+    private val _syncStatusMessage = MutableStateFlow<String?>(null)
+    val syncStatusMessage: StateFlow<String?> = _syncStatusMessage.asStateFlow()
+
     private val _uiEvent = MutableSharedFlow<String>()
     val uiEvent = _uiEvent.asSharedFlow()
 
@@ -316,7 +353,16 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     }
 
     fun setSortOrder(order: SortOrder) {
-        _sortOrder.value = order
+        if (_sortOrder.value == order) {
+            val newDirection = if (_sortDirection.value == SortDirection.ASCENDING) SortDirection.DESCENDING else SortDirection.ASCENDING
+            _sortDirection.value = newDirection
+            repository.setSortDirection(newDirection.name)
+        } else {
+            _sortOrder.value = order
+            _sortDirection.value = order.defaultDirection
+            repository.setSortOrder(order.name)
+            repository.setSortDirection(order.defaultDirection.name)
+        }
     }
 
     fun addTask(
@@ -387,8 +433,25 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     fun sync() {
         if (_isSyncing.value) return
 
+        val now = System.currentTimeMillis()
+        val elapsed = now - lastSyncTime
+        if (elapsed < syncCooldownMs) {
+            val remainingSec = ((syncCooldownMs - elapsed) / 1000).toInt()
+            val myMessage = "Synced recently, wait ${remainingSec}s"
+            _syncStatusMessage.value = myMessage
+            viewModelScope.launch {
+                delay(3000)
+                if (_syncStatusMessage.value == myMessage) {
+                    _syncStatusMessage.value = null
+                }
+            }
+            return
+        }
+        lastSyncTime = now
+
         viewModelScope.launch {
             _isSyncing.value = true
+            _syncStatusMessage.value = "Syncing..."
             try {
                 repository.sync()
                 _uiEvent.emit("Sync successful")
@@ -396,6 +459,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 _uiEvent.emit("Sync failed: ${e.message}")
             } finally {
                 _isSyncing.value = false
+                _syncStatusMessage.value = null
             }
         }
     }
