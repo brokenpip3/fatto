@@ -33,6 +33,7 @@ class PullToRefreshSyncTest {
             )
         }
         taskList.assertExists()
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithContentDescription("Sync").assertExists()
     }
 }

@@ -437,10 +437,13 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         val elapsed = now - lastSyncTime
         if (elapsed < syncCooldownMs) {
             val remainingSec = ((syncCooldownMs - elapsed) / 1000).toInt()
-            _syncStatusMessage.value = "Already up to date, wait ${remainingSec}s"
+            val myMessage = "Synced recently, wait ${remainingSec}s"
+            _syncStatusMessage.value = myMessage
             viewModelScope.launch {
                 delay(3000)
-                _syncStatusMessage.value = null
+                if (_syncStatusMessage.value == myMessage) {
+                    _syncStatusMessage.value = null
+                }
             }
             return
         }
