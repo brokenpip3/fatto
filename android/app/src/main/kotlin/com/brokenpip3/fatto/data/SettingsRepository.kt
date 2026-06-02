@@ -30,6 +30,7 @@ interface SettingsRepository {
     val hideBlockedTasksWaiting: StateFlow<Boolean>
     val showWaitingTasks: StateFlow<Boolean>
     val sortOrder: StateFlow<String>
+    val sortDirection: StateFlow<String>
 
     fun getFirstDayOfWeek(): Int
 
@@ -50,6 +51,10 @@ interface SettingsRepository {
     fun getSortOrder(): String
 
     fun setSortOrder(value: String)
+
+    fun getSortDirection(): String
+
+    fun setSortDirection(value: String)
 
     fun getCredentials(): SyncCredentials?
 
@@ -162,6 +167,9 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private val _sortOrder = MutableStateFlow(getSortOrder())
     override val sortOrder: StateFlow<String> = _sortOrder.asStateFlow()
 
+    private val _sortDirection = MutableStateFlow(getSortDirection())
+    override val sortDirection: StateFlow<String> = _sortDirection.asStateFlow()
+
     override fun getFirstDayOfWeek(): Int {
         return sharedPreferences?.getInt("first_day_of_week", Calendar.MONDAY) ?: Calendar.MONDAY
     }
@@ -205,6 +213,15 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setSortOrder(value: String) {
         sharedPreferences?.edit()?.putString("sort_order", value)?.apply()
         _sortOrder.value = value
+    }
+
+    override fun getSortDirection(): String {
+        return sharedPreferences?.getString("sort_direction", "") ?: ""
+    }
+
+    override fun setSortDirection(value: String) {
+        sharedPreferences?.edit()?.putString("sort_direction", value)?.apply()
+        _sortDirection.value = value
     }
 
     override fun getCredentials(): SyncCredentials? {

@@ -41,6 +41,7 @@ class WaitingTasksFilterTest {
         every { repository.hideBlockedTasksWaiting } returns hideBlockedFlow
         every { repository.showWaitingTasks } returns showWaitingTasksFlow
         every { repository.sortOrder } returns MutableStateFlow("DATE_CREATED")
+        every { repository.sortDirection } returns MutableStateFlow("")
     }
 
     @After

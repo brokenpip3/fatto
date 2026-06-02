@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -82,6 +84,7 @@ import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.ui.theme.NordicFrost
 import com.brokenpip3.fatto.ui.theme.NordicMidnight
 import com.brokenpip3.fatto.ui.theme.toNordicColor
+import com.brokenpip3.fatto.vm.SortDirection
 import com.brokenpip3.fatto.vm.SortOrder
 import com.brokenpip3.fatto.vm.TaskViewModel
 import uniffi.taskchampion_android.TaskStatus
@@ -105,6 +108,7 @@ fun TaskListScreen(
     val availableTags by viewModel.availableTags.collectAsState()
     val showInternalTags by viewModel.showInternalTags.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
+    val currentSortDirection by viewModel.sortDirection.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
 
@@ -253,7 +257,11 @@ fun TaskListScreen(
                                         },
                                         leadingIcon = {
                                             if (currentSortOrder == order) {
-                                                Icon(Icons.Default.Check, contentDescription = null)
+                                                val isAsc = currentSortDirection == SortDirection.ASCENDING
+                                                Icon(
+                                                    imageVector = if (isAsc) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                                                    contentDescription = if (isAsc) "Ascending" else "Descending",
+                                                )
                                             }
                                         },
                                     )

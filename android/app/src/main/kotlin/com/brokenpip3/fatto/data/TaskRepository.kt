@@ -31,9 +31,14 @@ class TaskRepository(
     val hideBlockedTasksWaiting: StateFlow<Boolean> = settingsRepository.hideBlockedTasksWaiting
     val showWaitingTasks: StateFlow<Boolean> = settingsRepository.showWaitingTasks
     val sortOrder: StateFlow<String> = settingsRepository.sortOrder
+    val sortDirection: StateFlow<String> = settingsRepository.sortDirection
 
     fun setSortOrder(order: String) {
         settingsRepository.setSortOrder(order)
+    }
+
+    fun setSortDirection(direction: String) {
+        settingsRepository.setSortDirection(direction)
     }
 
     suspend fun init() =
