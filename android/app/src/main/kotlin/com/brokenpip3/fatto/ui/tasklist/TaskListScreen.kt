@@ -67,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -111,6 +112,15 @@ fun TaskListScreen(
     val currentSortDirection by viewModel.sortDirection.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
+    val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
+    val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
+
+    val maxUrgency =
+        maxOf(
+            tasks.maxOfOrNull { it.urgency } ?: 0.0f,
+            waitingTasks.maxOfOrNull { it.urgency } ?: 0.0f,
+            completedTasks.maxOfOrNull { it.urgency } ?: 0.0f,
+        )
 
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -484,6 +494,9 @@ fun TaskListScreen(
                             }
                         },
                         showInternalTags = showInternalTags,
+                        maxUrgency = maxUrgency,
+                        showPriorityBadge = showPriorityBadge,
+                        showUrgencyBar = showUrgencyBar,
                     )
                 }
 
@@ -517,6 +530,9 @@ fun TaskListScreen(
                                     }
                                 },
                                 showInternalTags = showInternalTags,
+                                maxUrgency = maxUrgency,
+                                showPriorityBadge = showPriorityBadge,
+                                showUrgencyBar = showUrgencyBar,
                             )
                         }
                     }
@@ -546,6 +562,9 @@ fun TaskListScreen(
                                     }
                                 },
                                 showInternalTags = showInternalTags,
+                                maxUrgency = maxUrgency,
+                                showPriorityBadge = showPriorityBadge,
+                                showUrgencyBar = showUrgencyBar,
                             )
                         }
                     }
@@ -638,6 +657,9 @@ fun TaskItem(
     onComplete: () -> Unit,
     onDelete: () -> Unit,
     showInternalTags: Boolean = true,
+    maxUrgency: Float = 0.0f,
+    showPriorityBadge: Boolean = false,
+    showUrgencyBar: Boolean = false,
 ) {
     Card(
         modifier =
@@ -666,102 +688,164 @@ fun TaskItem(
             },
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Row(
-            modifier = Modifier.height(IntrinsicSize.Min).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .width(4.dp)
-                        .fillMaxHeight()
-                        .background(task.project?.toNordicColor() ?: MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-            )
-
+        Column {
             Row(
-                modifier =
-                    Modifier
-                        .padding(12.dp)
-                        .fillMaxWidth(),
+                modifier = Modifier.height(IntrinsicSize.Min).fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (task.start != null) {
+                Box(
+                    modifier =
+                        Modifier
+                            .width(4.dp)
+                            .fillMaxHeight()
+                            .background(task.project?.toNordicColor() ?: MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                )
+
+                Row(
+                    modifier =
+                        Modifier
+                            .padding(12.dp)
+                            .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (task.start != null) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Active",
+                                    modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            Text(
+                                text = task.description,
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (showPriorityBadge && task.priority != null) {
+                                PriorityBadge(priority = task.priority)
+                            }
+                        }
+
+                        if (task.project != null || task.due != null || task.tags.isNotEmpty() || task.scheduled != null) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(top = 4.dp),
+                            ) {
+                                task.project?.let { proj ->
+                                    Text(
+                                        text = proj,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = proj.toNordicColor(),
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+
+                                task.due?.let {
+                                    Text(
+                                        text = "Due: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                    )
+                                }
+
+                                task.scheduled?.let {
+                                    Text(
+                                        text = "Sch: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                    )
+                                }
+
+                                task.userTags.filter { showInternalTags || !INTERNAL_TAGS.contains(it.uppercase()) }.forEach { tag ->
+                                    TagChip(tag = tag)
+                                }
+                            }
+                        }
+                    }
+
+                    if (task.status == TaskStatus.PENDING) {
+                        IconButton(onClick = onComplete, modifier = Modifier.size(32.dp)) {
                             Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Active",
-                                modifier = Modifier.size(16.dp).padding(end = 4.dp),
-                                tint = MaterialTheme.colorScheme.primary,
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Complete",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                             )
                         }
-                        Text(
-                            text = task.description,
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
                     }
-
-                    if (task.project != null || task.due != null || task.tags.isNotEmpty() || task.scheduled != null) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(top = 4.dp),
-                        ) {
-                            task.project?.let { proj ->
-                                Text(
-                                    text = proj,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = proj.toNordicColor(),
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-
-                            task.due?.let {
-                                Text(
-                                    text = "Due: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                                )
-                            }
-
-                            task.scheduled?.let {
-                                Text(
-                                    text = "Sch: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                                )
-                            }
-
-                            task.userTags.filter { showInternalTags || !INTERNAL_TAGS.contains(it.uppercase()) }.forEach { tag ->
-                                TagChip(tag = tag)
-                            }
-                        }
-                    }
-                }
-
-                if (task.status == TaskStatus.PENDING) {
-                    IconButton(onClick = onComplete, modifier = Modifier.size(32.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Complete",
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "DeleteTask",
                             modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )
                     }
-                }
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "DeleteTask",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    )
                 }
             }
+            if (showUrgencyBar) {
+                UrgencyBar(urgency = task.urgency, maxUrgency = maxUrgency)
+            }
         }
+    }
+}
+
+@Composable
+fun PriorityBadge(priority: String) {
+    val (bg, fg) =
+        when (priority) {
+            "H" -> Color(0xFFFCEBEB) to Color(0xFFA32D2D)
+            "M" -> Color(0xFFFAEEDA) to Color(0xFF854F0B)
+            "L" -> Color(0xFFF1EFE8) to Color(0xFF5F5E5A)
+            else -> return
+        }
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(4.dp),
+        modifier = Modifier.padding(start = 6.dp),
+    ) {
+        Text(
+            text = priority,
+            color = fg,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+        )
+    }
+}
+
+@Composable
+fun UrgencyBar(
+    urgency: Float,
+    maxUrgency: Float,
+) {
+    val ratio = if (maxUrgency > 0f) (maxOf(0f, urgency) / maxUrgency).coerceIn(0f, 1f) else 0f
+    val barColor =
+        when {
+            ratio > 0.66f -> Color(0xFFE24B4A)
+            ratio > 0.33f -> Color(0xFFEF9F27)
+            else -> Color(0xFF888780)
+        }
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth(ratio)
+                    .fillMaxHeight()
+                    .background(barColor),
+        )
     }
 }
