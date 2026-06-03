@@ -60,6 +60,8 @@ fun CalendarScreen(
 ) {
     val tasksByDate by viewModel.tasksByDate.collectAsState()
     val firstDayOfWeekSetting by viewModel.firstDayOfWeek.collectAsState()
+    val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
+    val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
 
@@ -190,6 +192,8 @@ fun CalendarScreen(
         // Bottom Sheet
         if (selectedDate != null) {
             val tasksForDate = tasksByDate[selectedDate] ?: emptyList()
+            val maxUrgency =
+                tasksForDate.maxOfOrNull { it.urgency } ?: 0.0f
             ModalBottomSheet(
                 onDismissRequest = { selectedDate = null },
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -219,6 +223,9 @@ fun CalendarScreen(
                                 },
                                 onComplete = { viewModel.completeTask(task.uuid) },
                                 onDelete = { viewModel.deleteTask(task.uuid) },
+                                maxUrgency = maxUrgency,
+                                showPriorityBadge = showPriorityBadge,
+                                showUrgencyBar = showUrgencyBar,
                             )
                         }
                     }

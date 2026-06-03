@@ -115,7 +115,12 @@ fun TaskListScreen(
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
 
-    val maxUrgency = tasks.maxOfOrNull { maxOf(0.0f, it.urgency) } ?: 0.0f
+    val maxUrgency =
+        maxOf(
+            tasks.maxOfOrNull { it.urgency } ?: 0.0f,
+            waitingTasks.maxOfOrNull { it.urgency } ?: 0.0f,
+            completedTasks.maxOfOrNull { it.urgency } ?: 0.0f,
+        )
 
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
