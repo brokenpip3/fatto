@@ -105,6 +105,8 @@ fun TaskDetailBottomSheet(
         onDismiss()
     }
 
+    val scrollState = rememberScrollState()
+
     ModalBottomSheet(
         onDismissRequest = saveAndDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -114,7 +116,7 @@ fun TaskDetailBottomSheet(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(16.dp)
                     .padding(bottom = 32.dp)
                     .testTag("TaskDetailBottomSheet"),
