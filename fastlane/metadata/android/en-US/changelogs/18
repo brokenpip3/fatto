@@ -1,0 +1,5 @@
+- support for pull-to-refresh sync in the task list screen
+- save sort order beetween sessions
+- add cooldown for sync action to 30sec and show a message
+- add double tap to change sort direction in task list
+- show urgency bar and priority badge and add a setting for each disabled by default
