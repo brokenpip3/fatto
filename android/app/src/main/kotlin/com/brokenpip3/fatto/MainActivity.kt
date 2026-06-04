@@ -193,6 +193,12 @@ class MainActivity : ComponentActivity() {
                                     availableProjects = hierarchicalProjects.map { it.fullName },
                                     showInternalTags = showInternalTags,
                                     firstDayOfWeek = firstDayOfWeek,
+                                    onAddAnnotation = { uuid, desc ->
+                                        taskViewModel.addAnnotation(uuid, desc)
+                                    },
+                                    onRemoveAnnotation = { uuid, entry ->
+                                        taskViewModel.removeAnnotation(uuid, entry)
+                                    },
                                 )
                             }
                         }

@@ -2,6 +2,7 @@ package com.brokenpip3.fatto.data
 
 import android.content.Context
 import android.util.Log
+import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.toModel
 import kotlinx.coroutines.Dispatchers
@@ -150,6 +151,38 @@ class TaskRepository(
                 throw e
             }
         }
+
+    suspend fun addAnnotation(
+        uuid: String,
+        description: String,
+    ): Annotation =
+        withContext(Dispatchers.IO) {
+            val r = replica ?: throw Exception("Replica not initialized")
+            try {
+                val uniffiAnn = r.addAnnotation(uuid, description)
+                loadTasks()
+                triggerSync()
+                Annotation(entry = uniffiAnn.entry, description = uniffiAnn.description)
+            } catch (e: Exception) {
+                Log.e("TaskRepository", "Failed to add annotation", e)
+                throw e
+            }
+        }
+
+    suspend fun removeAnnotation(
+        uuid: String,
+        entry: String,
+    ) = withContext(Dispatchers.IO) {
+        val r = replica ?: throw Exception("Replica not initialized")
+        try {
+            r.removeAnnotation(uuid, entry)
+            loadTasks()
+            triggerSync()
+        } catch (e: Exception) {
+            Log.e("TaskRepository", "Failed to remove annotation", e)
+            throw e
+        }
+    }
 
     suspend fun sync() =
         withContext(Dispatchers.IO) {

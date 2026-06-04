@@ -14,7 +14,7 @@
 - [x] show notification for due, scheduled, and overdue tasks
 - [x] support task dependencies
 - [x] support priority in tasks
-- [ ] support task annotations
+- [x] support task annotations
 - [ ] support recurring tasks
 - [ ] better notification: when tap the notification, open the app and show the task details
 - [ ] support builtin UDA like tag and project colours

@@ -11,11 +11,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
@@ -40,6 +41,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,8 +51,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Calendar
@@ -65,6 +69,8 @@ fun TaskDetailBottomSheet(
     availableProjects: List<String>,
     showInternalTags: Boolean = true,
     firstDayOfWeek: Int = Calendar.MONDAY,
+    onAddAnnotation: (suspend (String, String) -> Annotation)? = null,
+    onRemoveAnnotation: ((String, String) -> Unit)? = null,
 ) {
     var description by remember(task) { mutableStateOf(task.description) }
     var project by remember(task) { mutableStateOf(task.project ?: "") }
@@ -75,7 +81,14 @@ fun TaskDetailBottomSheet(
     var start by remember(task) { mutableStateOf(task.start) }
     var priority by remember(task) { mutableStateOf(task.priority) }
     var newTag by remember(task) { mutableStateOf("") }
-    var showAdvanced by remember(task) { mutableStateOf(false) }
+    var annotations by remember(task) { mutableStateOf(task.annotations) }
+    var dependencies by remember(task) { mutableStateOf(task.dependencies) }
+    var newAnnotation by remember { mutableStateOf("") }
+    var showAnnotations by remember(task) { mutableStateOf(task.annotations.isNotEmpty()) }
+    var showDependencies by remember(task) { mutableStateOf(task.dependencies.isNotEmpty()) }
+    var showDetails by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
 
     val filteredProjects =
         remember(project, availableProjects) {
@@ -100,6 +113,7 @@ fun TaskDetailBottomSheet(
                 scheduled = scheduled,
                 start = start,
                 priority = priority,
+                dependencies = dependencies,
             ),
         )
         onDismiss()
@@ -311,61 +325,151 @@ fun TaskDetailBottomSheet(
                 },
             )
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                TextButton(
-                    onClick = { showAdvanced = !showAdvanced },
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                ) {
-                    Icon(
-                        imageVector = if (showAdvanced) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                    )
-                    Text(if (showAdvanced) "Hide Advanced Details" else "Show Advanced Details")
-                }
-
-                if (showAdvanced) {
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+            AccordionSection(
+                title = "Annotations",
+                icon = Icons.Default.Add,
+                count = annotations.size,
+                expanded = showAnnotations,
+                onToggle = { showAnnotations = !showAnnotations },
+            ) {
+                annotations.forEach { annotation ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = "Urgency: ${"%.2f".format(task.urgency)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-
-                        if (task.dependencies.isNotEmpty()) {
-                            Text(text = "Dependencies", style = MaterialTheme.typography.labelLarge)
-                            for (dep in task.dependencies) {
-                                Text(
-                                    text = dep,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                )
-                            }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = annotation.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                text = annotation.entry,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            )
                         }
-
-                        if (task.udas.isNotEmpty()) {
-                            Text(text = "Extra Attributes (UDAs)", style = MaterialTheme.typography.labelLarge)
-                            for ((key, value) in task.udas) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Text(
-                                        text = key,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    )
-                                    Text(
-                                        text = value,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
+                        IconButton(onClick = {
+                            annotations = annotations - annotation
+                            onRemoveAnnotation?.invoke(task.uuid, annotation.entry)
+                        }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Remove annotation",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextField(
+                        value = newAnnotation,
+                        onValueChange = { newAnnotation = it },
+                        placeholder = { Text("Add a note...") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors =
+                            TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            ),
+                    )
+                    TextButton(
+                        onClick = {
+                            if (newAnnotation.isNotBlank()) {
+                                scope.launch {
+                                    val ann = onAddAnnotation?.invoke(task.uuid, newAnnotation.trim())
+                                    if (ann != null) {
+                                        annotations = annotations + ann
+                                    }
+                                    newAnnotation = ""
                                 }
                             }
+                        },
+                        enabled = newAnnotation.isNotBlank(),
+                    ) {
+                        Text("Add", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+
+            AccordionSection(
+                title = "Blocked by",
+                icon = Icons.Default.Link,
+                count = dependencies.size,
+                expanded = showDependencies,
+                onToggle = { showDependencies = !showDependencies },
+            ) {
+                dependencies.forEach { depUuid ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = depUuid,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        IconButton(onClick = { dependencies = dependencies - depUuid }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Remove dependency",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "Manage dependencies in task detail",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                )
+            }
+
+            AccordionSection(
+                title = "Details",
+                icon = Icons.Default.Info,
+                count = null,
+                expanded = showDetails,
+                onToggle = { showDetails = !showDetails },
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Urgency", style = MaterialTheme.typography.bodyMedium)
+                    Text("%.2f".format(task.urgency), style = MaterialTheme.typography.bodyMedium)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("UUID", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = task.uuid,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                }
+                if (task.udas.isNotEmpty()) {
+                    Text("Extra Attributes (UDAs)", style = MaterialTheme.typography.labelLarge)
+                    for ((key, value) in task.udas) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = key,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = value,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
