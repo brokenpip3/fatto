@@ -83,10 +83,10 @@ fun TaskDetailBottomSheet(
     var newTag by remember(task) { mutableStateOf("") }
     var annotations by remember(task) { mutableStateOf(task.annotations) }
     var dependencies by remember(task) { mutableStateOf(task.dependencies) }
-    var newAnnotation by remember { mutableStateOf("") }
+    var newAnnotation by remember(task) { mutableStateOf("") }
     var showAnnotations by remember(task) { mutableStateOf(task.annotations.isNotEmpty()) }
     var showDependencies by remember(task) { mutableStateOf(task.dependencies.isNotEmpty()) }
-    var showDetails by remember { mutableStateOf(false) }
+    var showDetails by remember(task) { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
@@ -378,17 +378,18 @@ fun TaskDetailBottomSheet(
                     )
                     TextButton(
                         onClick = {
-                            if (newAnnotation.isNotBlank()) {
+                            if (newAnnotation.isNotBlank() && onAddAnnotation != null) {
                                 scope.launch {
-                                    val ann = onAddAnnotation?.invoke(task.uuid, newAnnotation.trim())
-                                    if (ann != null) {
+                                    try {
+                                        val ann = onAddAnnotation.invoke(task.uuid, newAnnotation.trim())
                                         annotations = annotations + ann
+                                        newAnnotation = ""
+                                    } catch (_: Exception) {
                                     }
-                                    newAnnotation = ""
                                 }
                             }
                         },
-                        enabled = newAnnotation.isNotBlank(),
+                        enabled = newAnnotation.isNotBlank() && onAddAnnotation != null,
                     ) {
                         Text("Add", style = MaterialTheme.typography.labelLarge)
                     }
