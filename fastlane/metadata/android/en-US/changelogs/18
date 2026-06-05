@@ -3,3 +3,5 @@
 - add cooldown for sync action to 30sec and show a message
 - add double tap to change sort direction in task list
 - show urgency bar and priority badge and add a setting for each disabled by default
+- remember task modal scrolling
+- initial annotations support and rework task modal
