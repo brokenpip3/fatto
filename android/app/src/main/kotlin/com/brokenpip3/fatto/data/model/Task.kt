@@ -20,12 +20,18 @@ data class Task(
     val isBlocking: Boolean,
     val dependencies: List<String>,
     val udas: Map<String, String>,
+    val annotations: List<Annotation> = emptyList(),
 ) {
     val userTags: List<String>
         get() = tags.filter { !isSynthetic(it) }.sorted()
 }
 
 val INTERNAL_TAGS = setOf("BLOCKING", "ACTIVE", "BLOCKED", "WAITING")
+
+data class Annotation(
+    val entry: String,
+    val description: String,
+)
 
 fun isSynthetic(tag: String): Boolean {
     return tag == "PENDING" || tag == "COMPLETED" || tag == "DELETED" || tag == "UNBLOCKED"
@@ -49,4 +55,5 @@ fun TaskData.toModel(): Task =
         isBlocking = isBlocking,
         dependencies = dependencies,
         udas = udas.associate { it.key to it.value },
+        annotations = annotations.map { Annotation(entry = it.entry, description = it.description) },
     )

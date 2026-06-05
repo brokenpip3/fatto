@@ -77,6 +77,12 @@ pub struct UdaPair {
 }
 
 #[derive(uniffi::Record, Debug, Clone)]
+pub struct Annotation {
+    pub entry: String,
+    pub description: String,
+}
+
+#[derive(uniffi::Record, Debug, Clone)]
 pub struct TaskData {
     pub uuid: String,
     pub description: String,
@@ -94,6 +100,7 @@ pub struct TaskData {
     pub is_blocking: bool,
     pub dependencies: Vec<String>,
     pub udas: Vec<UdaPair>,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(uniffi::Record, Debug, Clone)]
@@ -298,6 +305,53 @@ impl ReplicaWrapper {
         Ok(())
     }
 
+    pub fn add_annotation(&self, uuid: String, description: String) -> Result<Annotation> {
+        let mut replica = self.inner.lock().unwrap();
+        let uuid =
+            Uuid::parse_str(&uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
+        let mut ops = Operations::new();
+        if let Some(mut task) = self.rt.block_on(replica.get_task(uuid))? {
+            let mut entry = chrono::Utc::now();
+            // taskchampion keys on seconds — ensure unique timestamps
+            let existing_timestamps: Vec<i64> = task
+                .get_annotations()
+                .map(|a| a.entry.timestamp())
+                .collect();
+            while existing_timestamps.contains(&entry.timestamp()) {
+                entry += chrono::Duration::seconds(1);
+            }
+            let ann = taskchampion::Annotation {
+                entry,
+                description: description.clone(),
+            };
+            task.add_annotation(ann, &mut ops)?;
+            self.rt.block_on(replica.commit_operations(ops))?;
+            Ok(Annotation {
+                entry: entry.to_rfc3339(),
+                description,
+            })
+        } else {
+            Err(TaskError::Internal("Task not found".into()))
+        }
+    }
+
+    pub fn remove_annotation(&self, uuid: String, entry: String) -> Result<()> {
+        let mut replica = self.inner.lock().unwrap();
+        let uuid =
+            Uuid::parse_str(&uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
+        let entry_dt = DateTime::parse_from_rfc3339(&entry)
+            .map_err(|e| TaskError::Internal(e.to_string()))?
+            .with_timezone(&Utc);
+        let mut ops = Operations::new();
+        if let Some(mut task) = self.rt.block_on(replica.get_task(uuid))? {
+            task.remove_annotation(entry_dt, &mut ops)?;
+            self.rt.block_on(replica.commit_operations(ops))?;
+            Ok(())
+        } else {
+            Err(TaskError::Internal("Task not found".into()))
+        }
+    }
+
     pub fn sync(&self, server_url: String, client_id: String, secret: String) -> Result<()> {
         let mut replica = self.inner.lock().unwrap();
         let client_id = Uuid::parse_str(&client_id)
@@ -423,6 +477,14 @@ fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
         }
     }
 
+    let annotations: Vec<Annotation> = task
+        .get_annotations()
+        .map(|a| Annotation {
+            entry: a.entry.to_rfc3339(),
+            description: a.description.to_string(),
+        })
+        .collect();
+
     TaskData {
         uuid: task.get_uuid().to_string(),
         description: task.get_description().to_string(),
@@ -443,6 +505,7 @@ fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
         is_blocking,
         dependencies: task.get_dependencies().map(|u| u.to_string()).collect(),
         udas,
+        annotations,
     }
 }
 
@@ -913,5 +976,109 @@ mod tests {
             "UDAs should contain 'custom_uda': {:?}",
             task_data.udas
         );
+    }
+
+    #[test]
+    fn test_add_annotation() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let task = wrapper
+            .add_task(TaskAddProps {
+                description: "Annotated task".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+
+        let annotation = wrapper
+            .add_annotation(task.uuid.clone(), "First note".into())
+            .unwrap();
+        assert_eq!(annotation.description, "First note");
+        assert!(!annotation.entry.is_empty());
+
+        let updated = wrapper.get_task(task.uuid).unwrap().unwrap();
+        assert_eq!(updated.annotations.len(), 1);
+        assert_eq!(updated.annotations[0].description, "First note");
+    }
+
+    #[test]
+    fn test_remove_annotation() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let task = wrapper
+            .add_task(TaskAddProps {
+                description: "Task with notes".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+
+        let ann = wrapper
+            .add_annotation(task.uuid.clone(), "Note to remove".into())
+            .unwrap();
+        assert_eq!(
+            wrapper
+                .get_task(task.uuid.clone())
+                .unwrap()
+                .unwrap()
+                .annotations
+                .len(),
+            1
+        );
+
+        wrapper
+            .remove_annotation(task.uuid.clone(), ann.entry.clone())
+            .unwrap();
+        let updated = wrapper.get_task(task.uuid).unwrap().unwrap();
+        assert_eq!(updated.annotations.len(), 0);
+    }
+
+    #[test]
+    fn test_annotations_in_task_data() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let task = wrapper
+            .add_task(TaskAddProps {
+                description: "Multi-note task".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+
+        wrapper
+            .add_annotation(task.uuid.clone(), "Note 1".into())
+            .unwrap();
+
+        let after_first = wrapper.get_task(task.uuid.clone()).unwrap().unwrap();
+        assert_eq!(after_first.annotations.len(), 1);
+
+        wrapper
+            .add_annotation(task.uuid.clone(), "Note 2".into())
+            .unwrap();
+
+        let after_second = wrapper.get_task(task.uuid.clone()).unwrap().unwrap();
+        assert_eq!(after_second.annotations.len(), 2);
+        let descriptions: Vec<&str> = after_second
+            .annotations
+            .iter()
+            .map(|a| a.description.as_str())
+            .collect();
+        assert!(descriptions.contains(&"Note 1"));
+        assert!(descriptions.contains(&"Note 2"));
     }
 }

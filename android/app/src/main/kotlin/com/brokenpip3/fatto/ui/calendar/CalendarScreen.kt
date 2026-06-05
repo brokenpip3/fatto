@@ -193,7 +193,7 @@ fun CalendarScreen(
         if (selectedDate != null) {
             val tasksForDate = tasksByDate[selectedDate] ?: emptyList()
             val maxUrgency =
-                tasksForDate.maxOfOrNull { it.urgency } ?: 0.0f
+                tasksByDate.values.flatten().maxOfOrNull { it.urgency } ?: 0.0f
             ModalBottomSheet(
                 onDismissRequest = { selectedDate = null },
                 containerColor = MaterialTheme.colorScheme.surface,

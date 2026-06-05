@@ -63,8 +63,8 @@ class PriorityIntegrationTest {
     }
 
     @Test
-    fun testAdvancedDetailsToggle() {
-        val description = "Advanced details test ${System.currentTimeMillis()}"
+    fun testDetailsAccordionToggle() {
+        val description = "Details accordion test ${System.currentTimeMillis()}"
 
         composeTestRule.onNodeWithContentDescription("Add Task").performClick()
         composeTestRule.onNodeWithText("Description").performTextInput(description)
@@ -73,17 +73,17 @@ class PriorityIntegrationTest {
         composeTestRule.waitUntilAtLeastOneExists(hasText(description), 15000)
         composeTestRule.onNode(hasText(description) and hasAnyAncestor(hasTestTag("TaskList"))).performClick()
 
-        // Initially "Urgency" should not be visible
-        composeTestRule.onNode(hasText("Urgency:", substring = true)).assertDoesNotExist()
+        // Initially "Urgency" should not be visible (Details accordion collapsed)
+        composeTestRule.onNodeWithText("Urgency").assertDoesNotExist()
 
-        // Toggle advanced details
-        composeTestRule.onNodeWithText("Show Advanced Details").performScrollTo().performClick()
+        // Expand the Details accordion
+        composeTestRule.onNodeWithText("Details").performScrollTo().performClick()
 
         // Now Urgency should be visible
-        composeTestRule.onNode(hasText("Urgency:", substring = true)).assertExists()
+        composeTestRule.onNodeWithText("Urgency").assertExists()
 
-        // Toggle back
-        composeTestRule.onNodeWithText("Hide Advanced Details").performScrollTo().performClick()
-        composeTestRule.onNode(hasText("Urgency:", substring = true)).assertDoesNotExist()
+        // Collapse Details accordion
+        composeTestRule.onNodeWithText("Details").performClick()
+        composeTestRule.onNodeWithText("Urgency").assertDoesNotExist()
     }
 }

@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.vm
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.brokenpip3.fatto.data.TaskRepository
+import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.isSynthetic
@@ -414,6 +415,24 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 repository.deleteTask(uuid)
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to delete task: ${e.message}")
+            }
+        }
+    }
+
+    suspend fun addAnnotation(
+        uuid: String,
+        description: String,
+    ): Annotation = repository.addAnnotation(uuid, description)
+
+    fun removeAnnotation(
+        uuid: String,
+        entry: String,
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.removeAnnotation(uuid, entry)
+            } catch (e: Exception) {
+                _uiEvent.emit("Failed to remove annotation: ${e.message}")
             }
         }
     }

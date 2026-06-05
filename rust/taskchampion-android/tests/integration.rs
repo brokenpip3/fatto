@@ -217,3 +217,51 @@ fn test_task_properties_integration() {
     assert!(updated_blocked.is_blocked);
     assert_eq!(updated_blocked.dependencies, vec![task_blocking.uuid]);
 }
+
+#[test]
+fn test_annotation_integration() {
+    let rep = ReplicaWrapper::new_in_memory().unwrap();
+
+    // 1. Create task with no annotations
+    let task = rep
+        .add_task(TaskAddProps {
+            description: "Annotation test task".into(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        })
+        .unwrap();
+    assert!(task.annotations.is_empty());
+
+    // 2. Add annotations
+    rep.add_annotation(task.uuid.clone(), "First note".into())
+        .unwrap();
+    rep.add_annotation(task.uuid.clone(), "Second note".into())
+        .unwrap();
+
+    // 3. Verify via all_task_data (fresh fetch from storage)
+    let tasks = rep.all_task_data().unwrap();
+    let updated = tasks.iter().find(|t| t.uuid == task.uuid).unwrap();
+    assert_eq!(updated.annotations.len(), 2);
+    let descriptions: Vec<&str> = updated
+        .annotations
+        .iter()
+        .map(|a| a.description.as_str())
+        .collect();
+    assert!(descriptions.contains(&"First note"));
+    assert!(descriptions.contains(&"Second note"));
+
+    // 4. Remove an annotation and verify
+    let entry = updated.annotations[0].entry.clone();
+    rep.remove_annotation(task.uuid.clone(), entry).unwrap();
+
+    let tasks_after = rep.all_task_data().unwrap();
+    let after_remove = tasks_after.iter().find(|t| t.uuid == task.uuid).unwrap();
+    assert_eq!(after_remove.annotations.len(), 1);
+    assert_eq!(after_remove.annotations[0].description, "Second note");
+}
