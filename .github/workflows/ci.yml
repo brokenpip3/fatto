@@ -7,7 +7,7 @@ jobs:
   generate-bindings:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Maximize Runner Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -58,7 +58,7 @@ jobs:
           - command: build-debug-only
             shell: fatto-ci-kotlin
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Maximize Runner Space
         run: |
           sudo rm -rf /usr/share/dotnet
