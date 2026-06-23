@@ -9,6 +9,10 @@ max_line_length = 140
 # Allow PascalCase for Composables
 ktlint_code_style = ktlint_official
 ktlint_function_naming_ignore_when_annotated_with = Composable
+ktlint_standard_argument-list-wrapping = disabled
+ktlint_standard_chain-method-continuation = disabled
+ktlint_standard_class-signature = disabled
+ktlint_standard_function-expression-body = disabled
 
 # Disable wildcard imports (ktlint default is already no-wildcard-imports, but we can be explicit if we wanted to allow them, which we don't yet)
 # ij_kotlin_packages_to_use_import_on_demand = unset

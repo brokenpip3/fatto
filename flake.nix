@@ -30,20 +30,20 @@
           };
         };
         androidCompositionMinimal = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "34.0.0" ];
-          platformVersions = [ "34" ];
+          buildToolsVersions = [ "36.0.0" ];
+          platformVersions = [ "37" ];
         };
 
         androidCompositionBase = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "34.0.0" ];
-          platformVersions = [ "34" ];
+          buildToolsVersions = [ "36.0.0" ];
+          platformVersions = [ "37" ];
           includeNDK = true;
           ndkVersions = [ "26.1.10909125" ];
         };
 
         androidCompositionFull = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "34.0.0" ];
-          platformVersions = [ "34" ];
+          buildToolsVersions = [ "36.0.0" ];
+          platformVersions = [ "37" ];
           abiVersions = [ "x86_64" ];
           includeSystemImages = true;
           includeNDK = true;
@@ -169,11 +169,11 @@
               );
 
               shellHook = ''
-                export PATH="${pkgs.lib.optionalString includeJdk "$JAVA_HOME/bin:"}${pkgs.lib.optionalString includeSdk "$ANDROID_HOME/platform-tools:${pkgs.lib.optionalString hasEmulator "$ANDROID_HOME/emulator:"}$ANDROID_HOME/build-tools/34.0.0:"}$PATH"
+                export PATH="${pkgs.lib.optionalString includeJdk "$JAVA_HOME/bin:"}${pkgs.lib.optionalString includeSdk "$ANDROID_HOME/platform-tools:${pkgs.lib.optionalString hasEmulator "$ANDROID_HOME/emulator:"}$ANDROID_HOME/build-tools/36.0.0:"}$PATH"
                 export GRADLE_USER_HOME="$(git rev-parse --show-toplevel)/.gradle-home"
                 mkdir -p "$GRADLE_USER_HOME"
                  ${pkgs.lib.optionalString (includeSdk && useAapt2Override) ''
-                   echo "android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/34.0.0/aapt2" > "$GRADLE_USER_HOME/gradle.properties"
+                   echo "android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/36.0.0/aapt2" > "$GRADLE_USER_HOME/gradle.properties"
                  ''}
               '';
             }
@@ -213,7 +213,6 @@
           name = "fatto-ci-kotlin";
           sdk = androidSdkMinimal;
           includeRust = false;
-          useAapt2Override = false;
         };
 
         devShells.fatto-ci-android = mkFattoShell {

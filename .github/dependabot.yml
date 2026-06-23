@@ -16,9 +16,29 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      android-dependencies:
+      android-toolchain:
         patterns:
-          - "*"
+          - "com.android.tools.build:gradle"
+          - "org.jetbrains.kotlin:kotlin-gradle-plugin"
+          - "org.jetbrains.kotlin.plugin.compose"
+          - "gradle-wrapper"
+      android-test-tooling:
+        patterns:
+          - "androidx.test:*"
+          - "androidx.test.ext:*"
+          - "androidx.test.espresso:*"
+          - "io.mockk:*"
+          - "org.jetbrains.kotlinx:kotlinx-coroutines-test"
+          - "org.jlleitschuh.gradle.ktlint"
+          - "io.gitlab.arturbosch.detekt"
+      android-runtime:
+        patterns:
+          - "androidx.*"
+          - "net.java.dev.jna:jna"
+        exclude-patterns:
+          - "androidx.test:*"
+          - "androidx.test.ext:*"
+          - "androidx.test.espresso:*"
 
   # GitHub Actions updates
   - package-ecosystem: "github-actions"
