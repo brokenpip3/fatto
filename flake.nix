@@ -2,7 +2,7 @@
   description = "Fatto (TaskWarrior Android Client)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils?ref=11707dc2f618dd54ca8739b309ec4fc024de578b";
     rust-overlay = {
       url = "github:oxalica/rust-overlay?ref=4d6fee71fea68418a48992409b47f1183d0dd111";
@@ -31,19 +31,19 @@
         };
         androidCompositionMinimal = pkgs.androidenv.composeAndroidPackages {
           buildToolsVersions = [ "36.0.0" ];
-          platformVersions = [ "37" ];
+          platformVersions = [ "36" ];
         };
 
         androidCompositionBase = pkgs.androidenv.composeAndroidPackages {
           buildToolsVersions = [ "36.0.0" ];
-          platformVersions = [ "37" ];
+          platformVersions = [ "36" ];
           includeNDK = true;
           ndkVersions = [ "26.1.10909125" ];
         };
 
         androidCompositionFull = pkgs.androidenv.composeAndroidPackages {
           buildToolsVersions = [ "36.0.0" ];
-          platformVersions = [ "37" ];
+          platformVersions = [ "36" ];
           abiVersions = [ "x86_64" ];
           includeSystemImages = true;
           includeNDK = true;
@@ -141,12 +141,12 @@
                   libpulseaudio
                   stdenv.cc.cc.lib
                   vulkan-loader
-                  libX11
-                  libXext
-                  libXcursor
-                  libXi
-                  libXrender
-                  libXtst
+                  xorg.libX11
+                  xorg.libXext
+                  xorg.libXcursor
+                  xorg.libXi
+                  xorg.libXrender
+                  xorg.libXtst
                 ]
               );
 
@@ -158,12 +158,12 @@
                     libpulseaudio
                     stdenv.cc.cc.lib
                     vulkan-loader
-                    libX11
-                    libXext
-                    libXcursor
-                    libXi
-                    libXrender
-                    libXtst
+                    xorg.libX11
+                    xorg.libXext
+                    xorg.libXcursor
+                    xorg.libXi
+                    xorg.libXrender
+                    xorg.libXtst
                   ]
                 )
               );
@@ -194,7 +194,9 @@
           sdk = androidSdkFull;
           hasEmulator = true;
           withGui = true;
-          extraInputs = [ pkgs.gemini-cli pkgs.git-cliff ];
+          extraInputs = [
+            pkgs.git-cliff
+          ];
         };
 
         devShells.fatto-ci = mkFattoShell {

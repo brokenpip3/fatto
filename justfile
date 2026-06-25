@@ -112,7 +112,7 @@ test-all: sync-up run-emulator-start test-fast test-android test-integration run
 # run android tests in CI (headless)
 test-ci-android: sync-up
     @echo "Creating AVD..."
-    echo "no" | avdmanager create avd -n ci_emulator -k "system-images;android-37;google_apis_playstore;x86_64" --force
+    echo "no" | avdmanager create avd -n ci_emulator -k "system-images;android-36;google_apis_playstore;x86_64" --force
     @echo "Starting emulator..."
     (emulator -avd ci_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &)
     adb wait-for-device
