@@ -76,7 +76,7 @@
 
         taskchampionAndroid = fattoRustPlatform.buildRustPackage {
           pname = "taskchampion-android";
-          version = "0.2.0";
+          version = "0.3.0";
           src = ./rust/taskchampion-android;
           cargoLock.lockFile = ./rust/taskchampion-android/Cargo.lock;
 

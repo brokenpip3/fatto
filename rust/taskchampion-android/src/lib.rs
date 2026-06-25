@@ -33,12 +33,6 @@ impl From<taskchampion::Error> for TaskError {
     }
 }
 
-impl From<anyhow::Error> for TaskError {
-    fn from(err: anyhow::Error) -> Self {
-        TaskError::Internal(err.to_string())
-    }
-}
-
 #[derive(uniffi::Enum, PartialEq, Debug, Clone, Copy)]
 pub enum TaskStatus {
     Pending,
@@ -477,8 +471,10 @@ fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
         }
     }
 
-    let annotations: Vec<Annotation> = task
-        .get_annotations()
+    let mut annotations: Vec<_> = task.get_annotations().collect();
+    annotations.sort_by_key(|a| a.entry);
+    let annotations: Vec<Annotation> = annotations
+        .into_iter()
         .map(|a| Annotation {
             entry: a.entry.to_rfc3339(),
             description: a.description.to_string(),
