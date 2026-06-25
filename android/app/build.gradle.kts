@@ -43,7 +43,7 @@ android {
     defaultConfig {
         applicationId = "com.brokenpip3.fatto"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = versionProps.getProperty("VERSION_CODE", "1").toInt()
         versionName = versionProps.getProperty("VERSION_NAME", "1.0.0")
 
