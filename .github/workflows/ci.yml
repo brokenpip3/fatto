@@ -26,9 +26,9 @@ jobs:
             rust/taskchampion-android/target
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.lock', 'rust/taskchampion-android/Cargo.lock') }}
+          key: ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.nix', 'flake.lock', 'rust/taskchampion-android/Cargo.toml', 'rust/taskchampion-android/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.lock') }}
+            ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.nix', 'flake.lock') }}
       - name: Generate uniffi bindings
         run: nix develop .#fatto-ci --no-update-lock-file --command just build-bindings
       - name: Upload uniffi bindings
@@ -84,9 +84,9 @@ jobs:
             rust/taskchampion-android/target
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.lock', 'rust/taskchampion-android/Cargo.lock') }}
+          key: ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock', 'rust/taskchampion-android/Cargo.toml', 'rust/taskchampion-android/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.lock') }}
+            ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}
       - name: Cache Gradle
         if: contains(matrix.shell, 'kotlin')
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -94,8 +94,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: v3-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            v3-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.lock') }}
+            v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}
       - name: Run ${{ matrix.command }}
         run: nix develop .#${{ matrix.shell }} --no-update-lock-file --command just ${{ matrix.command }}
