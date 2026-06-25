@@ -116,6 +116,7 @@ interface SettingsRepository {
 }
 
 class SettingsRepositoryImpl(context: Context) : SettingsRepository {
+    @Suppress("DEPRECATION")
     private val sharedPreferences =
         try {
             val masterKey =

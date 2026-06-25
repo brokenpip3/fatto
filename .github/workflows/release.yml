@@ -25,7 +25,7 @@ jobs:
 
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 5368709120
 
@@ -58,7 +58,7 @@ jobs:
 
       - uses: nix-community/cache-nix-action@d8cff2f74b9341e0d90fbf3c0c0212a161ceaef6 # v6
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 5368709120
 
@@ -74,8 +74,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-nix-${{ hashFiles('flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-nix-
+          key: v2-${{ runner.os }}-gradle-nix-${{ hashFiles('flake.nix', 'flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: v2-${{ runner.os }}-gradle-nix-
 
       - name: Build Beta APK (nix)
         if: endsWith(github.event.release.tag_name, '-beta')
@@ -133,8 +133,8 @@ jobs:
             rust/taskchampion-android/target
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-rust-fdroid-${{ hashFiles('rust/taskchampion-android/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-rust-fdroid-
+          key: v2-${{ runner.os }}-rust-fdroid-${{ hashFiles('.github/workflows/release.yml', 'rust/taskchampion-android/Cargo.toml', 'rust/taskchampion-android/Cargo.lock') }}
+          restore-keys: v2-${{ runner.os }}-rust-fdroid-
 
       - name: Setup Android NDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
@@ -182,7 +182,7 @@ jobs:
 
       - name: Install build-tools and platform
         run: |
-          echo "y" | sdkmanager "build-tools;34.0.0" "platforms;android-34" "ndk;26.1.10909125"
+          echo "y" | sdkmanager "build-tools;36.0.0" "platforms;android-36" "ndk;26.1.10909125"
 
       - name: Download Rust Artifacts (fdroid)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -196,8 +196,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-fdroid-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-fdroid-
+          key: v2-${{ runner.os }}-gradle-fdroid-${{ hashFiles('.github/workflows/release.yml', '**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: v2-${{ runner.os }}-gradle-fdroid-
 
       - name: Build Beta APK (fdroid)
         if: endsWith(github.event.release.tag_name, '-beta')

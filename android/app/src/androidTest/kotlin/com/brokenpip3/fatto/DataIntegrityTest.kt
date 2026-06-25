@@ -44,7 +44,7 @@ class DataIntegrityTest {
 
     private fun dismissBottomSheet() {
         composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("CloseButton"), 15000)
-        composeTestRule.onNode(hasContentDescription("CloseButton"), useUnmergedTree = true).performClick()
+        composeTestRule.onNode(hasContentDescription("CloseButton"), useUnmergedTree = true).performScrollTo().performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
         composeTestRule.waitForIdle()
     }

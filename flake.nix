@@ -2,7 +2,7 @@
   description = "Fatto (TaskWarrior Android Client)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils?ref=11707dc2f618dd54ca8739b309ec4fc024de578b";
     rust-overlay = {
       url = "github:oxalica/rust-overlay?ref=4d6fee71fea68418a48992409b47f1183d0dd111";
@@ -30,20 +30,20 @@
           };
         };
         androidCompositionMinimal = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "34.0.0" ];
-          platformVersions = [ "34" ];
+          buildToolsVersions = [ "36.0.0" ];
+          platformVersions = [ "36" ];
         };
 
         androidCompositionBase = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "34.0.0" ];
-          platformVersions = [ "34" ];
+          buildToolsVersions = [ "36.0.0" ];
+          platformVersions = [ "36" ];
           includeNDK = true;
           ndkVersions = [ "26.1.10909125" ];
         };
 
         androidCompositionFull = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "34.0.0" ];
-          platformVersions = [ "34" ];
+          buildToolsVersions = [ "36.0.0" ];
+          platformVersions = [ "36" ];
           abiVersions = [ "x86_64" ];
           includeSystemImages = true;
           includeNDK = true;
@@ -76,7 +76,7 @@
 
         taskchampionAndroid = fattoRustPlatform.buildRustPackage {
           pname = "taskchampion-android";
-          version = "0.2.0";
+          version = "0.3.0";
           src = ./rust/taskchampion-android;
           cargoLock.lockFile = ./rust/taskchampion-android/Cargo.lock;
 
@@ -141,12 +141,12 @@
                   libpulseaudio
                   stdenv.cc.cc.lib
                   vulkan-loader
-                  libX11
-                  libXext
-                  libXcursor
-                  libXi
-                  libXrender
-                  libXtst
+                  xorg.libX11
+                  xorg.libXext
+                  xorg.libXcursor
+                  xorg.libXi
+                  xorg.libXrender
+                  xorg.libXtst
                 ]
               );
 
@@ -158,22 +158,22 @@
                     libpulseaudio
                     stdenv.cc.cc.lib
                     vulkan-loader
-                    libX11
-                    libXext
-                    libXcursor
-                    libXi
-                    libXrender
-                    libXtst
+                    xorg.libX11
+                    xorg.libXext
+                    xorg.libXcursor
+                    xorg.libXi
+                    xorg.libXrender
+                    xorg.libXtst
                   ]
                 )
               );
 
               shellHook = ''
-                export PATH="${pkgs.lib.optionalString includeJdk "$JAVA_HOME/bin:"}${pkgs.lib.optionalString includeSdk "$ANDROID_HOME/platform-tools:${pkgs.lib.optionalString hasEmulator "$ANDROID_HOME/emulator:"}$ANDROID_HOME/build-tools/34.0.0:"}$PATH"
+                export PATH="${pkgs.lib.optionalString includeJdk "$JAVA_HOME/bin:"}${pkgs.lib.optionalString includeSdk "$ANDROID_HOME/platform-tools:${pkgs.lib.optionalString hasEmulator "$ANDROID_HOME/emulator:"}$ANDROID_HOME/build-tools/36.0.0:"}$PATH"
                 export GRADLE_USER_HOME="$(git rev-parse --show-toplevel)/.gradle-home"
                 mkdir -p "$GRADLE_USER_HOME"
                  ${pkgs.lib.optionalString (includeSdk && useAapt2Override) ''
-                   echo "android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/34.0.0/aapt2" > "$GRADLE_USER_HOME/gradle.properties"
+                   echo "android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/36.0.0/aapt2" > "$GRADLE_USER_HOME/gradle.properties"
                  ''}
               '';
             }
@@ -194,7 +194,9 @@
           sdk = androidSdkFull;
           hasEmulator = true;
           withGui = true;
-          extraInputs = [ pkgs.gemini-cli pkgs.git-cliff ];
+          extraInputs = [
+            pkgs.git-cliff
+          ];
         };
 
         devShells.fatto-ci = mkFattoShell {
@@ -213,7 +215,6 @@
           name = "fatto-ci-kotlin";
           sdk = androidSdkMinimal;
           includeRust = false;
-          useAapt2Override = false;
         };
 
         devShells.fatto-ci-android = mkFattoShell {
