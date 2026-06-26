@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import kotlin.math.absoluteValue
 
 private val NordicPalette =
@@ -22,7 +23,7 @@ private val NordicDarkPalette =
 @Composable
 fun String.toNordicColor(): Color {
     if (this.isEmpty()) return NordicSlate
-    val palette = if (MaterialTheme.colorScheme.background == NordicNight) NordicDarkPalette else NordicPalette
+    val palette = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) NordicDarkPalette else NordicPalette
     val index = this.hashCode().absoluteValue % palette.size
     return palette[index]
 }
