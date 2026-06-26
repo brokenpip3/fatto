@@ -55,8 +55,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.brokenpip3.fatto.ui.theme.NordicFrost
-import com.brokenpip3.fatto.ui.theme.NordicMidnight
+import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import kotlinx.coroutines.launch
 
@@ -81,6 +80,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val showWaitingTasks by viewModel.showWaitingTasks.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
 
     var secretVisible by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -96,13 +96,13 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
-                    containerColor = NordicMidnight,
-                    contentColor = NordicFrost,
-                    actionContentColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                    actionContentColor = MaterialTheme.colorScheme.inversePrimary,
                 ) {
                     Text(
                         text = data.visuals.message,
-                        color = NordicFrost,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -225,10 +225,10 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
                         ),
                 ) {
-                    Text("Save", color = Color.White)
+                    Text("Save")
                 }
 
                 OutlinedButton(
@@ -346,6 +346,52 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Theme",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ThemeMode.entries.forEach { mode ->
+                        val selected = themeMode == mode
+                        OutlinedButton(
+                            onClick = { viewModel.onThemeModeChange(mode) },
+                            modifier = Modifier.weight(1f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            colors =
+                                ButtonDefaults.outlinedButtonColors(
+                                    containerColor =
+                                        if (selected) {
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                    contentColor =
+                                        if (selected) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        },
+                                ),
+                        ) {
+                            Text(
+                                text =
+                                    when (mode) {
+                                        ThemeMode.SYSTEM -> "System"
+                                        ThemeMode.LIGHT -> "Light"
+                                        ThemeMode.DARK -> "Dark"
+                                    },
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
 
             SettingsCheckboxRow(
                 checked = showCompleted,

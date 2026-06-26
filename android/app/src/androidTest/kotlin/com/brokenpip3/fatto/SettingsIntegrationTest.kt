@@ -1,9 +1,16 @@
 package com.brokenpip3.fatto
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.brokenpip3.fatto.ui.theme.NordicNight
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,5 +82,17 @@ class SettingsIntegrationTest {
 
         // Verify it exists (we can't easily check 'checked' state with onNodeWithText but we verify it's still clickable/present)
         composeTestRule.onNodeWithText("Confirm complete/delete").assertExists()
+    }
+
+    @Test
+    fun testDarkThemeChangesAppBackground() {
+        composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithText("Dark").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
+
+        val pixels = composeTestRule.onNodeWithTag("AppRoot").captureToImage().toPixelMap()
+        val backgroundPixel = pixels[4, pixels.height / 2]
+
+        assertEquals(NordicNight.toArgb(), backgroundPixel.toArgb())
     }
 }
