@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -342,56 +343,58 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Visualization",
+                text = "Theme",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Theme",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ThemeMode.entries.forEach { mode ->
-                        val selected = themeMode == mode
-                        OutlinedButton(
-                            onClick = { viewModel.onThemeModeChange(mode) },
-                            modifier = Modifier.weight(1f),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                            colors =
-                                ButtonDefaults.outlinedButtonColors(
-                                    containerColor =
-                                        if (selected) {
-                                            MaterialTheme.colorScheme.primaryContainer
-                                        } else {
-                                            Color.Transparent
-                                        },
-                                    contentColor =
-                                        if (selected) {
-                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.primary
-                                        },
-                                ),
-                        ) {
-                            Text(
-                                text =
-                                    when (mode) {
-                                        ThemeMode.SYSTEM -> "System"
-                                        ThemeMode.LIGHT -> "Light"
-                                        ThemeMode.DARK -> "Dark"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ThemeMode.entries.forEach { mode ->
+                    val selected = themeMode == mode
+                    OutlinedButton(
+                        onClick = { viewModel.onThemeModeChange(mode) },
+                        modifier = Modifier.weight(1f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
+                        colors =
+                            ButtonDefaults.outlinedButtonColors(
+                                containerColor =
+                                    if (selected) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        Color.Transparent
                                     },
-                                maxLines = 1,
-                            )
-                        }
+                                contentColor =
+                                    if (selected) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                            ),
+                    ) {
+                        Text(
+                            text =
+                                when (mode) {
+                                    ThemeMode.SYSTEM -> "System"
+                                    ThemeMode.LIGHT -> "Light"
+                                    ThemeMode.DARK -> "Dark"
+                                },
+                            maxLines = 1,
+                        )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Visualization",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
 
             SettingsCheckboxRow(
                 checked = showCompleted,
