@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -15,6 +16,8 @@ import com.brokenpip3.fatto.MainActivity
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.notification.CompleteTaskNotificationReceiver
+import com.brokenpip3.fatto.notification.NotificationNavigation
 import uniffi.taskchampion_android.TaskStatus
 
 class DailyNotificationWorker(
@@ -73,10 +76,9 @@ class DailyNotificationWorker(
         }
 
         val notificationManager = NotificationManagerCompat.from(applicationContext)
-        val pendingIntent = getPendingIntent()
-
         // Individual Task Notifications
         tasks.forEach { task ->
+            val notificationTag = NotificationNavigation.notificationTag(task.uuid)
             val builder =
                 NotificationCompat.Builder(applicationContext, channelId)
                     .setSmallIcon(com.brokenpip3.fatto.R.mipmap.ic_launcher)
@@ -84,11 +86,16 @@ class DailyNotificationWorker(
                     .setContentText(task.description)
                     .setGroup(groupKey)
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .setContentIntent(pendingIntent)
+                    .setContentIntent(getTaskPendingIntent(task.uuid))
+                    .addAction(
+                        com.brokenpip3.fatto.R.mipmap.ic_launcher,
+                        "Done",
+                        getCompleteTaskPendingIntent(task.uuid),
+                    )
                     .setAutoCancel(true)
 
             try {
-                notificationManager.notify(task.uuid.hashCode(), builder.build())
+                notificationManager.notify(notificationTag, NotificationNavigation.TASK_NOTIFICATION_ID, builder.build())
             } catch (e: SecurityException) {
                 Log.e("DailyNotificationWorker", "SecurityException: Notification permission not granted", e)
             }
@@ -103,7 +110,7 @@ class DailyNotificationWorker(
                 .setGroup(groupKey)
                 .setGroupSummary(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setContentIntent(pendingIntent)
+                .setContentIntent(getSummaryPendingIntent())
                 .setAutoCancel(true)
 
         try {
@@ -113,16 +120,47 @@ class DailyNotificationWorker(
         }
     }
 
-    private fun getPendingIntent(): PendingIntent {
+    private fun getSummaryPendingIntent(): PendingIntent {
         val intent =
             Intent(applicationContext, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                data = Uri.parse("fatto://notification/summary")
             }
         return PendingIntent.getActivity(
             applicationContext,
             0,
             intent,
-            PendingIntent.FLAG_IMMUTABLE,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun getTaskPendingIntent(uuid: String): PendingIntent {
+        val intent =
+            Intent(applicationContext, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                data = Uri.parse("fatto://notification/task/$uuid")
+                putExtra(NotificationNavigation.EXTRA_TASK_UUID, uuid)
+            }
+        return PendingIntent.getActivity(
+            applicationContext,
+            NotificationNavigation.TASK_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun getCompleteTaskPendingIntent(uuid: String): PendingIntent {
+        val intent =
+            Intent(applicationContext, CompleteTaskNotificationReceiver::class.java).apply {
+                action = NotificationNavigation.ACTION_COMPLETE_TASK
+                data = Uri.parse("fatto://notification/task/$uuid/complete")
+                putExtra(NotificationNavigation.EXTRA_TASK_UUID, uuid)
+            }
+        return PendingIntent.getBroadcast(
+            applicationContext,
+            NotificationNavigation.TASK_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
 }

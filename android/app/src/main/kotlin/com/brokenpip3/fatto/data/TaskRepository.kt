@@ -126,18 +126,22 @@ class TaskRepository(
             }
         }
 
-    suspend fun completeTask(uuid: String) =
-        withContext(Dispatchers.IO) {
-            val r = replica ?: throw Exception("Replica not initialized")
-            try {
-                r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
-                loadTasks()
+    suspend fun completeTask(
+        uuid: String,
+        sync: Boolean = true,
+    ) = withContext(Dispatchers.IO) {
+        val r = replica ?: throw Exception("Replica not initialized")
+        try {
+            r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
+            loadTasks()
+            if (sync) {
                 triggerSync()
-            } catch (e: Exception) {
-                Log.e("TaskRepository", "Failed to complete task", e)
-                throw e
             }
+        } catch (e: Exception) {
+            Log.e("TaskRepository", "Failed to complete task", e)
+            throw e
         }
+    }
 
     suspend fun deleteTask(uuid: String) =
         withContext(Dispatchers.IO) {
