@@ -114,7 +114,7 @@ class DailyNotificationWorker(
                 .setAutoCancel(true)
 
         try {
-            notificationManager.notify(0, summaryBuilder.build())
+            notificationManager.notify(NotificationNavigation.SUMMARY_NOTIFICATION_ID, summaryBuilder.build())
         } catch (e: SecurityException) {
             Log.e("DailyNotificationWorker", "SecurityException: Notification permission not granted", e)
         }

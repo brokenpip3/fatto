@@ -32,9 +32,9 @@ class CompleteTaskNotificationReceiver : BroadcastReceiver() {
                 val taskRepository = TaskRepository(context.applicationContext, settingsRepository)
                 taskRepository.init()
                 taskRepository.completeTask(uuid, sync = false)
-                NotificationManagerCompat
-                    .from(context)
-                    .cancel(NotificationNavigation.notificationTag(uuid), NotificationNavigation.TASK_NOTIFICATION_ID)
+                val notificationManager = NotificationManagerCompat.from(context)
+                notificationManager.cancel(NotificationNavigation.notificationTag(uuid), NotificationNavigation.TASK_NOTIFICATION_ID)
+                notificationManager.cancel(NotificationNavigation.SUMMARY_NOTIFICATION_ID)
                 enqueueSync(context.applicationContext)
             } catch (e: Exception) {
                 Log.e("CompleteTaskNotificationReceiver", "Failed to complete task from notification", e)
