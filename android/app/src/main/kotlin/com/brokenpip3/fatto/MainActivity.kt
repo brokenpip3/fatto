@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -22,6 +23,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +50,7 @@ import androidx.work.WorkManager
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.notification.NotificationNavigation
 import com.brokenpip3.fatto.ui.calendar.CalendarScreen
 import com.brokenpip3.fatto.ui.projects.ProjectsScreen
 import com.brokenpip3.fatto.ui.settings.SettingsScreen
@@ -67,6 +70,8 @@ import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
+    private var notificationTaskUuid by mutableStateOf<String?>(null)
+
     private val requestPermissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission(),
@@ -82,6 +87,7 @@ class MainActivity : ComponentActivity() {
 
         val taskViewModel = TaskViewModel(taskRepository)
         val settingsViewModel = SettingsViewModel(settingsRepository)
+        notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
 
         scheduleSync()
         requestNotificationPermission()
@@ -104,6 +110,22 @@ class MainActivity : ComponentActivity() {
 
             NordicTheme(darkTheme = darkTheme) {
                 val navController = rememberNavController()
+                val taskUuid = notificationTaskUuid
+
+                LaunchedEffect(taskUuid) {
+                    taskUuid?.let { uuid ->
+                        taskViewModel.clearFilters()
+                        taskViewModel.onSearchQueryChange(NotificationNavigation.taskSearchQuery(uuid))
+                        navController.navigate("tasks") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                        notificationTaskUuid = null
+                    }
+                }
 
                 Scaffold(
                     modifier = Modifier.testTag("AppRoot"),
@@ -249,6 +271,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
     }
 
     private fun requestNotificationPermission() {
