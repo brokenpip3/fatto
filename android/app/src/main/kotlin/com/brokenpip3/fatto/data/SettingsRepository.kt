@@ -1,9 +1,11 @@
 package com.brokenpip3.fatto.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +17,7 @@ data class SyncCredentials(
     val secret: String,
 )
 
+@Suppress("TooManyFunctions")
 interface SettingsRepository {
     val showCompleted: StateFlow<Boolean>
     val showInternalTags: StateFlow<Boolean>
@@ -33,6 +36,7 @@ interface SettingsRepository {
     val sortDirection: StateFlow<String>
     val showPriorityBadge: StateFlow<Boolean>
     val showUrgencyBar: StateFlow<Boolean>
+    val themeMode: StateFlow<ThemeMode>
 
     fun getFirstDayOfWeek(): Int
 
@@ -113,8 +117,13 @@ interface SettingsRepository {
     fun getShowUrgencyBar(): Boolean
 
     fun setShowUrgencyBar(enabled: Boolean)
+
+    fun getThemeMode(): ThemeMode
+
+    fun setThemeMode(value: ThemeMode)
 }
 
+@Suppress("TooManyFunctions")
 class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     @Suppress("DEPRECATION")
     private val sharedPreferences =
@@ -135,6 +144,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             Log.e("SettingsRepository", "Failed to initialize EncryptedSharedPreferences", e)
             null
         }
+
+    private val themeModeSettings = ThemeModeSettings(sharedPreferences)
 
     private val _showCompleted = MutableStateFlow(getShowCompleted())
     override val showCompleted: StateFlow<Boolean> = _showCompleted.asStateFlow()
@@ -186,6 +197,9 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private val _showUrgencyBar = MutableStateFlow(getShowUrgencyBar())
     override val showUrgencyBar: StateFlow<Boolean> = _showUrgencyBar.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(getThemeMode())
+    override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     override fun getFirstDayOfWeek(): Int {
         return sharedPreferences?.getInt("first_day_of_week", Calendar.MONDAY) ?: Calendar.MONDAY
@@ -397,5 +411,31 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setShowUrgencyBar(enabled: Boolean) {
         sharedPreferences?.edit()?.putBoolean("show_urgency_bar", enabled)?.apply()
         _showUrgencyBar.value = enabled
+    }
+
+    override fun getThemeMode(): ThemeMode {
+        return themeModeSettings.get()
+    }
+
+    override fun setThemeMode(value: ThemeMode) {
+        themeModeSettings.set(value)
+        _themeMode.value = value
+    }
+}
+
+private class ThemeModeSettings(
+    private val sharedPreferences: SharedPreferences?,
+) {
+    fun get(): ThemeMode {
+        val storedValue = sharedPreferences?.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.storedValue)
+        return ThemeMode.fromStoredValue(storedValue)
+    }
+
+    fun set(value: ThemeMode) {
+        sharedPreferences?.edit()?.putString(KEY_THEME_MODE, value.storedValue)?.apply()
+    }
+
+    private companion object {
+        const val KEY_THEME_MODE = "theme_mode"
     }
 }

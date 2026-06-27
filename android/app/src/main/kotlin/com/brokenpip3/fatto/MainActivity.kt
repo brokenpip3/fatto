@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -28,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -54,6 +56,7 @@ import com.brokenpip3.fatto.ui.tasklist.AddTaskDialog
 import com.brokenpip3.fatto.ui.tasklist.TaskDetailBottomSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskListScreen
 import com.brokenpip3.fatto.ui.theme.NordicTheme
+import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import com.brokenpip3.fatto.vm.TaskViewModel
 import com.brokenpip3.fatto.worker.DailyNotificationWorker
@@ -90,10 +93,20 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            NordicTheme {
+            val themeMode by settingsViewModel.themeMode.collectAsState()
+            val systemDarkTheme = isSystemInDarkTheme()
+            val darkTheme =
+                when (themeMode) {
+                    ThemeMode.SYSTEM -> systemDarkTheme
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+
+            NordicTheme(darkTheme = darkTheme) {
                 val navController = rememberNavController()
 
                 Scaffold(
+                    modifier = Modifier.testTag("AppRoot"),
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
                         NavigationBar(

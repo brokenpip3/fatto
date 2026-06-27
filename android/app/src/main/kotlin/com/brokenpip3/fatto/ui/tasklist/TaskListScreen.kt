@@ -82,8 +82,6 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
-import com.brokenpip3.fatto.ui.theme.NordicFrost
-import com.brokenpip3.fatto.ui.theme.NordicMidnight
 import com.brokenpip3.fatto.ui.theme.toNordicColor
 import com.brokenpip3.fatto.vm.SortDirection
 import com.brokenpip3.fatto.vm.SortOrder
@@ -203,13 +201,13 @@ fun TaskListScreen(
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
-                    containerColor = NordicMidnight,
-                    contentColor = NordicFrost,
-                    actionContentColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                    actionContentColor = MaterialTheme.colorScheme.inversePrimary,
                 ) {
                     Text(
                         text = data.visuals.message,
-                        color = NordicFrost,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

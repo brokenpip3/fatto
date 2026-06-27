@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.vm
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.brokenpip3.fatto.data.SettingsRepository
+import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -61,6 +62,9 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _showUrgencyBar = MutableStateFlow(false)
     val showUrgencyBar = _showUrgencyBar.asStateFlow()
 
+    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
+    val themeMode = _themeMode.asStateFlow()
+
     init {
         load()
     }
@@ -90,6 +94,7 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _showWaitingTasks.value = repository.getShowWaitingTasks()
         _showPriorityBadge.value = repository.getShowPriorityBadge()
         _showUrgencyBar.value = repository.getShowUrgencyBar()
+        _themeMode.value = repository.getThemeMode()
     }
 
     fun onUrlChange(value: String) {
@@ -177,6 +182,11 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun onShowUrgencyBarChange(value: Boolean) {
         _showUrgencyBar.value = value
         repository.setShowUrgencyBar(value)
+    }
+
+    fun onThemeModeChange(value: ThemeMode) {
+        _themeMode.value = value
+        repository.setThemeMode(value)
     }
 
     fun save() {

@@ -25,7 +25,6 @@ val Typography =
                 fontSize = 24.sp,
                 lineHeight = 32.sp,
                 letterSpacing = (-0.02).sp,
-                color = NordicMidnight,
             ),
         titleLarge =
             TextStyle(
@@ -42,7 +41,6 @@ val Typography =
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
                 letterSpacing = 0.15.sp,
-                color = NordicMidnight,
             ),
         titleSmall =
             TextStyle(
@@ -51,7 +49,6 @@ val Typography =
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 letterSpacing = 0.1.sp,
-                color = NordicMidnight,
             ),
         bodyLarge =
             TextStyle(
@@ -60,7 +57,6 @@ val Typography =
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
                 letterSpacing = 0.01.sp,
-                color = NordicMidnight,
             ),
         bodyMedium =
             TextStyle(
@@ -69,7 +65,6 @@ val Typography =
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 letterSpacing = 0.25.sp,
-                color = NordicMidnight,
             ),
         labelSmall =
             TextStyle(
@@ -78,6 +73,5 @@ val Typography =
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
                 letterSpacing = 0.sp,
-                color = NordicGrey,
             ),
     )

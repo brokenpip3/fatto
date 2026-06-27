@@ -244,10 +244,10 @@ fun AddTaskDialog(
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = androidx.compose.ui.graphics.Color.White,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
             ) {
-                Text("Create", color = androidx.compose.ui.graphics.Color.White)
+                Text("Create")
             }
         },
         dismissButton = {
