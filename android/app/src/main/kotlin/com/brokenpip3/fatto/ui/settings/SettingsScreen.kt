@@ -71,6 +71,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
@@ -93,17 +94,31 @@ private enum class SettingsTab(
 }
 
 private data class SyncSettingsSectionState(
+    val syncType: SyncType,
     val syncUrl: String,
     val clientId: String,
     val encryptionSecret: String,
     val secretVisible: Boolean,
+    val s3Bucket: String,
+    val s3Region: String,
+    val s3EndpointUrl: String,
+    val s3AccessKeyId: String,
+    val s3SecretAccessKey: String,
+    val s3SecretVisible: Boolean,
 )
 
 private data class SyncSettingsSectionActions(
+    val onSyncTypeChange: (SyncType) -> Unit,
     val onSecretVisibleChange: (Boolean) -> Unit,
     val onSyncUrlChange: (String) -> Unit,
     val onClientIdChange: (String) -> Unit,
     val onSecretChange: (String) -> Unit,
+    val onS3BucketChange: (String) -> Unit,
+    val onS3RegionChange: (String) -> Unit,
+    val onS3EndpointUrlChange: (String) -> Unit,
+    val onS3AccessKeyIdChange: (String) -> Unit,
+    val onS3SecretAccessKeyChange: (String) -> Unit,
+    val onS3SecretVisibleChange: (Boolean) -> Unit,
     val onSave: () -> Unit,
     val onClear: () -> Unit,
 )
@@ -169,9 +184,15 @@ fun SettingsScreen(
     availableProjects: List<String>,
     availableTags: Set<String>,
 ) {
+    val syncType by viewModel.syncType.collectAsState()
     val syncUrl by viewModel.syncUrl.collectAsState()
     val clientId by viewModel.clientId.collectAsState()
     val encryptionSecret by viewModel.encryptionSecret.collectAsState()
+    val s3Bucket by viewModel.s3Bucket.collectAsState()
+    val s3Region by viewModel.s3Region.collectAsState()
+    val s3EndpointUrl by viewModel.s3EndpointUrl.collectAsState()
+    val s3AccessKeyId by viewModel.s3AccessKeyId.collectAsState()
+    val s3SecretAccessKey by viewModel.s3SecretAccessKey.collectAsState()
     val showCompleted by viewModel.showCompleted.collectAsState()
     val showInternalTags by viewModel.showInternalTags.collectAsState()
     val showEmptyProjects by viewModel.showEmptyProjects.collectAsState()
@@ -200,6 +221,7 @@ fun SettingsScreen(
     val notificationsScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val aboutScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var secretVisible by remember { mutableStateOf(false) }
+    var s3SecretVisible by remember { mutableStateOf(false) }
     var editingContext by remember { mutableStateOf<TaskContext?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -212,9 +234,9 @@ fun SettingsScreen(
     }
 
     val onSaveSyncSettings: () -> Unit = {
-        viewModel.save()
+        val saved = viewModel.save()
         focusManager.clearFocus()
-        launchSnackbar("Settings saved")
+        launchSnackbar(if (saved) "Settings saved" else "Fill in all required sync fields")
     }
     val onClearSyncSettings: () -> Unit = {
         viewModel.clear()
@@ -277,17 +299,31 @@ fun SettingsScreen(
                             scrollState = syncScrollState,
                             state =
                                 SyncSettingsSectionState(
+                                    syncType = syncType,
                                     syncUrl = syncUrl,
                                     clientId = clientId,
                                     encryptionSecret = encryptionSecret,
                                     secretVisible = secretVisible,
+                                    s3Bucket = s3Bucket,
+                                    s3Region = s3Region,
+                                    s3EndpointUrl = s3EndpointUrl,
+                                    s3AccessKeyId = s3AccessKeyId,
+                                    s3SecretAccessKey = s3SecretAccessKey,
+                                    s3SecretVisible = s3SecretVisible,
                                 ),
                             actions =
                                 SyncSettingsSectionActions(
+                                    onSyncTypeChange = viewModel::onSyncTypeChange,
                                     onSecretVisibleChange = { secretVisible = it },
                                     onSyncUrlChange = viewModel::onUrlChange,
                                     onClientIdChange = viewModel::onClientIdChange,
                                     onSecretChange = viewModel::onSecretChange,
+                                    onS3BucketChange = viewModel::onS3BucketChange,
+                                    onS3RegionChange = viewModel::onS3RegionChange,
+                                    onS3EndpointUrlChange = viewModel::onS3EndpointUrlChange,
+                                    onS3AccessKeyIdChange = viewModel::onS3AccessKeyIdChange,
+                                    onS3SecretAccessKeyChange = viewModel::onS3SecretAccessKeyChange,
+                                    onS3SecretVisibleChange = { s3SecretVisible = it },
                                     onSave = onSaveSyncSettings,
                                     onClear = onClearSyncSettings,
                                 ),
@@ -449,32 +485,155 @@ private fun SyncSettingsSection(
             color = MaterialTheme.colorScheme.primary,
         )
 
-        TextField(
-            value = state.syncUrl,
-            onValueChange = actions.onSyncUrlChange,
-            label = { Text("Sync Server URL") },
-            placeholder = { Text("http://example.com:8080") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            colors =
-                TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                ),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .selectable(
+                            selected = state.syncType == SyncType.SERVER,
+                            onClick = { actions.onSyncTypeChange(SyncType.SERVER) },
+                            role = Role.RadioButton,
+                        ),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = state.syncType == SyncType.SERVER,
+                    onClick = null,
+                )
+                Text(
+                    text = "Sync server",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
 
-        TextField(
-            value = state.clientId,
-            onValueChange = actions.onClientIdChange,
-            label = { Text("Client ID (UUID)") },
-            placeholder = { Text("00000000-0000-0000-0000-000000000000") },
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                ),
-        )
+            Row(
+                modifier =
+                    Modifier
+                        .selectable(
+                            selected = state.syncType == SyncType.S3,
+                            onClick = { actions.onSyncTypeChange(SyncType.S3) },
+                            role = Role.RadioButton,
+                        ),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = state.syncType == SyncType.S3,
+                    onClick = null,
+                )
+                Text(
+                    text = "S3 storage",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
+
+        if (state.syncType == SyncType.SERVER) {
+            TextField(
+                value = state.syncUrl,
+                onValueChange = actions.onSyncUrlChange,
+                label = { Text("Sync Server URL") },
+                placeholder = { Text("http://example.com:8080") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            )
+
+            TextField(
+                value = state.clientId,
+                onValueChange = actions.onClientIdChange,
+                label = { Text("Client ID (UUID)") },
+                placeholder = { Text("00000000-0000-0000-0000-000000000000") },
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            )
+        } else {
+            TextField(
+                value = state.s3Bucket,
+                onValueChange = actions.onS3BucketChange,
+                label = { Text("Bucket") },
+                placeholder = { Text("my-tasks-bucket") },
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            )
+
+            TextField(
+                value = state.s3EndpointUrl,
+                onValueChange = actions.onS3EndpointUrlChange,
+                label = { Text("Endpoint URL (optional)") },
+                placeholder = { Text("https://minio.example.com") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            )
+
+            TextField(
+                value = state.s3Region,
+                onValueChange = actions.onS3RegionChange,
+                label = { Text("Region (optional)") },
+                placeholder = { Text("us-east-1") },
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            )
+
+            TextField(
+                value = state.s3AccessKeyId,
+                onValueChange = actions.onS3AccessKeyIdChange,
+                label = { Text("Access Key ID") },
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            )
+
+            TextField(
+                value = state.s3SecretAccessKey,
+                onValueChange = actions.onS3SecretAccessKeyChange,
+                label = { Text("Secret Access Key") },
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (state.s3SecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { actions.onS3SecretVisibleChange(!state.s3SecretVisible) }) {
+                        Icon(
+                            imageVector = if (state.s3SecretVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (state.s3SecretVisible) "Hide secret" else "Show secret",
+                        )
+                    }
+                },
+                colors =
+                    TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+            )
+        }
 
         TextField(
             value = state.encryptionSecret,

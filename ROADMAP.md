@@ -1,4 +1,5 @@
 - [x] sync with taskwarrior-sync-server
+- [x] sync with AWS S3 / S3-compatible storage (minio, etc.)
 - [x] show tasks and sort them
 - [x] support due date in tasks
 - [x] support scheduling tasks

@@ -1,7 +1,9 @@
 package com.brokenpip3.fatto
 
+import com.brokenpip3.fatto.data.S3Credentials
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SyncCredentials
+import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
@@ -10,8 +12,10 @@ import com.brokenpip3.fatto.vm.SettingsViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
 
@@ -53,6 +57,58 @@ class SettingsViewModelTest {
         viewModel.applyTaskrcImport()
 
         assertEquals(preview, repository.appliedPreview)
+    }
+
+    @Test
+    fun `save with incomplete s3 fields does not switch backend`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onSyncTypeChange(SyncType.S3)
+        viewModel.onS3BucketChange("my-bucket")
+        // access key, secret access key and encryption secret left empty
+
+        assertFalse(viewModel.save())
+        assertEquals(SyncType.SERVER, repository.getSyncType())
+        assertNull(repository.getS3Credentials())
+    }
+
+    @Test
+    fun `save with complete s3 fields persists credentials and backend`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onSyncTypeChange(SyncType.S3)
+        viewModel.onS3BucketChange("my-bucket")
+        viewModel.onS3AccessKeyIdChange("access-key")
+        viewModel.onS3SecretAccessKeyChange("secret-key")
+        viewModel.onSecretChange("encryption-secret")
+
+        assertTrue(viewModel.save())
+        assertEquals(SyncType.S3, repository.getSyncType())
+        assertEquals(
+            S3Credentials(
+                bucket = "my-bucket",
+                region = null,
+                endpointUrl = null,
+                accessKeyId = "access-key",
+                secretAccessKey = "secret-key",
+                secret = "encryption-secret",
+            ),
+            repository.getS3Credentials(),
+        )
+    }
+
+    @Test
+    fun `save with incomplete server fields does not persist`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onUrlChange("http://example.com:8080")
+        // client id and encryption secret left empty
+
+        assertFalse(viewModel.save())
+        assertNull(repository.getCredentials())
     }
 
     private class FakeSettingsRepository : SettingsRepository {
@@ -115,17 +171,50 @@ class SettingsViewModelTest {
             sortDirection.value = value
         }
 
-        override fun getCredentials(): SyncCredentials? = null
+        private var syncType: SyncType = SyncType.SERVER
+        private var credentials: SyncCredentials? = null
+        private var s3Credentials: S3Credentials? = null
+
+        override fun getSyncType(): SyncType = syncType
+
+        override fun setSyncType(type: SyncType) {
+            syncType = type
+        }
+
+        override fun getCredentials(): SyncCredentials? = credentials
 
         override fun saveCredentials(
             url: String,
             clientId: String,
             secret: String,
-        ) = Unit
+        ) {
+            credentials = SyncCredentials(url, clientId, secret)
+        }
 
-        override fun clearCredentials() = Unit
+        override fun getS3Credentials(): S3Credentials? = s3Credentials
 
-        override fun hasCredentials(): Boolean = false
+        override fun saveS3Credentials(
+            bucket: String,
+            region: String?,
+            endpointUrl: String?,
+            accessKeyId: String,
+            secretAccessKey: String,
+            secret: String,
+        ) {
+            s3Credentials = S3Credentials(bucket, region, endpointUrl, accessKeyId, secretAccessKey, secret)
+        }
+
+        override fun clearCredentials() {
+            credentials = null
+            s3Credentials = null
+            syncType = SyncType.SERVER
+        }
+
+        override fun hasCredentials(): Boolean =
+            when (syncType) {
+                SyncType.S3 -> s3Credentials != null
+                SyncType.SERVER -> credentials != null
+            }
 
         override fun getShowCompleted(): Boolean = showCompleted.value
 

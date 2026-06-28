@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.vm
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.brokenpip3.fatto.data.SettingsRepository
+import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImporter
 import com.brokenpip3.fatto.data.model.TaskContext
@@ -11,6 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsViewModel(private val repository: SettingsRepository) : ViewModel() {
+    private val _syncType = MutableStateFlow(SyncType.SERVER)
+    val syncType = _syncType.asStateFlow()
+
     private val _syncUrl = MutableStateFlow("")
     val syncUrl = _syncUrl.asStateFlow()
 
@@ -19,6 +23,21 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     private val _encryptionSecret = MutableStateFlow("")
     val encryptionSecret = _encryptionSecret.asStateFlow()
+
+    private val _s3Bucket = MutableStateFlow("")
+    val s3Bucket = _s3Bucket.asStateFlow()
+
+    private val _s3Region = MutableStateFlow("")
+    val s3Region = _s3Region.asStateFlow()
+
+    private val _s3EndpointUrl = MutableStateFlow("")
+    val s3EndpointUrl = _s3EndpointUrl.asStateFlow()
+
+    private val _s3AccessKeyId = MutableStateFlow("")
+    val s3AccessKeyId = _s3AccessKeyId.asStateFlow()
+
+    private val _s3SecretAccessKey = MutableStateFlow("")
+    val s3SecretAccessKey = _s3SecretAccessKey.asStateFlow()
 
     private val _showCompleted = MutableStateFlow(true)
     val showCompleted = _showCompleted.asStateFlow()
@@ -82,6 +101,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     }
 
     private fun load() {
+        _syncType.value = repository.getSyncType()
+
         val creds = repository.getCredentials()
         if (creds != null) {
             _syncUrl.value = creds.url
@@ -90,6 +111,21 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
             Log.d("SettingsViewModel", "Loaded credentials from repository")
         } else {
             Log.d("SettingsViewModel", "No credentials found in repository")
+        }
+
+        val s3Creds = repository.getS3Credentials()
+        if (s3Creds != null) {
+            _s3Bucket.value = s3Creds.bucket
+            _s3Region.value = s3Creds.region ?: ""
+            _s3EndpointUrl.value = s3Creds.endpointUrl ?: ""
+            _s3AccessKeyId.value = s3Creds.accessKeyId
+            _s3SecretAccessKey.value = s3Creds.secretAccessKey
+            // For S3 the encryption secret lives alongside the S3 credentials; surface
+            // it in the shared field so the user can review/edit it.
+            if (_syncType.value == SyncType.S3) {
+                _encryptionSecret.value = s3Creds.secret
+            }
+            Log.d("SettingsViewModel", "Loaded S3 credentials from repository")
         }
         _showCompleted.value = repository.getShowCompleted()
         _showInternalTags.value = repository.getShowInternalTags()
@@ -109,8 +145,32 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _themeMode.value = repository.getThemeMode()
     }
 
+    fun onSyncTypeChange(value: SyncType) {
+        _syncType.value = value
+    }
+
     fun onUrlChange(value: String) {
         _syncUrl.value = value
+    }
+
+    fun onS3BucketChange(value: String) {
+        _s3Bucket.value = value
+    }
+
+    fun onS3RegionChange(value: String) {
+        _s3Region.value = value
+    }
+
+    fun onS3EndpointUrlChange(value: String) {
+        _s3EndpointUrl.value = value
+    }
+
+    fun onS3AccessKeyIdChange(value: String) {
+        _s3AccessKeyId.value = value
+    }
+
+    fun onS3SecretAccessKeyChange(value: String) {
+        _s3SecretAccessKey.value = value
     }
 
     fun onClientIdChange(value: String) {
@@ -234,21 +294,76 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _taskrcImportPreview.value = preview
     }
 
-    fun save() {
-        val url = _syncUrl.value.trim()
-        val clientIdValue = _clientId.value.trim()
+    /**
+     * Persist the sync configuration. The active backend (sync type) is only
+     * persisted together with a complete set of credentials, so an incomplete
+     * form can never switch the app to a backend that has no usable credentials.
+     *
+     * @return true if the settings were saved, false if required fields are missing.
+     */
+    fun save(): Boolean {
+        val type = _syncType.value
         val secret = _encryptionSecret.value.trim()
 
-        Log.d("SettingsViewModel", "Saving settings to repository")
-        repository.saveCredentials(url, clientIdValue, secret)
+        val saved =
+            when (type) {
+                SyncType.S3 -> saveS3Credentials(secret)
+                SyncType.SERVER -> saveServerCredentials(secret)
+            }
+        if (saved) {
+            repository.setSyncType(type)
+        }
+        return saved
+    }
+
+    private fun saveS3Credentials(secret: String): Boolean {
+        val bucket = _s3Bucket.value.trim()
+        val accessKeyId = _s3AccessKeyId.value.trim()
+        val secretAccessKey = _s3SecretAccessKey.value.trim()
+        if (bucket.isEmpty() || accessKeyId.isEmpty() || secretAccessKey.isEmpty() || secret.isEmpty()) {
+            Log.d("SettingsViewModel", "Not saving: incomplete S3 credentials")
+            return false
+        }
+        Log.d("SettingsViewModel", "Saving S3 settings to repository")
+        repository.saveS3Credentials(
+            bucket = bucket,
+            region = _s3Region.value.trim().ifEmpty { null },
+            endpointUrl = _s3EndpointUrl.value.trim().ifEmpty { null },
+            accessKeyId = accessKeyId,
+            secretAccessKey = secretAccessKey,
+            secret = secret,
+        )
+        return true
+    }
+
+    private fun saveServerCredentials(secret: String): Boolean {
+        val url = _syncUrl.value.trim()
+        val clientId = _clientId.value.trim()
+        if (url.isEmpty() || clientId.isEmpty() || secret.isEmpty()) {
+            Log.d("SettingsViewModel", "Not saving: incomplete server credentials")
+            return false
+        }
+        Log.d("SettingsViewModel", "Saving server settings to repository")
+        repository.saveCredentials(
+            url = url,
+            clientId = clientId,
+            secret = secret,
+        )
+        return true
     }
 
     fun clear() {
         Log.d("SettingsViewModel", "Clearing settings")
         repository.clearCredentials()
+        _syncType.value = SyncType.SERVER
         _syncUrl.value = ""
         _clientId.value = ""
         _encryptionSecret.value = ""
+        _s3Bucket.value = ""
+        _s3Region.value = ""
+        _s3EndpointUrl.value = ""
+        _s3AccessKeyId.value = ""
+        _s3SecretAccessKey.value = ""
         _showCompleted.value = true
         repository.setShowCompleted(true)
         _confirmActions.value = true

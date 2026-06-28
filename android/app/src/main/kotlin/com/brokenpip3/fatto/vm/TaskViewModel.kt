@@ -2,6 +2,7 @@ package com.brokenpip3.fatto.vm
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.brokenpip3.fatto.data.DateTimeUtils
 import com.brokenpip3.fatto.data.TaskContextMatcher
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Annotation
@@ -200,7 +201,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         ) { tasks, allTasks, hideBlocked, now ->
             tasks.filter { task ->
                 if (task.status != TaskStatus.PENDING) return@filter false
-                if (task.wait != null && Instant.parse(task.wait).isAfter(now)) return@filter false
+                if (DateTimeUtils.parseToInstant(task.wait)?.isAfter(now) == true) return@filter false
 
                 if (hideBlocked && task.isBlocked) {
                     val blockingDeps =
@@ -209,7 +210,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                         }.filter { it.status != TaskStatus.COMPLETED }
 
                     if (blockingDeps.isNotEmpty()) {
-                        val hasDepsWait = blockingDeps.all { it.wait != null && Instant.parse(it.wait).isAfter(now) }
+                        val hasDepsWait = blockingDeps.all { DateTimeUtils.parseToInstant(it.wait)?.isAfter(now) == true }
                         if (hasDepsWait) return@filter false
                     }
                 }
@@ -226,7 +227,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         ) { tasks, showWaiting, now ->
             if (!showWaiting) return@combine emptyList()
             tasks.filter { task ->
-                task.status == TaskStatus.PENDING && task.wait != null && Instant.parse(task.wait).isAfter(now)
+                task.status == TaskStatus.PENDING && DateTimeUtils.parseToInstant(task.wait)?.isAfter(now) == true
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
