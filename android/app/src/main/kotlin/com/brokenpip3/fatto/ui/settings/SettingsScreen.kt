@@ -3,6 +3,8 @@ package com.brokenpip3.fatto.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +41,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -56,13 +59,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderSheet
+import com.brokenpip3.fatto.ui.tasklist.TaskFilterState
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    availableProjects: List<String>,
+    availableTags: Set<String>,
+) {
     val syncUrl by viewModel.syncUrl.collectAsState()
     val clientId by viewModel.clientId.collectAsState()
     val encryptionSecret by viewModel.encryptionSecret.collectAsState()
@@ -82,8 +92,11 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val taskContexts by viewModel.taskContexts.collectAsState()
+    val activeTaskContextId by viewModel.activeTaskContextId.collectAsState()
 
     var secretVisible by remember { mutableStateOf(false) }
+    var editingContext by remember { mutableStateOf<TaskContext?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -391,6 +404,61 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
+                text = "Contexts",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+
+            if (taskContexts.isEmpty()) {
+                Text(
+                    text = "No saved contexts",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                taskContexts.forEach { context ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                            ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = context.name,
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                text = context.summary(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                TextButton(onClick = { viewModel.setActiveTaskContext(context.id) }) {
+                                    Text(if (activeTaskContextId == context.id) "Active" else "Use")
+                                }
+                                TextButton(onClick = { editingContext = context }) {
+                                    Text("Edit")
+                                }
+                                TextButton(onClick = { viewModel.deleteTaskContext(context.id) }) {
+                                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
                 text = "Visualization",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
@@ -499,6 +567,24 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                             .padding(start = 8.dp),
                 )
             }
+        }
+
+        editingContext?.let { context ->
+            TaskFilterBuilderSheet(
+                initialState = TaskFilterState.fromContext(context),
+                availableProjects = availableProjects,
+                availableTags = availableTags,
+                contextName = context.name,
+                onDismiss = { editingContext = null },
+                onApply = { filter ->
+                    viewModel.saveTaskContext(filter.toContext(name = context.name, id = context.id))
+                    editingContext = null
+                },
+                onSaveContext = { name, filter ->
+                    viewModel.saveTaskContext(filter.toContext(name = name, id = context.id))
+                    editingContext = null
+                },
+            )
         }
     }
 }

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,8 @@ interface SettingsRepository {
     val showPriorityBadge: StateFlow<Boolean>
     val showUrgencyBar: StateFlow<Boolean>
     val themeMode: StateFlow<ThemeMode>
+    val taskContexts: StateFlow<List<TaskContext>>
+    val activeTaskContextId: StateFlow<String?>
 
     fun getFirstDayOfWeek(): Int
 
@@ -121,6 +124,16 @@ interface SettingsRepository {
     fun getThemeMode(): ThemeMode
 
     fun setThemeMode(value: ThemeMode)
+
+    fun getTaskContexts(): List<TaskContext>
+
+    fun saveTaskContext(context: TaskContext)
+
+    fun deleteTaskContext(id: String)
+
+    fun getActiveTaskContextId(): String?
+
+    fun setActiveTaskContextId(id: String?)
 }
 
 @Suppress("TooManyFunctions")
@@ -200,6 +213,12 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private val _themeMode = MutableStateFlow(getThemeMode())
     override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _taskContexts = MutableStateFlow(getTaskContexts())
+    override val taskContexts: StateFlow<List<TaskContext>> = _taskContexts.asStateFlow()
+
+    private val _activeTaskContextId = MutableStateFlow(getActiveTaskContextId())
+    override val activeTaskContextId: StateFlow<String?> = _activeTaskContextId.asStateFlow()
 
     override fun getFirstDayOfWeek(): Int {
         return sharedPreferences?.getInt("first_day_of_week", Calendar.MONDAY) ?: Calendar.MONDAY
@@ -420,6 +439,46 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setThemeMode(value: ThemeMode) {
         themeModeSettings.set(value)
         _themeMode.value = value
+    }
+
+    override fun getTaskContexts(): List<TaskContext> {
+        return TaskContextCodec.decode(sharedPreferences?.getString("task_contexts", null))
+    }
+
+    override fun saveTaskContext(context: TaskContext) {
+        val updated =
+            (getTaskContexts().filterNot { it.id == context.id } + context)
+                .sortedBy { it.name.lowercase() }
+        sharedPreferences
+            ?.edit()
+            ?.putString("task_contexts", TaskContextCodec.encode(updated))
+            ?.apply()
+        _taskContexts.value = updated
+    }
+
+    override fun deleteTaskContext(id: String) {
+        val updated = getTaskContexts().filterNot { it.id == id }
+        sharedPreferences
+            ?.edit()
+            ?.putString("task_contexts", TaskContextCodec.encode(updated))
+            ?.apply()
+        _taskContexts.value = updated
+        if (_activeTaskContextId.value == id) {
+            setActiveTaskContextId(null)
+        }
+    }
+
+    override fun getActiveTaskContextId(): String? {
+        return sharedPreferences?.getString("active_task_context_id", null)
+    }
+
+    override fun setActiveTaskContextId(id: String?) {
+        if (id == null) {
+            sharedPreferences?.edit()?.remove("active_task_context_id")?.apply()
+        } else {
+            sharedPreferences?.edit()?.putString("active_task_context_id", id)?.apply()
+        }
+        _activeTaskContextId.value = id
     }
 }
 

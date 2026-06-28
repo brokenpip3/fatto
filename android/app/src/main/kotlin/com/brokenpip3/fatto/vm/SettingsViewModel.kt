@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.vm
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.brokenpip3.fatto.data.SettingsRepository
+import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +65,9 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode = _themeMode.asStateFlow()
+
+    val taskContexts = repository.taskContexts
+    val activeTaskContextId = repository.activeTaskContextId
 
     init {
         load()
@@ -187,6 +191,18 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun onThemeModeChange(value: ThemeMode) {
         _themeMode.value = value
         repository.setThemeMode(value)
+    }
+
+    fun saveTaskContext(context: TaskContext) {
+        repository.saveTaskContext(context)
+    }
+
+    fun deleteTaskContext(id: String) {
+        repository.deleteTaskContext(id)
+    }
+
+    fun setActiveTaskContext(id: String?) {
+        repository.setActiveTaskContextId(id)
     }
 
     fun save() {
