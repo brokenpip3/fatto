@@ -31,12 +31,13 @@ class TaskContextViewModelTest {
     private val tasksFlow = MutableStateFlow<List<Task>>(emptyList())
     private val contextsFlow = MutableStateFlow<List<TaskContext>>(emptyList())
     private val activeContextIdFlow = MutableStateFlow<String?>(null)
+    private val showCompletedFlow = MutableStateFlow(false)
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { repository.tasks } returns tasksFlow
-        every { repository.showCompleted } returns MutableStateFlow(false)
+        every { repository.showCompleted } returns showCompletedFlow
         every { repository.hideBlockedTasksWaiting } returns MutableStateFlow(false)
         every { repository.showWaitingTasks } returns MutableStateFlow(true)
         every { repository.sortOrder } returns MutableStateFlow("DATE_CREATED")
@@ -116,29 +117,41 @@ class TaskContextViewModelTest {
     @Test
     fun `active-only toggle filters tasks currently being worked on`() =
         runTest {
+            showCompletedFlow.value = true
             tasksFlow.value =
                 listOf(
                     task(uuid = "started", description = "Started task", start = "2026-06-28T10:00:00Z"),
                     task(uuid = "active-tag", description = "Active tag task", tags = listOf("ACTIVE")),
+                    task(
+                        uuid = "completed-started",
+                        description = "Completed started task",
+                        status = TaskStatus.COMPLETED,
+                        start = "2026-06-28T10:00:00Z",
+                    ),
                     task(uuid = "pending", description = "Pending task"),
                 )
             val viewModel = TaskViewModel(repository)
 
             val job = launch { viewModel.activeTasks.collect {} }
+            val completedJob = launch { viewModel.completedTasks.collect {} }
             advanceUntilIdle()
 
             assertEquals(listOf("started", "active-tag", "pending"), viewModel.activeTasks.value.map { it.uuid })
+            assertEquals(listOf("completed-started"), viewModel.completedTasks.value.map { it.uuid })
 
             viewModel.toggleShowOnlyActiveTasks()
             advanceUntilIdle()
 
             assertEquals(listOf("started", "active-tag"), viewModel.activeTasks.value.map { it.uuid })
+            assertEquals(emptyList<String>(), viewModel.completedTasks.value.map { it.uuid })
 
             viewModel.toggleShowOnlyActiveTasks()
             advanceUntilIdle()
 
             assertEquals(listOf("started", "active-tag", "pending"), viewModel.activeTasks.value.map { it.uuid })
+            assertEquals(listOf("completed-started"), viewModel.completedTasks.value.map { it.uuid })
             job.cancel()
+            completedJob.cancel()
         }
 
     @Test
@@ -160,6 +173,7 @@ class TaskContextViewModelTest {
     private fun task(
         uuid: String,
         description: String,
+        status: TaskStatus = TaskStatus.PENDING,
         project: String? = null,
         tags: List<String> = emptyList(),
         start: String? = null,
@@ -167,7 +181,7 @@ class TaskContextViewModelTest {
         Task(
             uuid = uuid,
             description = description,
-            status = TaskStatus.PENDING,
+            status = status,
             tags = tags,
             project = project,
             entry = "2026-01-01T00:00:00Z",

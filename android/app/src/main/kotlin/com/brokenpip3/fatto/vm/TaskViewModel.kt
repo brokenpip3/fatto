@@ -138,7 +138,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                         task.project == effectiveProject ||
                         task.project?.startsWith("$effectiveProject.") == true
                 val matchesActiveState =
-                    !filters.showOnlyActive || task.start != null || task.tags.any { it.equals("ACTIVE", ignoreCase = true) }
+                    !filters.showOnlyActive ||
+                        (
+                            task.status == TaskStatus.PENDING &&
+                                (task.start != null || task.tags.any { it.equals("ACTIVE", ignoreCase = true) })
+                        )
                 matchesContext && matchesUuid && matchesQuery && matchesTags && matchesProject && matchesActiveState
             }.sortedWith { a, b ->
                 val result =
