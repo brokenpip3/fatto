@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Calendar
+import java.util.Locale
 
 data class SyncCredentials(
     val url: String,
@@ -448,7 +449,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun saveTaskContext(context: TaskContext) {
         val updated =
             (getTaskContexts().filterNot { it.id == context.id } + context)
-                .sortedBy { it.name.lowercase() }
+                .sortedBy { it.name.lowercase(Locale.ROOT) }
         sharedPreferences
             ?.edit()
             ?.putString("task_contexts", TaskContextCodec.encode(updated))
