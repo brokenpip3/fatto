@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.ui.theme.toNordicColor
 import com.brokenpip3.fatto.vm.SortDirection
 import com.brokenpip3.fatto.vm.SortOrder
@@ -96,6 +97,7 @@ fun TaskListScreen(
     viewModel: TaskViewModel,
     onTaskClick: (Task) -> Unit,
     onAddTaskClick: () -> Unit,
+    onManageContexts: () -> Unit,
     confirmActions: Boolean,
 ) {
     val tasks by viewModel.activeTasks.collectAsState()
@@ -112,6 +114,10 @@ fun TaskListScreen(
     val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
+    val contexts by viewModel.taskContexts.collectAsState()
+    val activeContextId by viewModel.activeTaskContextId.collectAsState()
+    val activeContext by viewModel.activeTaskContext.collectAsState()
+    val availableProjects by viewModel.hierarchicalProjects.collectAsState()
 
     val maxUrgency =
         maxOf(
@@ -122,6 +128,8 @@ fun TaskListScreen(
 
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showContextMenu by remember { mutableStateOf(false) }
+    var showFilterBuilder by remember { mutableStateOf(false) }
     var showCompleted by remember { mutableStateOf(false) }
     var showWaiting by remember { mutableStateOf(false) }
 
@@ -245,6 +253,17 @@ fun TaskListScreen(
                             modifier = Modifier.weight(1f),
                         )
 
+                        Box {
+                            ContextSelectorMenu(
+                                contexts = contexts,
+                                activeContextId = activeContextId,
+                                expanded = showContextMenu,
+                                onExpandedChange = { showContextMenu = it },
+                                onContextSelected = viewModel::setActiveTaskContextId,
+                                onCreateContext = { showFilterBuilder = true },
+                                onManageContexts = onManageContexts,
+                            )
+                        }
                         IconButton(onClick = { showFilters = !showFilters }) {
                             Icon(Icons.Default.FilterList, contentDescription = "Toggle Filters")
                         }
@@ -290,7 +309,12 @@ fun TaskListScreen(
                     }
 
                     AnimatedVisibility(
-                        visible = showFilters || searchQuery.isNotEmpty() || selectedTags.isNotEmpty() || activeProject != null,
+                        visible =
+                            showFilters ||
+                                searchQuery.isNotEmpty() ||
+                                selectedTags.isNotEmpty() ||
+                                activeProject != null ||
+                                activeContext != null,
                     ) {
                         Column(
                             modifier = Modifier.padding(top = 16.dp),
@@ -306,17 +330,29 @@ fun TaskListScreen(
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                if (searchQuery.isNotEmpty() || selectedTags.isNotEmpty() || activeProject != null) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
                                     TextButton(
-                                        onClick = { viewModel.clearFilters() },
+                                        onClick = { showFilterBuilder = true },
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                         modifier = Modifier.height(32.dp),
                                     ) {
-                                        Text(
-                                            "Clear All",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.error,
-                                        )
+                                        Text("Build filter", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    if (searchQuery.isNotEmpty() || selectedTags.isNotEmpty() || activeProject != null) {
+                                        TextButton(
+                                            onClick = { viewModel.clearFilters() },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp),
+                                        ) {
+                                            Text(
+                                                "Clear All",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -346,32 +382,8 @@ fun TaskListScreen(
                                 },
                             )
 
-                            AnimatedVisibility(visible = textFieldValue.text.isEmpty()) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        "Tip:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    )
-                                    SuggestionChip(
-                                        onClick = {
-                                            val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
-                                            viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}project:")
-                                        },
-                                        label = "project:xxx",
-                                    )
-                                    SuggestionChip(
-                                        onClick = {
-                                            val prefix = if (textFieldValue.text.isEmpty() || textFieldValue.text.endsWith(" ")) "" else " "
-                                            viewModel.onSearchQueryChange("${textFieldValue.text}${prefix}tags:")
-                                        },
-                                        label = "tags:xxx,yyy",
-                                    )
-                                }
+                            activeContext?.let { context ->
+                                ContextChip(context = context, onClear = { viewModel.setActiveTaskContextId(null) })
                             }
 
                             if (activeProject != null) {
@@ -592,6 +604,36 @@ fun TaskListScreen(
                 )
             }
 
+            if (showFilterBuilder) {
+                TaskFilterBuilderSheet(
+                    initialState =
+                        TaskFilterState(
+                            descriptionQuery = searchQuery,
+                            project = activeProject,
+                            tags = selectedTags,
+                        ),
+                    availableProjects = availableProjects.map { it.fullName },
+                    availableTags = availableTags,
+                    contextName = "",
+                    onDismiss = { showFilterBuilder = false },
+                    onApply = { filter ->
+                        viewModel.onSearchQueryChange(filter.descriptionQuery)
+                        viewModel.clearProject()
+                        filter.project?.let { viewModel.setActiveProject(it) }
+                        viewModel.clearTags()
+                        filter.tags.forEach { viewModel.toggleTag(it) }
+                        showFilterBuilder = false
+                    },
+                    onSaveContext = { name, filter ->
+                        val context = filter.toContext(name)
+                        viewModel.clearFilters()
+                        viewModel.saveTaskContext(context)
+                        viewModel.setActiveTaskContextId(context.id)
+                        showFilterBuilder = false
+                    },
+                )
+            }
+
             if (taskToDelete != null) {
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { taskToDelete = null },
@@ -614,6 +656,40 @@ fun TaskListScreen(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ContextChip(
+    context: TaskContext,
+    onClear: () -> Unit,
+) {
+    Surface(
+        onClick = onClear,
+        modifier =
+            Modifier.semantics {
+                contentDescription = "Clear context"
+            },
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                "Context: ${context.name}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Icon(
+                Icons.Default.Close,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
         }
     }
 }

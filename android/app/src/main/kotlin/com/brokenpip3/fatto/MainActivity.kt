@@ -200,6 +200,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel = taskViewModel,
                                 onAddTaskClick = { showAddTaskDialog = true },
                                 onTaskClick = { selectedTask = it },
+                                onManageContexts = { navController.navigate("settings") },
                                 confirmActions = confirmActions,
                             )
 
@@ -265,7 +266,14 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("settings") {
-                            SettingsScreen(viewModel = settingsViewModel)
+                            val availableTags by taskViewModel.availableTags.collectAsState()
+                            val hierarchicalProjects by taskViewModel.hierarchicalProjects.collectAsState()
+
+                            SettingsScreen(
+                                viewModel = settingsViewModel,
+                                availableProjects = hierarchicalProjects.map { it.fullName },
+                                availableTags = availableTags,
+                            )
                         }
                     }
                 }

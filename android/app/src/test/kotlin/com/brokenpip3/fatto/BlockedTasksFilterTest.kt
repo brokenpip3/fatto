@@ -41,6 +41,8 @@ class BlockedTasksFilterTest {
         every { repository.showWaitingTasks } returns MutableStateFlow(true)
         every { repository.sortOrder } returns MutableStateFlow("DATE_CREATED")
         every { repository.sortDirection } returns MutableStateFlow("")
+        every { repository.taskContexts } returns MutableStateFlow(emptyList())
+        every { repository.activeTaskContextId } returns MutableStateFlow(null)
     }
 
     @After

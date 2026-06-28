@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.data.model.toModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,8 @@ class TaskRepository(
     val sortDirection: StateFlow<String> = settingsRepository.sortDirection
     val showPriorityBadge: StateFlow<Boolean> = settingsRepository.showPriorityBadge
     val showUrgencyBar: StateFlow<Boolean> = settingsRepository.showUrgencyBar
+    val taskContexts: StateFlow<List<TaskContext>> = settingsRepository.taskContexts
+    val activeTaskContextId: StateFlow<String?> = settingsRepository.activeTaskContextId
 
     fun setSortOrder(order: String) {
         settingsRepository.setSortOrder(order)
@@ -42,6 +45,18 @@ class TaskRepository(
 
     fun setSortDirection(direction: String) {
         settingsRepository.setSortDirection(direction)
+    }
+
+    fun saveTaskContext(context: TaskContext) {
+        settingsRepository.saveTaskContext(context)
+    }
+
+    fun deleteTaskContext(id: String) {
+        settingsRepository.deleteTaskContext(id)
+    }
+
+    fun setActiveTaskContextId(id: String?) {
+        settingsRepository.setActiveTaskContextId(id)
     }
 
     suspend fun init() =

@@ -2,10 +2,12 @@ package com.brokenpip3.fatto.vm
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.brokenpip3.fatto.data.TaskContextMatcher
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.data.model.isSynthetic
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -53,6 +55,13 @@ data class ProjectNode(
 
 data class Breadcrumb(val name: String, val fullPath: String?)
 
+private data class TaskListFilterState(
+    val project: String?,
+    val context: TaskContext?,
+    val sort: SortOrder,
+    val direction: SortDirection,
+)
+
 class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
@@ -86,20 +95,36 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         )
     val sortDirection = _sortDirection.asStateFlow()
 
+    val taskContexts: StateFlow<List<TaskContext>> = repository.taskContexts
+    val activeTaskContextId: StateFlow<String?> = repository.activeTaskContextId
+    val activeTaskContext: StateFlow<TaskContext?> =
+        combine(taskContexts, activeTaskContextId) { contexts, activeId ->
+            contexts.firstOrNull { it.id == activeId }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    private val taskListFilterState =
+        combine(
+            _activeProject,
+            activeTaskContext,
+            combine(_sortOrder, _sortDirection) { order, dir -> order to dir },
+        ) { project, context, (sort, direction) ->
+            TaskListFilterState(project, context, sort, direction)
+        }
+
     private val baseFilteredTasks: StateFlow<List<Task>> =
         combine(
             repository.tasks,
             _searchQuery,
             _selectedTags,
-            _activeProject,
-            combine(_sortOrder, _sortDirection) { order, dir -> order to dir },
-        ) { tasks, query, tags, project, (sort, direction) ->
+            taskListFilterState,
+        ) { tasks, query, tags, filters ->
             val parsed = com.brokenpip3.fatto.data.SearchParser.parse(query)
-            val effectiveProject = parsed.project ?: project
+            val effectiveProject = parsed.project ?: filters.project
             val effectiveTags = if (parsed.tags.isNotEmpty()) parsed.tags else tags
             val searchFilter = parsed.description
 
             tasks.filter { task ->
+                val matchesContext = TaskContextMatcher.matches(task, filters.context)
                 val matchesUuid = parsed.uuid == null || task.uuid == parsed.uuid
                 val matchesQuery = task.description.contains(searchFilter, ignoreCase = true)
                 val matchesTags = effectiveTags.isEmpty() || task.tags.intersect(effectiveTags).isNotEmpty()
@@ -107,10 +132,10 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                     effectiveProject == null ||
                         task.project == effectiveProject ||
                         task.project?.startsWith("$effectiveProject.") == true
-                matchesUuid && matchesQuery && matchesTags && matchesProject
+                matchesContext && matchesUuid && matchesQuery && matchesTags && matchesProject
             }.sortedWith { a, b ->
                 val result =
-                    when (sort) {
+                    when (filters.sort) {
                         SortOrder.DATE_CREATED -> (a.entry ?: "").compareTo(b.entry ?: "")
                         SortOrder.DUE_DATE -> {
                             val dueA = a.due ?: "9999"
@@ -142,7 +167,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                             schA.compareTo(schB)
                         }
                     }
-                if (direction == SortDirection.DESCENDING) -result else result
+                if (filters.direction == SortDirection.DESCENDING) -result else result
             }
         }.combine(repository.showCompleted) { tasks, showCompleted ->
             if (showCompleted) tasks else tasks.filter { it.status != TaskStatus.COMPLETED }
@@ -353,6 +378,18 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         _searchQuery.value = ""
         _selectedTags.value = emptySet()
         _activeProject.value = null
+    }
+
+    fun saveTaskContext(context: TaskContext) {
+        repository.saveTaskContext(context)
+    }
+
+    fun deleteTaskContext(id: String) {
+        repository.deleteTaskContext(id)
+    }
+
+    fun setActiveTaskContextId(id: String?) {
+        repository.setActiveTaskContextId(id)
     }
 
     fun setSortOrder(order: SortOrder) {
