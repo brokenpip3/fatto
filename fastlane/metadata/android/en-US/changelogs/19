@@ -1,0 +1,7 @@
+0.8.0 it's full of new features and improvements, including:
+
+- dark theme with automatic switching based on system settings
+- better notifications system: go to and complete task from notification
+- context support v1: simple task filterning and context management in settings screen
+- add "is active" filter to task list view
+- bump the rust and android dependencies to latest versions
