@@ -110,6 +110,7 @@ fun TaskListScreen(
     val showInternalTags by viewModel.showInternalTags.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
     val currentSortDirection by viewModel.sortDirection.collectAsState()
+    val showOnlyActiveTasks by viewModel.showOnlyActiveTasks.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
@@ -294,6 +295,23 @@ fun TaskListScreen(
                                     )
                                 }
                             }
+                        }
+                        IconButton(onClick = { viewModel.toggleShowOnlyActiveTasks() }) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription =
+                                    if (showOnlyActiveTasks) {
+                                        "Show all tasks"
+                                    } else {
+                                        "Show only active tasks"
+                                    },
+                                tint =
+                                    if (showOnlyActiveTasks) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                            )
                         }
                         if (isSyncing) {
                             CircularProgressIndicator(

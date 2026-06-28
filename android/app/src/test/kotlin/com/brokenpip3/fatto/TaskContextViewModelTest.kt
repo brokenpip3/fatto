@@ -114,6 +114,34 @@ class TaskContextViewModelTest {
         }
 
     @Test
+    fun `active-only toggle filters tasks currently being worked on`() =
+        runTest {
+            tasksFlow.value =
+                listOf(
+                    task(uuid = "started", description = "Started task", start = "2026-06-28T10:00:00Z"),
+                    task(uuid = "active-tag", description = "Active tag task", tags = listOf("ACTIVE")),
+                    task(uuid = "pending", description = "Pending task"),
+                )
+            val viewModel = TaskViewModel(repository)
+
+            val job = launch { viewModel.activeTasks.collect {} }
+            advanceUntilIdle()
+
+            assertEquals(listOf("started", "active-tag", "pending"), viewModel.activeTasks.value.map { it.uuid })
+
+            viewModel.toggleShowOnlyActiveTasks()
+            advanceUntilIdle()
+
+            assertEquals(listOf("started", "active-tag"), viewModel.activeTasks.value.map { it.uuid })
+
+            viewModel.toggleShowOnlyActiveTasks()
+            advanceUntilIdle()
+
+            assertEquals(listOf("started", "active-tag", "pending"), viewModel.activeTasks.value.map { it.uuid })
+            job.cancel()
+        }
+
+    @Test
     fun `context actions delegate to repository`() {
         val context = TaskContext(id = "work", name = "Work")
         val viewModel = TaskViewModel(repository)
@@ -134,6 +162,7 @@ class TaskContextViewModelTest {
         description: String,
         project: String? = null,
         tags: List<String> = emptyList(),
+        start: String? = null,
     ): Task =
         Task(
             uuid = uuid,
@@ -145,7 +174,7 @@ class TaskContextViewModelTest {
             wait = null,
             due = null,
             scheduled = null,
-            start = null,
+            start = start,
             priority = null,
             urgency = 0f,
             isBlocked = false,

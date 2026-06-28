@@ -58,6 +58,7 @@ data class Breadcrumb(val name: String, val fullPath: String?)
 private data class TaskListFilterState(
     val project: String?,
     val context: TaskContext?,
+    val showOnlyActive: Boolean,
     val sort: SortOrder,
     val direction: SortDirection,
 )
@@ -71,6 +72,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
 
     private val _activeProject = MutableStateFlow<String?>(null)
     val activeProject = _activeProject.asStateFlow()
+
+    private val _showOnlyActiveTasks = MutableStateFlow(false)
+    val showOnlyActiveTasks = _showOnlyActiveTasks.asStateFlow()
 
     private val _currentProjectPath = MutableStateFlow<String?>(null)
     val currentProjectPath = _currentProjectPath.asStateFlow()
@@ -106,9 +110,10 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         combine(
             _activeProject,
             activeTaskContext,
+            _showOnlyActiveTasks,
             combine(_sortOrder, _sortDirection) { order, dir -> order to dir },
-        ) { project, context, (sort, direction) ->
-            TaskListFilterState(project, context, sort, direction)
+        ) { project, context, showOnlyActive, (sort, direction) ->
+            TaskListFilterState(project, context, showOnlyActive, sort, direction)
         }
 
     private val baseFilteredTasks: StateFlow<List<Task>> =
@@ -132,7 +137,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                     effectiveProject == null ||
                         task.project == effectiveProject ||
                         task.project?.startsWith("$effectiveProject.") == true
-                matchesContext && matchesUuid && matchesQuery && matchesTags && matchesProject
+                val matchesActiveState =
+                    !filters.showOnlyActive || task.start != null || task.tags.any { it.equals("ACTIVE", ignoreCase = true) }
+                matchesContext && matchesUuid && matchesQuery && matchesTags && matchesProject && matchesActiveState
             }.sortedWith { a, b ->
                 val result =
                     when (filters.sort) {
@@ -378,6 +385,10 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         _searchQuery.value = ""
         _selectedTags.value = emptySet()
         _activeProject.value = null
+    }
+
+    fun toggleShowOnlyActiveTasks() {
+        _showOnlyActiveTasks.value = !_showOnlyActiveTasks.value
     }
 
     fun saveTaskContext(context: TaskContext) {
