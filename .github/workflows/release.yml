@@ -148,8 +148,8 @@ jobs:
       - name: Build Rust Artifacts
         run: |
           export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125
-          export RUSTFLAGS="--remap-path-prefix $(pwd)=/c --remap-path-prefix $HOME/.cargo=/cargo -C link-arg=-Wl,--build-id=none"
           cd rust/taskchampion-android
+          export RUSTFLAGS="--remap-path-prefix $(pwd)=/c --remap-path-prefix $HOME/.cargo=/cargo -C link-arg=-Wl,--build-id=none"
           cargo ndk -t arm64-v8a -t x86_64 -o ../../android/app/src/main/jniLibs build --release
           cargo build --release
           cargo run --bin uniffi-bindgen generate \

@@ -16,6 +16,7 @@ plugins {
 android {
     namespace = "com.brokenpip3.fatto"
     compileSdk = 36
+    ndkVersion = "26.1.10909125"
 
     val versionProps =
         Properties().apply {
