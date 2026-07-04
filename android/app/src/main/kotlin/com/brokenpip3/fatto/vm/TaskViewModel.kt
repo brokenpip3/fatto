@@ -106,6 +106,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             contexts.firstOrNull { it.id == activeId }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val activeTaskContextError: StateFlow<String?> =
+        activeTaskContext
+            .map { context -> context?.let { TaskContextMatcher.parseError(it) } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     private val taskListFilterState =
         combine(
             _activeProject,

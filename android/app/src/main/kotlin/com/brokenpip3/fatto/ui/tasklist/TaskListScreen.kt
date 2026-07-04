@@ -118,6 +118,7 @@ fun TaskListScreen(
     val contexts by viewModel.taskContexts.collectAsState()
     val activeContextId by viewModel.activeTaskContextId.collectAsState()
     val activeContext by viewModel.activeTaskContext.collectAsState()
+    val activeContextError by viewModel.activeTaskContextError.collectAsState()
     val availableProjects by viewModel.hierarchicalProjects.collectAsState()
 
     val maxUrgency =
@@ -493,6 +494,11 @@ fun TaskListScreen(
                 )
             }
 
+            ContextErrorBanner(
+                contextName = activeContext?.name.orEmpty(),
+                error = activeContextError,
+            )
+
             LazyColumn(
                 state = lazyListState,
                 modifier =
@@ -674,6 +680,30 @@ fun TaskListScreen(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ContextErrorBanner(
+    contextName: String,
+    error: String?,
+) {
+    AnimatedVisibility(visible = error != null) {
+        Surface(
+            color = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(8.dp),
+        ) {
+            Text(
+                text = "Context \"$contextName\" has an invalid filter: ${error.orEmpty()}",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(12.dp),
+            )
         }
     }
 }

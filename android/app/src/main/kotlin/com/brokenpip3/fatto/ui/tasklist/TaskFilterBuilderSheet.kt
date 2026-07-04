@@ -82,104 +82,116 @@ fun TaskFilterBuilderSheet(
                         .heightIn(max = 520.dp)
                         .verticalScroll(scrollState),
             ) {
-                OutlinedTextField(
-                    value = state.descriptionQuery,
-                    onValueChange = { state = state.copy(descriptionQuery = it) },
-                    label = { Text("Search") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                AccordionSection(
-                    title = state.project?.let { "Project: $it" } ?: "Project",
-                    icon = Icons.Default.AccountTree,
-                    count = if (state.project == null) null else 1,
-                    expanded = projectExpanded,
-                    onToggle = { projectExpanded = !projectExpanded },
-                ) {
+                if (state.rawExpressionText != null) {
                     OutlinedTextField(
-                        value = projectQuery,
-                        onValueChange = { projectQuery = it },
-                        label = { Text("Find project") },
+                        value = state.rawExpressionText.orEmpty(),
+                        onValueChange = { state = state.copy(rawExpressionText = it) },
+                        label = { Text("Expression") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = state.descriptionQuery,
+                        onValueChange = { state = state.copy(descriptionQuery = it) },
+                        label = { Text("Search") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 8.dp),
-                    ) {
-                        SuggestionChip(
-                            label = "Any project",
-                            onClick = {
-                                state = state.copy(project = null)
-                                projectQuery = ""
-                            },
-                        )
-                        filteredProjects.forEach { project ->
-                            SuggestionChip(
-                                label = project,
-                                onClick = {
-                                    state = state.copy(project = project)
-                                    projectQuery = project
-                                },
-                            )
-                        }
-                    }
                 }
 
-                AccordionSection(
-                    title = if (state.tags.isEmpty()) "Tags" else "Tags: ${state.tags.size}",
-                    icon = Icons.Default.Tag,
-                    count = state.tags.size.takeIf { it > 0 },
-                    expanded = tagsExpanded,
-                    onToggle = { tagsExpanded = !tagsExpanded },
-                ) {
-                    if (state.tags.isNotEmpty()) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        ) {
-                            state.tags.sorted().forEach { tag ->
-                                TagChip(tag = tag, onRemove = { state = state.copy(tags = state.tags - tag) })
-                            }
-                        }
-                    }
-                    OutlinedTextField(
-                        value = tagQuery,
-                        onValueChange = { tagQuery = it },
-                        label = { Text("Add tag") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            TextButton(
-                                onClick = {
-                                    val tag = tagQuery.trim()
-                                    if (tag.isNotBlank()) {
-                                        state = state.copy(tags = state.tags + tag)
-                                        tagQuery = ""
-                                    }
-                                },
-                            ) {
-                                Text("Add")
-                            }
-                        },
-                    )
-                    if (filteredTags.isNotEmpty()) {
+                if (state.rawExpressionText == null) {
+                    AccordionSection(
+                        title = state.project?.let { "Project: $it" } ?: "Project",
+                        icon = Icons.Default.AccountTree,
+                        count = if (state.project == null) null else 1,
+                        expanded = projectExpanded,
+                        onToggle = { projectExpanded = !projectExpanded },
+                    ) {
+                        OutlinedTextField(
+                            value = projectQuery,
+                            onValueChange = { projectQuery = it },
+                            label = { Text("Find project") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.padding(top = 8.dp),
                         ) {
-                            filteredTags.forEach { tag ->
+                            SuggestionChip(
+                                label = "Any project",
+                                onClick = {
+                                    state = state.copy(project = null)
+                                    projectQuery = ""
+                                },
+                            )
+                            filteredProjects.forEach { project ->
                                 SuggestionChip(
-                                    label = tag,
+                                    label = project,
                                     onClick = {
-                                        state = state.copy(tags = state.tags + tag)
-                                        tagQuery = ""
+                                        state = state.copy(project = project)
+                                        projectQuery = project
                                     },
                                 )
+                            }
+                        }
+                    }
+
+                    AccordionSection(
+                        title = if (state.tags.isEmpty()) "Tags" else "Tags: ${state.tags.size}",
+                        icon = Icons.Default.Tag,
+                        count = state.tags.size.takeIf { it > 0 },
+                        expanded = tagsExpanded,
+                        onToggle = { tagsExpanded = !tagsExpanded },
+                    ) {
+                        if (state.tags.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            ) {
+                                state.tags.sorted().forEach { tag ->
+                                    TagChip(tag = tag, onRemove = { state = state.copy(tags = state.tags - tag) })
+                                }
+                            }
+                        }
+                        OutlinedTextField(
+                            value = tagQuery,
+                            onValueChange = { tagQuery = it },
+                            label = { Text("Add tag") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                TextButton(
+                                    onClick = {
+                                        val tag = tagQuery.trim()
+                                        if (tag.isNotBlank()) {
+                                            state = state.copy(tags = state.tags + tag)
+                                            tagQuery = ""
+                                        }
+                                    },
+                                ) {
+                                    Text("Add")
+                                }
+                            },
+                        )
+                        if (filteredTags.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(top = 8.dp),
+                            ) {
+                                filteredTags.forEach { tag ->
+                                    SuggestionChip(
+                                        label = tag,
+                                        onClick = {
+                                            state = state.copy(tags = state.tags + tag)
+                                            tagQuery = ""
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

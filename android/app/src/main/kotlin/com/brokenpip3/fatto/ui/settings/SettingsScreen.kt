@@ -59,6 +59,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.TaskrcImportPreview
+import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterState
@@ -94,6 +96,8 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val taskContexts by viewModel.taskContexts.collectAsState()
     val activeTaskContextId by viewModel.activeTaskContextId.collectAsState()
+    val taskrcImportText by viewModel.taskrcImportText.collectAsState()
+    val taskrcImportPreview by viewModel.taskrcImportPreview.collectAsState()
 
     var secretVisible by remember { mutableStateOf(false) }
     var editingContext by remember { mutableStateOf<TaskContext?>(null) }
@@ -409,6 +413,19 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary,
             )
 
+            TaskrcImportSection(
+                taskrcImportText = taskrcImportText,
+                taskrcImportPreview = taskrcImportPreview,
+                onTaskrcImportTextChange = viewModel::onTaskrcImportTextChange,
+                onPreviewTaskrcImport = viewModel::previewTaskrcImport,
+                onApplyTaskrcImport = {
+                    viewModel.applyTaskrcImport()
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Taskrc import applied")
+                    }
+                },
+            )
+
             if (taskContexts.isEmpty()) {
                 Text(
                     text = "No saved contexts",
@@ -585,6 +602,80 @@ fun SettingsScreen(
                     editingContext = null
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun TaskrcImportSection(
+    taskrcImportText: String,
+    taskrcImportPreview: TaskrcImportPreview?,
+    onTaskrcImportTextChange: (String) -> Unit,
+    onPreviewTaskrcImport: () -> Unit,
+    onApplyTaskrcImport: () -> Unit,
+) {
+    Text(
+        text = "Taskrc import",
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+    )
+
+    TextField(
+        value = taskrcImportText,
+        onValueChange = onTaskrcImportTextChange,
+        label = { Text("Paste .taskrc") },
+        minLines = 4,
+        maxLines = 8,
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            ),
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(
+            onClick = onPreviewTaskrcImport,
+            enabled = taskrcImportText.isNotBlank(),
+            modifier = Modifier.weight(1f),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        ) {
+            Text("Preview import")
+        }
+        Button(
+            onClick = onApplyTaskrcImport,
+            enabled = taskrcImportPreview != null && taskrcImportPreview.hasErrors == false,
+            modifier = Modifier.weight(1f),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        ) {
+            Text("Apply import")
+        }
+    }
+
+    taskrcImportPreview?.let { preview ->
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            preview.actions.forEach { action ->
+                val color =
+                    when (action.type) {
+                        TaskrcImportResultType.ERROR -> MaterialTheme.colorScheme.error
+                        TaskrcImportResultType.SKIPPED -> MaterialTheme.colorScheme.onSurfaceVariant
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                Text(
+                    text =
+                        if (action.lineNumber > 0) {
+                            "Line ${action.lineNumber}: ${action.type} ${action.message}"
+                        } else {
+                            "${action.type} ${action.message}"
+                        },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = color,
+                )
+            }
         }
     }
 }

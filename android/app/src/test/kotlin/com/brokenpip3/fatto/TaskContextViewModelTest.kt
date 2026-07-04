@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import uniffi.taskchampion_android.TaskStatus
@@ -54,7 +55,7 @@ class TaskContextViewModelTest {
     @Test
     fun `active context filters active tasks`() =
         runTest {
-            val context = TaskContext(id = "work", name = "Work", project = "Work", tags = setOf("office"))
+            val context = TaskContext(id = "work", name = "Work", expressionText = "project:Work +office")
             contextsFlow.value = listOf(context)
             activeContextIdFlow.value = context.id
             tasksFlow.value =
@@ -75,7 +76,7 @@ class TaskContextViewModelTest {
     @Test
     fun `active context combines with normal search`() =
         runTest {
-            val context = TaskContext(id = "calls", name = "Calls", project = "Work")
+            val context = TaskContext(id = "calls", name = "Calls", expressionText = "project:Work")
             contextsFlow.value = listOf(context)
             activeContextIdFlow.value = context.id
             tasksFlow.value =
@@ -112,6 +113,25 @@ class TaskContextViewModelTest {
 
             assertNull(viewModel.activeTaskContext.value)
             job.cancel()
+        }
+
+    @Test
+    fun `invalid active context matches no tasks and exposes error`() =
+        runTest {
+            val context = TaskContext(id = "bad", name = "Bad", expressionText = "priority:H")
+            contextsFlow.value = listOf(context)
+            activeContextIdFlow.value = context.id
+            tasksFlow.value = listOf(task(uuid = "task", description = "Task"))
+            val viewModel = TaskViewModel(repository)
+
+            val job = launch { viewModel.activeTasks.collect {} }
+            val errorJob = launch { viewModel.activeTaskContextError.collect {} }
+            advanceUntilIdle()
+
+            assertEquals(emptyList<String>(), viewModel.activeTasks.value.map { it.uuid })
+            assertTrue(viewModel.activeTaskContextError.value.orEmpty().contains("Unsupported attribute"))
+            job.cancel()
+            errorJob.cancel()
         }
 
     @Test
