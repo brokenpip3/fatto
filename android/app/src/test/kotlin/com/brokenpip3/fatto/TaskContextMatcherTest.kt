@@ -84,6 +84,14 @@ class TaskContextMatcherTest {
     }
 
     @Test
+    fun `parsed virtual tag expressions match tasks`() {
+        val expression = TaskContextMatcher.parseExpression(context("+due")).getOrThrow()
+
+        assertTrue(TaskContextMatcher.matches(task(due = "2026-07-05T12:00:00Z"), expression, now))
+        assertFalse(TaskContextMatcher.matches(task(), expression, now))
+    }
+
+    @Test
     fun `invalid context matches no tasks`() {
         val context = context("priority:H")
 

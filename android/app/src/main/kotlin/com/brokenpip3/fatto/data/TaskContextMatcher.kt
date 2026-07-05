@@ -6,6 +6,7 @@ import com.brokenpip3.fatto.data.filter.MatchAll
 import com.brokenpip3.fatto.data.filter.NotExpression
 import com.brokenpip3.fatto.data.filter.OrExpression
 import com.brokenpip3.fatto.data.filter.ProjectTerm
+import com.brokenpip3.fatto.data.filter.SupportedVirtualTags
 import com.brokenpip3.fatto.data.filter.TagTerm
 import com.brokenpip3.fatto.data.filter.TaskFilterExpression
 import com.brokenpip3.fatto.data.filter.TaskFilterExpressionParser
@@ -21,24 +22,14 @@ object TaskContextMatcher {
         context: TaskContext?,
         now: Instant = Instant.now(),
     ): Boolean {
-        val expression = parseExpression(context) ?: return false
+        val expression = parseExpression(context).getOrNull() ?: return false
         return matches(task, expression, now)
     }
 
-    fun parseError(context: TaskContext?): String? {
-        if (context == null) return null
-        return TaskFilterExpressionParser.parse(context.expressionText).exceptionOrNull()?.message
-    }
-
-    private fun parseExpression(context: TaskContext?): TaskFilterExpression? {
-        if (context == null) return MatchAll
-        return TaskFilterExpressionParser.parse(context.expressionText).getOrNull()
-    }
-
-    private fun matches(
+    fun matches(
         task: Task,
         expression: TaskFilterExpression,
-        now: Instant,
+        now: Instant = Instant.now(),
     ): Boolean =
         when (expression) {
             MatchAll -> true
@@ -53,12 +44,24 @@ object TaskContextMatcher {
             is VirtualTagTerm -> matchesVirtualTag(task, expression.name, now)
         }
 
+    fun parseError(context: TaskContext?): String? {
+        if (context == null) return null
+        return parseExpression(context).exceptionOrNull()?.message
+    }
+
+    fun parseExpression(context: TaskContext?): Result<TaskFilterExpression> =
+        if (context == null) {
+            Result.success(MatchAll)
+        } else {
+            TaskFilterExpressionParser.parse(context.expressionText)
+        }
+
     private fun matchesVirtualTag(
         task: Task,
         tagName: String,
         now: Instant,
     ): Boolean =
-        when (tagName.uppercase()) {
+        when (SupportedVirtualTags.normalize(tagName)) {
             "PENDING" -> task.status == TaskStatus.PENDING
             "COMPLETED" -> task.status == TaskStatus.COMPLETED
             "DUE" -> task.due != null

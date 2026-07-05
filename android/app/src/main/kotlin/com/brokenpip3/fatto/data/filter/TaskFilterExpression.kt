@@ -36,7 +36,7 @@ class TaskFilterParseException(message: String) : IllegalArgumentException(messa
 
 object SupportedVirtualTags {
     val names =
-        setOf(
+        listOf(
             "PENDING",
             "COMPLETED",
             "DUE",
@@ -45,6 +45,8 @@ object SupportedVirtualTags {
             "BLOCKING",
             "BLOCKED",
         )
+
+    fun normalize(name: String): String? = names.firstOrNull { it.equals(name, ignoreCase = true) }
 }
 
 object TaskFilterExpressionFormatter {

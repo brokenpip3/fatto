@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.filter.SupportedVirtualTags
 import com.brokenpip3.fatto.data.filter.TaskFilterExpressionParser
 import com.brokenpip3.fatto.data.model.TaskContext
 
@@ -547,7 +548,7 @@ private fun ContextBuilderContent(
                     .take(12)
             }
         }
-    val virtualTags = listOf("PENDING", "COMPLETED", "DUE", "WAITING", "ACTIVE", "BLOCKING", "BLOCKED")
+    val virtualTags = SupportedVirtualTags.names
     val includeTerms = state.builderTerms.filter { it.polarity == ContextBuilderPolarity.INCLUDE }
     val excludeTerms = state.builderTerms.filter { it.polarity == ContextBuilderPolarity.EXCLUDE }
     val projectTermCount = state.builderTerms.count { it.kind == ContextBuilderTermKind.PROJECT }

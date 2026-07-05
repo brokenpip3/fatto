@@ -113,6 +113,7 @@ object TaskFilterExpressionParser {
             val signless = if (negative) token.substring(1) else token
             val explicitPositive = signless.startsWith("+") && signless.length > 1
             val body = if (explicitPositive) signless.substring(1) else signless
+            val virtualTag = SupportedVirtualTags.normalize(body)
 
             val term =
                 when {
@@ -122,8 +123,8 @@ object TaskFilterExpressionParser {
                     body.contains(":") ->
                         throw TaskFilterParseException("Unsupported attribute: ${body.substringBefore(":")}")
 
-                    explicitPositive && body in SupportedVirtualTags.names ->
-                        VirtualTagTerm(body)
+                    explicitPositive && virtualTag != null ->
+                        VirtualTagTerm(virtualTag)
 
                     explicitPositive ->
                         TagTerm(body)

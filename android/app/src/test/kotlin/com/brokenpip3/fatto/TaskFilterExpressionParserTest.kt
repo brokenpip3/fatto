@@ -35,6 +35,13 @@ class TaskFilterExpressionParserTest {
     }
 
     @Test
+    fun `normalizes virtual tag casing`() {
+        assertEquals(VirtualTagTerm("DUE"), TaskFilterExpressionParser.parse("+due").getOrThrow())
+        assertEquals(VirtualTagTerm("WAITING"), TaskFilterExpressionParser.parse("+Waiting").getOrThrow())
+        assertEquals(NotExpression(VirtualTagTerm("ACTIVE")), TaskFilterExpressionParser.parse("-+active").getOrThrow())
+    }
+
+    @Test
     fun `implicit and binds adjacent terms`() {
         assertEquals(
             AndExpression(listOf(ProjectTerm("Work"), TagTerm("office"), NotExpression(KeywordTerm("inbox")))),
