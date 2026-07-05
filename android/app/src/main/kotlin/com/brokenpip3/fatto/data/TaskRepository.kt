@@ -51,6 +51,10 @@ class TaskRepository(
         settingsRepository.saveTaskContext(context)
     }
 
+    fun replaceTaskContexts(contexts: List<TaskContext>) {
+        settingsRepository.replaceTaskContexts(contexts)
+    }
+
     fun deleteTaskContext(id: String) {
         settingsRepository.deleteTaskContext(id)
     }

@@ -106,6 +106,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             contexts.firstOrNull { it.id == activeId }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val activeTaskContextError: StateFlow<String?> =
+        activeTaskContext
+            .map { context -> context?.let { TaskContextMatcher.parseError(it) } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     private val taskListFilterState =
         combine(
             _activeProject,
@@ -127,9 +132,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             val effectiveProject = parsed.project ?: filters.project
             val effectiveTags = if (parsed.tags.isNotEmpty()) parsed.tags else tags
             val searchFilter = parsed.description
+            val contextExpression = TaskContextMatcher.parseExpression(filters.context).getOrNull()
+            val now = Instant.now()
 
             tasks.filter { task ->
-                val matchesContext = TaskContextMatcher.matches(task, filters.context)
+                val matchesContext = contextExpression?.let { TaskContextMatcher.matches(task, it, now) } ?: false
                 val matchesUuid = parsed.uuid == null || task.uuid == parsed.uuid
                 val matchesQuery = task.description.contains(searchFilter, ignoreCase = true)
                 val matchesTags = effectiveTags.isEmpty() || task.tags.intersect(effectiveTags).isNotEmpty()

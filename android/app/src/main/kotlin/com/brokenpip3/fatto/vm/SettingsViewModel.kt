@@ -3,6 +3,8 @@ package com.brokenpip3.fatto.vm
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.brokenpip3.fatto.data.SettingsRepository
+import com.brokenpip3.fatto.data.TaskrcImportPreview
+import com.brokenpip3.fatto.data.TaskrcImporter
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,6 +70,12 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     val taskContexts = repository.taskContexts
     val activeTaskContextId = repository.activeTaskContextId
+
+    private val _taskrcImportText = MutableStateFlow("")
+    val taskrcImportText = _taskrcImportText.asStateFlow()
+
+    private val _taskrcImportPreview = MutableStateFlow<TaskrcImportPreview?>(null)
+    val taskrcImportPreview = _taskrcImportPreview.asStateFlow()
 
     init {
         load()
@@ -203,6 +211,27 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     fun setActiveTaskContext(id: String?) {
         repository.setActiveTaskContextId(id)
+    }
+
+    fun onTaskrcImportTextChange(value: String) {
+        _taskrcImportText.value = value
+        _taskrcImportPreview.value = null
+    }
+
+    fun previewTaskrcImport() {
+        _taskrcImportPreview.value =
+            TaskrcImporter.preview(
+                text = _taskrcImportText.value,
+                existingContexts = repository.getTaskContexts(),
+                currentActiveContextId = repository.getActiveTaskContextId(),
+                currentFirstDayOfWeek = repository.getFirstDayOfWeek(),
+            )
+    }
+
+    fun applyTaskrcImport() {
+        val preview = _taskrcImportPreview.value ?: return
+        repository.applyTaskrcImport(preview)
+        _taskrcImportPreview.value = preview
     }
 
     fun save() {

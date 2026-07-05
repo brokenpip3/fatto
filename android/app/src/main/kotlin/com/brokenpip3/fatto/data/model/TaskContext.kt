@@ -5,17 +5,9 @@ import java.util.UUID
 data class TaskContext(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val descriptionQuery: String = "",
-    val project: String? = null,
-    val tags: Set<String> = emptySet(),
+    val expressionText: String = "",
 ) {
     fun summary(): String {
-        val parts =
-            buildList {
-                if (descriptionQuery.isNotBlank()) add("Search: $descriptionQuery")
-                if (!project.isNullOrBlank()) add("Project: $project")
-                if (tags.isNotEmpty()) add("Tags: ${tags.sorted().joinToString(", ")}")
-            }
-        return if (parts.isEmpty()) "All tasks" else parts.joinToString(" · ")
+        return expressionText.trim().takeIf { it.isNotBlank() } ?: "All tasks"
     }
 }

@@ -130,6 +130,10 @@ interface SettingsRepository {
 
     fun saveTaskContext(context: TaskContext)
 
+    fun replaceTaskContexts(contexts: List<TaskContext>)
+
+    fun applyTaskrcImport(preview: TaskrcImportPreview)
+
     fun deleteTaskContext(id: String)
 
     fun getActiveTaskContextId(): String?
@@ -450,23 +454,30 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         val updated =
             (getTaskContexts().filterNot { it.id == context.id } + context)
                 .sortedBy { it.name.lowercase(Locale.ROOT) }
+        replaceTaskContexts(updated)
+    }
+
+    override fun replaceTaskContexts(contexts: List<TaskContext>) {
+        val updated = contexts.sortedBy { it.name.lowercase(Locale.ROOT) }
         sharedPreferences
             ?.edit()
             ?.putString("task_contexts", TaskContextCodec.encode(updated))
             ?.apply()
         _taskContexts.value = updated
+        val activeId = _activeTaskContextId.value
+        if (activeId != null && updated.none { it.id == activeId }) {
+            setActiveTaskContextId(null)
+        }
+    }
+
+    override fun applyTaskrcImport(preview: TaskrcImportPreview) {
+        replaceTaskContexts(preview.contextsAfter)
+        setActiveTaskContextId(preview.activeContextIdAfter)
+        setFirstDayOfWeek(preview.firstDayOfWeekAfter)
     }
 
     override fun deleteTaskContext(id: String) {
-        val updated = getTaskContexts().filterNot { it.id == id }
-        sharedPreferences
-            ?.edit()
-            ?.putString("task_contexts", TaskContextCodec.encode(updated))
-            ?.apply()
-        _taskContexts.value = updated
-        if (_activeTaskContextId.value == id) {
-            setActiveTaskContextId(null)
-        }
+        replaceTaskContexts(getTaskContexts().filterNot { it.id == id })
     }
 
     override fun getActiveTaskContextId(): String? {

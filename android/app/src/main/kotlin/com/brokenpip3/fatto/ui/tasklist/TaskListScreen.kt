@@ -118,6 +118,7 @@ fun TaskListScreen(
     val contexts by viewModel.taskContexts.collectAsState()
     val activeContextId by viewModel.activeTaskContextId.collectAsState()
     val activeContext by viewModel.activeTaskContext.collectAsState()
+    val activeContextError by viewModel.activeTaskContextError.collectAsState()
     val availableProjects by viewModel.hierarchicalProjects.collectAsState()
 
     val maxUrgency =
@@ -130,7 +131,7 @@ fun TaskListScreen(
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
-    var showFilterBuilder by remember { mutableStateOf(false) }
+    var filterBuilderPurpose by remember { mutableStateOf<TaskFilterBuilderPurpose?>(null) }
     var showCompleted by remember { mutableStateOf(false) }
     var showWaiting by remember { mutableStateOf(false) }
 
@@ -261,7 +262,7 @@ fun TaskListScreen(
                                 expanded = showContextMenu,
                                 onExpandedChange = { showContextMenu = it },
                                 onContextSelected = viewModel::setActiveTaskContextId,
-                                onCreateContext = { showFilterBuilder = true },
+                                onCreateContext = { filterBuilderPurpose = TaskFilterBuilderPurpose.CONTEXT },
                                 onManageContexts = onManageContexts,
                             )
                         }
@@ -353,7 +354,7 @@ fun TaskListScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     TextButton(
-                                        onClick = { showFilterBuilder = true },
+                                        onClick = { filterBuilderPurpose = TaskFilterBuilderPurpose.FILTER },
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                         modifier = Modifier.height(32.dp),
                                     ) {
@@ -493,6 +494,11 @@ fun TaskListScreen(
                 )
             }
 
+            ContextErrorBanner(
+                contextName = activeContext?.name.orEmpty(),
+                error = activeContextError,
+            )
+
             LazyColumn(
                 state = lazyListState,
                 modifier =
@@ -622,7 +628,7 @@ fun TaskListScreen(
                 )
             }
 
-            if (showFilterBuilder) {
+            filterBuilderPurpose?.let { purpose ->
                 TaskFilterBuilderSheet(
                     initialState =
                         TaskFilterState(
@@ -633,21 +639,22 @@ fun TaskListScreen(
                     availableProjects = availableProjects.map { it.fullName },
                     availableTags = availableTags,
                     contextName = "",
-                    onDismiss = { showFilterBuilder = false },
+                    purpose = purpose,
+                    onDismiss = { filterBuilderPurpose = null },
                     onApply = { filter ->
                         viewModel.onSearchQueryChange(filter.descriptionQuery)
                         viewModel.clearProject()
                         filter.project?.let { viewModel.setActiveProject(it) }
                         viewModel.clearTags()
                         filter.tags.forEach { viewModel.toggleTag(it) }
-                        showFilterBuilder = false
+                        filterBuilderPurpose = null
                     },
                     onSaveContext = { name, filter ->
                         val context = filter.toContext(name)
                         viewModel.clearFilters()
                         viewModel.saveTaskContext(context)
                         viewModel.setActiveTaskContextId(context.id)
-                        showFilterBuilder = false
+                        filterBuilderPurpose = null
                     },
                 )
             }
@@ -674,6 +681,30 @@ fun TaskListScreen(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ContextErrorBanner(
+    contextName: String,
+    error: String?,
+) {
+    AnimatedVisibility(visible = error != null) {
+        Surface(
+            color = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(8.dp),
+        ) {
+            Text(
+                text = "Context \"$contextName\" has an invalid filter: ${error.orEmpty()}",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(12.dp),
+            )
         }
     }
 }
