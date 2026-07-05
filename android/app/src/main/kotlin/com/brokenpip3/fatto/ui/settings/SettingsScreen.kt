@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderPurpose
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterState
 import com.brokenpip3.fatto.ui.theme.ThemeMode
@@ -592,6 +593,7 @@ fun SettingsScreen(
                 availableProjects = availableProjects,
                 availableTags = availableTags,
                 contextName = context.name,
+                purpose = TaskFilterBuilderPurpose.CONTEXT,
                 onDismiss = { editingContext = null },
                 onApply = { filter ->
                     viewModel.saveTaskContext(filter.toContext(name = context.name, id = context.id))

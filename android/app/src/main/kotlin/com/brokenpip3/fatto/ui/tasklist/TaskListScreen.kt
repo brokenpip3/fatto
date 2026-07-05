@@ -131,7 +131,7 @@ fun TaskListScreen(
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
-    var showFilterBuilder by remember { mutableStateOf(false) }
+    var filterBuilderPurpose by remember { mutableStateOf<TaskFilterBuilderPurpose?>(null) }
     var showCompleted by remember { mutableStateOf(false) }
     var showWaiting by remember { mutableStateOf(false) }
 
@@ -262,7 +262,7 @@ fun TaskListScreen(
                                 expanded = showContextMenu,
                                 onExpandedChange = { showContextMenu = it },
                                 onContextSelected = viewModel::setActiveTaskContextId,
-                                onCreateContext = { showFilterBuilder = true },
+                                onCreateContext = { filterBuilderPurpose = TaskFilterBuilderPurpose.CONTEXT },
                                 onManageContexts = onManageContexts,
                             )
                         }
@@ -354,7 +354,7 @@ fun TaskListScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     TextButton(
-                                        onClick = { showFilterBuilder = true },
+                                        onClick = { filterBuilderPurpose = TaskFilterBuilderPurpose.FILTER },
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                         modifier = Modifier.height(32.dp),
                                     ) {
@@ -628,7 +628,7 @@ fun TaskListScreen(
                 )
             }
 
-            if (showFilterBuilder) {
+            filterBuilderPurpose?.let { purpose ->
                 TaskFilterBuilderSheet(
                     initialState =
                         TaskFilterState(
@@ -639,21 +639,22 @@ fun TaskListScreen(
                     availableProjects = availableProjects.map { it.fullName },
                     availableTags = availableTags,
                     contextName = "",
-                    onDismiss = { showFilterBuilder = false },
+                    purpose = purpose,
+                    onDismiss = { filterBuilderPurpose = null },
                     onApply = { filter ->
                         viewModel.onSearchQueryChange(filter.descriptionQuery)
                         viewModel.clearProject()
                         filter.project?.let { viewModel.setActiveProject(it) }
                         viewModel.clearTags()
                         filter.tags.forEach { viewModel.toggleTag(it) }
-                        showFilterBuilder = false
+                        filterBuilderPurpose = null
                     },
                     onSaveContext = { name, filter ->
                         val context = filter.toContext(name)
                         viewModel.clearFilters()
                         viewModel.saveTaskContext(context)
                         viewModel.setActiveTaskContextId(context.id)
-                        showFilterBuilder = false
+                        filterBuilderPurpose = null
                     },
                 )
             }
