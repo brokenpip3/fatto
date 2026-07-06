@@ -2,6 +2,8 @@ package com.brokenpip3.fatto
 
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -9,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.rule.GrantPermissionRule
 import com.brokenpip3.fatto.ui.theme.NordicNight
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -20,10 +23,14 @@ class SettingsIntegrationTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
+    @get:Rule
+    val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
+
     @Test
     fun testAppInfoIsDisplayedInSettings() {
         // Navigate to settings
         composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabAbout").performScrollTo().performClick()
 
         // Verify App Name
         composeTestRule.onNodeWithText("Fatto").assertExists()
@@ -39,9 +46,32 @@ class SettingsIntegrationTest {
     }
 
     @Test
+    fun testSettingsTabsRevealSections() {
+        composeTestRule.onNodeWithText("Settings").performClick()
+
+        composeTestRule.onNodeWithTag("SettingsTabSync").assertIsSelected()
+        composeTestRule.onNodeWithText("Sync Server URL").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("SettingsTabTaskrc").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Taskrc import").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Contexts").assertIsDisplayed()
+        composeTestRule.onNodeWithText("First day of week").performScrollTo().assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Show completed tasks").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("SettingsTabNotifications").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Enable daily notifications").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("SettingsTabAbout").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Fatto").assertIsDisplayed()
+    }
+
+    @Test
     fun testCalendarStartDaySetting() {
         // Go to settings
         composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabTaskrc").performScrollTo().performClick()
 
         // Select Sunday as the first day of the week
         composeTestRule.onNodeWithText("Sunday").performClick()
@@ -54,6 +84,7 @@ class SettingsIntegrationTest {
 
         // Go back to settings
         composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabTaskrc").performScrollTo().performClick()
 
         // Select Monday
         composeTestRule.onNodeWithText("Monday").performClick()
@@ -69,6 +100,7 @@ class SettingsIntegrationTest {
     fun testConfirmActionsSettingToggle() {
         // Go to settings
         composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
 
         // Verify the checkbox text exists
         composeTestRule.onNodeWithText("Confirm complete/delete").assertExists()
@@ -79,6 +111,7 @@ class SettingsIntegrationTest {
         // Go to tasks and back to ensure it persists in ViewModel
         composeTestRule.onNodeWithText("Tasks").performClick()
         composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
 
         // Verify it exists (we can't easily check 'checked' state with onNodeWithText but we verify it's still clickable/present)
         composeTestRule.onNodeWithText("Confirm complete/delete").assertExists()
@@ -87,6 +120,7 @@ class SettingsIntegrationTest {
     @Test
     fun testDarkThemeChangesAppBackground() {
         composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
         composeTestRule.onNodeWithText("Dark").performScrollTo().performClick()
         composeTestRule.waitForIdle()
 
