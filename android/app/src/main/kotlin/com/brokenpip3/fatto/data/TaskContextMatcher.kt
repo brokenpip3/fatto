@@ -68,7 +68,7 @@ object TaskContextMatcher {
             "WAITING" ->
                 task.status == TaskStatus.PENDING &&
                     task.wait
-                        ?.let { runCatching { Instant.parse(it) }.getOrNull()?.isAfter(now) }
+                        ?.let { DateTimeUtils.parseToInstant(it)?.isAfter(now) }
                         ?: false
             "ACTIVE" ->
                 task.status == TaskStatus.PENDING &&

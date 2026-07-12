@@ -111,6 +111,34 @@ class SettingsViewModelTest {
         assertNull(repository.getCredentials())
     }
 
+    @Test
+    fun `switching sync backend shows that backend encryption secret`() {
+        val repository = FakeSettingsRepository()
+        repository.saveCredentials(
+            url = "http://example.com:8080",
+            clientId = "client-id",
+            secret = "server-secret",
+        )
+        repository.saveS3Credentials(
+            bucket = "my-bucket",
+            region = null,
+            endpointUrl = null,
+            accessKeyId = "access-key",
+            secretAccessKey = "secret-key",
+            secret = "s3-secret",
+        )
+        repository.setSyncType(SyncType.SERVER)
+        val viewModel = SettingsViewModel(repository)
+
+        assertEquals("server-secret", viewModel.encryptionSecret.value)
+
+        viewModel.onSyncTypeChange(SyncType.S3)
+        assertEquals("s3-secret", viewModel.encryptionSecret.value)
+
+        assertTrue(viewModel.save())
+        assertEquals("s3-secret", repository.getS3Credentials()?.secret)
+    }
+
     private class FakeSettingsRepository : SettingsRepository {
         override val showCompleted = MutableStateFlow(true)
         override val showInternalTags = MutableStateFlow(false)
