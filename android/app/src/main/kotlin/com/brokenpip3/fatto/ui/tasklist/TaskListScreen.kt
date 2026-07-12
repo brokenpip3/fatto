@@ -115,18 +115,12 @@ fun TaskListScreen(
     val syncStatusMessage by viewModel.syncStatusMessage.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
+    val maxUrgency by viewModel.maxUrgency.collectAsState()
     val contexts by viewModel.taskContexts.collectAsState()
     val activeContextId by viewModel.activeTaskContextId.collectAsState()
     val activeContext by viewModel.activeTaskContext.collectAsState()
     val activeContextError by viewModel.activeTaskContextError.collectAsState()
     val availableProjects by viewModel.hierarchicalProjects.collectAsState()
-
-    val maxUrgency =
-        maxOf(
-            tasks.maxOfOrNull { it.urgency } ?: 0.0f,
-            waitingTasks.maxOfOrNull { it.urgency } ?: 0.0f,
-            completedTasks.maxOfOrNull { it.urgency } ?: 0.0f,
-        )
 
     var showFilters by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }

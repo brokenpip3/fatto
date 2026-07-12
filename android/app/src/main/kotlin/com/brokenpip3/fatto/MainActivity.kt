@@ -227,6 +227,7 @@ class MainActivity : ComponentActivity() {
                                         taskViewModel.updateTask(updatedTask)
                                     },
                                     availableProjects = hierarchicalProjects.map { it.fullName },
+                                    availableTags = availableTags.toList(),
                                     showInternalTags = showInternalTags,
                                     firstDayOfWeek = firstDayOfWeek,
                                     onAddAnnotation = { uuid, desc ->
