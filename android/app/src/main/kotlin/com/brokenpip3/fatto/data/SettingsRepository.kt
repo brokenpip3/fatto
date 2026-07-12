@@ -54,6 +54,7 @@ interface SettingsRepository {
     val confirmActions: StateFlow<Boolean>
     val hideBlockedTasksWaiting: StateFlow<Boolean>
     val showWaitingTasks: StateFlow<Boolean>
+    val autoWaiting: StateFlow<Boolean>
     val sortOrder: StateFlow<String>
     val sortDirection: StateFlow<String>
     val showPriorityBadge: StateFlow<Boolean>
@@ -77,6 +78,10 @@ interface SettingsRepository {
     fun getShowWaitingTasks(): Boolean
 
     fun setShowWaitingTasks(value: Boolean)
+
+    fun getAutoWaiting(): Boolean
+
+    fun setAutoWaiting(value: Boolean)
 
     fun getSortOrder(): String
 
@@ -239,6 +244,9 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private val _showWaitingTasks = MutableStateFlow(getShowWaitingTasks())
     override val showWaitingTasks: StateFlow<Boolean> = _showWaitingTasks.asStateFlow()
 
+    private val _autoWaiting = MutableStateFlow(getAutoWaiting())
+    override val autoWaiting: StateFlow<Boolean> = _autoWaiting.asStateFlow()
+
     private val _sortOrder = MutableStateFlow(getSortOrder())
     override val sortOrder: StateFlow<String> = _sortOrder.asStateFlow()
 
@@ -294,6 +302,15 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setShowWaitingTasks(value: Boolean) {
         sharedPreferences?.edit()?.putBoolean("show_waiting_tasks", value)?.apply()
         _showWaitingTasks.value = value
+    }
+
+    override fun getAutoWaiting(): Boolean {
+        return sharedPreferences?.getBoolean("auto_waiting", false) ?: false
+    }
+
+    override fun setAutoWaiting(value: Boolean) {
+        sharedPreferences?.edit()?.putBoolean("auto_waiting", value)?.apply()
+        _autoWaiting.value = value
     }
 
     override fun getSortOrder(): String {

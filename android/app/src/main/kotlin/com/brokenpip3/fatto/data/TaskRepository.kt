@@ -32,6 +32,7 @@ class TaskRepository(
     val firstDayOfWeek: StateFlow<Int> = settingsRepository.firstDayOfWeek
     val hideBlockedTasksWaiting: StateFlow<Boolean> = settingsRepository.hideBlockedTasksWaiting
     val showWaitingTasks: StateFlow<Boolean> = settingsRepository.showWaitingTasks
+    val autoWaiting: StateFlow<Boolean> = settingsRepository.autoWaiting
     val sortOrder: StateFlow<String> = settingsRepository.sortOrder
     val sortDirection: StateFlow<String> = settingsRepository.sortDirection
     val showPriorityBadge: StateFlow<Boolean> = settingsRepository.showPriorityBadge

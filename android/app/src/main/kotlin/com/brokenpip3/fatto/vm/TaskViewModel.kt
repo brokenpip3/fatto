@@ -445,7 +445,17 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     ) {
         viewModelScope.launch {
             try {
-                repository.addTask(description, project, tags, wait, due, scheduled, start, priority, dependencies)
+                repository.addTask(
+                    description,
+                    project,
+                    tags,
+                    autoWait(wait = wait, due = due, scheduled = scheduled),
+                    due,
+                    scheduled,
+                    start,
+                    priority,
+                    dependencies,
+                )
                 _uiEvent.emit("Task created")
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to add task: ${e.message}")
@@ -456,11 +466,34 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     fun updateTask(task: Task) {
         viewModelScope.launch {
             try {
-                repository.updateTask(task)
+                repository.updateTask(
+                    task.copy(
+                        wait = autoWait(wait = task.wait, due = task.due, scheduled = task.scheduled),
+                    ),
+                )
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to update task: ${e.message}")
             }
         }
+    }
+
+    private fun autoWait(
+        wait: String?,
+        due: String?,
+        scheduled: String?,
+    ): String? {
+        val shouldApplyAutoWait = repository.autoWaiting.value && wait.isNullOrBlank()
+        val target =
+            if (shouldApplyAutoWait) {
+                listOfNotNull(
+                    DateTimeUtils.parseToInstant(due),
+                    DateTimeUtils.parseToInstant(scheduled),
+                ).minOrNull()
+            } else {
+                null
+            }
+        val candidate = target?.minus(AUTO_WAIT_LEAD_DAYS, ChronoUnit.DAYS)
+        return if (candidate?.isAfter(Instant.now()) == true) candidate.toString() else wait
     }
 
     fun completeTask(uuid: String) {
@@ -547,5 +580,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 _syncStatusMessage.value = null
             }
         }
+    }
+
+    private companion object {
+        const val AUTO_WAIT_LEAD_DAYS = 7L
     }
 }
