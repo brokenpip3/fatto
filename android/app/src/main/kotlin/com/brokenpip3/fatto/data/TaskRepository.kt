@@ -209,8 +209,7 @@ class TaskRepository(
 
     suspend fun sync() =
         withContext(Dispatchers.IO) {
-            val creds = settingsRepository.getCredentials()
-            if (creds == null) {
+            if (!settingsRepository.hasCredentials()) {
                 Log.w("TaskRepository", "Cannot sync: No credentials found")
                 throw Exception("No sync credentials configured")
             }
@@ -218,7 +217,7 @@ class TaskRepository(
             replica?.let { r ->
                 Log.d("TaskRepository", "Starting manual sync")
                 try {
-                    r.sync(creds.url, creds.clientId, creds.secret)
+                    Syncer.sync(r, settingsRepository)
                     Log.d("TaskRepository", "Manual sync successful")
                     loadTasks()
                 } catch (e: Exception) {
@@ -232,11 +231,11 @@ class TaskRepository(
         }
 
     private suspend fun triggerSync() {
-        val creds = settingsRepository.getCredentials() ?: return
+        if (!settingsRepository.hasCredentials()) return
         replica?.let { r ->
             try {
                 Log.d("TaskRepository", "Triggering reactive sync...")
-                r.sync(creds.url, creds.clientId, creds.secret)
+                Syncer.sync(r, settingsRepository)
                 loadTasks()
             } catch (e: Exception) {
                 Log.e("TaskRepository", "Reactive sync failed", e)

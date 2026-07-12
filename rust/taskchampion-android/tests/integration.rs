@@ -146,6 +146,74 @@ fn test_sync_conflict_integration() {
     assert_eq!(tasks1.len(), tasks2.len());
 }
 
+/// Connection details for the local S3-compatible endpoint (the `minio`
+/// service in docker-compose.yml). Returns (endpoint, bucket, access key id,
+/// secret access key, encryption secret).
+fn s3_test_config() -> (String, String, String, String, String) {
+    (
+        env::var("TASKCHAMPION_S3_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".into()),
+        env::var("TASKCHAMPION_S3_BUCKET").unwrap_or_else(|_| "fatto-tasks".into()),
+        env::var("TASKCHAMPION_S3_ACCESS_KEY_ID").unwrap_or_else(|_| "minioadmin".into()),
+        env::var("TASKCHAMPION_S3_SECRET_ACCESS_KEY").unwrap_or_else(|_| "minioadmin".into()),
+        env::var("TASKCHAMPION_S3_ENCRYPTION_SECRET")
+            .unwrap_or_else(|_| "s3-integration-secret".into()),
+    )
+}
+
+fn sync_aws_with_test_config(rep: &ReplicaWrapper) {
+    let (endpoint, bucket, access_key_id, secret_access_key, encryption_secret) = s3_test_config();
+    rep.sync_aws(
+        bucket,
+        None,
+        Some(endpoint),
+        access_key_id,
+        secret_access_key,
+        encryption_secret,
+    )
+    .unwrap();
+}
+
+// The whole S3 roundtrip lives in a single test: all replicas share one
+// bucket, so concurrently running tests would race on the same version chain.
+#[test]
+fn test_sync_aws_integration() {
+    // The bucket persists across test runs within a compose session, so tag
+    // the task with a unique marker.
+    let description = format!("S3 task {}", uuid::Uuid::new_v4());
+
+    // 1. Create first replica, add a task and push it to the bucket
+    let rep1 = ReplicaWrapper::new_in_memory().unwrap();
+    let task1 = rep1
+        .add_task(TaskAddProps {
+            description: description.clone(),
+            project: None,
+            tags: vec![],
+            wait: None,
+            due: None,
+            scheduled: None,
+            start: None,
+            priority: None,
+            dependencies: vec![],
+        })
+        .unwrap();
+    sync_aws_with_test_config(&rep1);
+
+    // 2. A fresh replica syncing against the same bucket sees the task
+    let rep2 = ReplicaWrapper::new_in_memory().unwrap();
+    sync_aws_with_test_config(&rep2);
+    let tasks2 = rep2.all_task_data().unwrap();
+    assert!(tasks2.iter().any(|t| t.description == description));
+
+    // 3. Complete the task in the second replica and propagate it back
+    rep2.update_task_status(task1.uuid.clone(), TaskStatus::Completed)
+        .unwrap();
+    sync_aws_with_test_config(&rep2);
+    sync_aws_with_test_config(&rep1);
+    let tasks1 = rep1.all_task_data().unwrap();
+    let task1_updated = tasks1.iter().find(|t| t.uuid == task1.uuid).unwrap();
+    assert_eq!(task1_updated.status, TaskStatus::Completed);
+}
+
 #[test]
 fn test_task_properties_integration() {
     let rep = ReplicaWrapper::new_in_memory().unwrap();

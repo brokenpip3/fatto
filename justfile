@@ -144,12 +144,16 @@ test-android:
     adb shell pm grant com.brokenpip3.fatto android.permission.POST_NOTIFICATIONS || true
     cd android && ./gradlew connectedDebugAndroidTest
 
-# run rust integration tests against local tss
+# run rust integration tests against local tss and minio
 test-integration:
     cd rust/taskchampion-android && \
     TASKCHAMPION_SYNC_URL=http://localhost:8080 \
     TASKCHAMPION_CLIENT_ID=768d9f09-accd-406d-8685-7b977b83d5c6 \
     TASKCHAMPION_SYNC_SECRET=foobar \
+    TASKCHAMPION_S3_ENDPOINT=http://localhost:9000 \
+    TASKCHAMPION_S3_BUCKET=fatto-tasks \
+    TASKCHAMPION_S3_ACCESS_KEY_ID=minioadmin \
+    TASKCHAMPION_S3_SECRET_ACCESS_KEY=minioadmin \
     cargo test --test integration -- --nocapture
 
 # format code

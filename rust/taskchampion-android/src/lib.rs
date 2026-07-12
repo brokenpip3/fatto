@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use taskchampion::server::AwsCredentials;
 use taskchampion::storage::inmemory::InMemoryStorage;
 use taskchampion::storage::sqlite::SqliteStorage;
 use taskchampion::storage::{AccessMode, Storage};
@@ -354,6 +355,49 @@ impl ReplicaWrapper {
             url: server_url,
             client_id,
             encryption_secret: secret.into_bytes(),
+        };
+        self.rt.block_on(async {
+            let mut server = config.into_server().await?;
+            replica.sync(&mut server, false).await
+        })?;
+        Ok(())
+    }
+
+    /// Sync with an AWS S3 or S3-compatible storage bucket (e.g. minio, Backblaze B2,
+    /// Garage). This mirrors taskchampion's `ServerConfig::Aws` cloud backend.
+    ///
+    /// `region` and `endpoint_url` are optional: leave `region` empty to use the AWS
+    /// default region, and set `endpoint_url` to the hostname of an S3-compatible
+    /// service. When an `endpoint_url` is provided the client switches to path-style
+    /// addressing, which is what most self-hosted S3-compatible services expect.
+    #[allow(clippy::too_many_arguments)]
+    pub fn sync_aws(
+        &self,
+        bucket: String,
+        region: Option<String>,
+        endpoint_url: Option<String>,
+        access_key_id: String,
+        secret_access_key: String,
+        encryption_secret: String,
+    ) -> Result<()> {
+        let mut replica = self.inner.lock().unwrap();
+
+        // Normalize empty optional strings coming across the FFI boundary to `None`.
+        let region = region.filter(|s| !s.is_empty());
+        let endpoint_url = endpoint_url.filter(|s| !s.is_empty());
+
+        let config = ServerConfig::Aws {
+            // S3-compatible endpoints generally require path-style addressing; real
+            // AWS S3 (no custom endpoint) keeps the default virtual-hosted style.
+            force_path_style: endpoint_url.is_some(),
+            region,
+            bucket,
+            endpoint_url,
+            credentials: AwsCredentials::AccessKey {
+                access_key_id,
+                secret_access_key,
+            },
+            encryption_secret: encryption_secret.into_bytes(),
         };
         self.rt.block_on(async {
             let mut server = config.into_server().await?;
@@ -972,6 +1016,23 @@ mod tests {
             "UDAs should contain 'custom_uda': {:?}",
             task_data.udas
         );
+    }
+
+    #[test]
+    fn test_sync_aws_invalid_bucket_errors_gracefully() {
+        // We can't reach a real bucket in unit tests, but syncing against a
+        // bogus endpoint must surface a TaskError rather than panic, exercising
+        // the ServerConfig::Aws construction path.
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let result = wrapper.sync_aws(
+            "fatto-nonexistent-bucket".into(),
+            None,
+            Some("http://127.0.0.1:1".into()),
+            "AKIAEXAMPLE".into(),
+            "secretkeyexample".into(),
+            "encryption-secret".into(),
+        );
+        assert!(result.is_err());
     }
 
     #[test]

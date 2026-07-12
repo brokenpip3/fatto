@@ -16,7 +16,7 @@ Fatto (italian for "*done*") is a handy TaskWarrior client for Android. It syncs
 
 ## Features
 
-- **sync**: bi-directional sync with any [`taskchampion-sync-server`](https://github.com/GothenburgBitFactory/taskchampion-sync-server)
+- **sync**: bi-directional sync with any [`taskchampion-sync-server`](https://github.com/GothenburgBitFactory/taskchampion-sync-server), or directly with AWS S3 / S3-compatible storage (e.g. minio)
 - **task**: comprehensive task management with filtering, sorting, and detail editing
 - **projects**: hierarchical project management with pending task counts
 - **tags**: auto-resizing tag list with pending task counts
