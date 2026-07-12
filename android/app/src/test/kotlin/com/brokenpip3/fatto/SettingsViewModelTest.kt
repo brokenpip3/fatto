@@ -139,6 +139,19 @@ class SettingsViewModelTest {
         assertEquals("s3-secret", repository.getS3Credentials()?.secret)
     }
 
+    @Test
+    fun `auto waiting defaults off and can be enabled`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        assertFalse(viewModel.autoWaiting.value)
+
+        viewModel.onAutoWaitingChange(true)
+
+        assertTrue(viewModel.autoWaiting.value)
+        assertTrue(repository.getAutoWaiting())
+    }
+
     private class FakeSettingsRepository : SettingsRepository {
         override val showCompleted = MutableStateFlow(true)
         override val showInternalTags = MutableStateFlow(false)
@@ -153,6 +166,7 @@ class SettingsViewModelTest {
         override val confirmActions = MutableStateFlow(true)
         override val hideBlockedTasksWaiting = MutableStateFlow(false)
         override val showWaitingTasks = MutableStateFlow(true)
+        override val autoWaiting = MutableStateFlow(false)
         override val sortOrder = MutableStateFlow("DATE_CREATED")
         override val sortDirection = MutableStateFlow("")
         override val showPriorityBadge = MutableStateFlow(false)
@@ -185,6 +199,12 @@ class SettingsViewModelTest {
 
         override fun setShowWaitingTasks(value: Boolean) {
             showWaitingTasks.value = value
+        }
+
+        override fun getAutoWaiting(): Boolean = autoWaiting.value
+
+        override fun setAutoWaiting(value: Boolean) {
+            autoWaiting.value = value
         }
 
         override fun getSortOrder(): String = sortOrder.value

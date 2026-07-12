@@ -80,6 +80,9 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _showWaitingTasks = MutableStateFlow(true)
     val showWaitingTasks = _showWaitingTasks.asStateFlow()
 
+    private val _autoWaiting = MutableStateFlow(false)
+    val autoWaiting = _autoWaiting.asStateFlow()
+
     private val _showPriorityBadge = MutableStateFlow(false)
     val showPriorityBadge = _showPriorityBadge.asStateFlow()
 
@@ -144,6 +147,7 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _confirmActions.value = repository.getConfirmActions()
         _hideBlockedTasksWaiting.value = repository.getHideBlockedTasksWaiting()
         _showWaitingTasks.value = repository.getShowWaitingTasks()
+        _autoWaiting.value = repository.getAutoWaiting()
         _showPriorityBadge.value = repository.getShowPriorityBadge()
         _showUrgencyBar.value = repository.getShowUrgencyBar()
         _themeMode.value = repository.getThemeMode()
@@ -262,6 +266,11 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun onShowWaitingTasksChange(value: Boolean) {
         _showWaitingTasks.value = value
         repository.setShowWaitingTasks(value)
+    }
+
+    fun onAutoWaitingChange(value: Boolean) {
+        _autoWaiting.value = value
+        repository.setAutoWaiting(value)
     }
 
     fun onShowPriorityBadgeChange(value: Boolean) {
@@ -388,6 +397,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         repository.setShowCompleted(true)
         _confirmActions.value = true
         repository.setConfirmActions(true)
+        _autoWaiting.value = false
+        repository.setAutoWaiting(false)
         _showPriorityBadge.value = false
         repository.setShowPriorityBadge(false)
         _showUrgencyBar.value = false

@@ -144,6 +144,7 @@ private data class DisplaySettingsSectionState(
     val showInternalTags: Boolean,
     val showEmptyProjects: Boolean,
     val showWaitingTasks: Boolean,
+    val autoWaiting: Boolean,
     val showPriorityBadge: Boolean,
     val showUrgencyBar: Boolean,
     val hideBlockedTasksWaiting: Boolean,
@@ -155,6 +156,7 @@ private data class DisplaySettingsSectionActions(
     val onShowInternalTagsChange: (Boolean) -> Unit,
     val onShowEmptyProjectsChange: (Boolean) -> Unit,
     val onShowWaitingTasksChange: (Boolean) -> Unit,
+    val onAutoWaitingChange: (Boolean) -> Unit,
     val onShowPriorityBadgeChange: (Boolean) -> Unit,
     val onShowUrgencyBarChange: (Boolean) -> Unit,
     val onHideBlockedTasksWaitingChange: (Boolean) -> Unit,
@@ -206,6 +208,7 @@ fun SettingsScreen(
     val confirmActions by viewModel.confirmActions.collectAsState()
     val hideBlockedTasksWaiting by viewModel.hideBlockedTasksWaiting.collectAsState()
     val showWaitingTasks by viewModel.showWaitingTasks.collectAsState()
+    val autoWaiting by viewModel.autoWaiting.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
@@ -363,6 +366,7 @@ fun SettingsScreen(
                                     showInternalTags = showInternalTags,
                                     showEmptyProjects = showEmptyProjects,
                                     showWaitingTasks = showWaitingTasks,
+                                    autoWaiting = autoWaiting,
                                     showPriorityBadge = showPriorityBadge,
                                     showUrgencyBar = showUrgencyBar,
                                     hideBlockedTasksWaiting = hideBlockedTasksWaiting,
@@ -374,6 +378,7 @@ fun SettingsScreen(
                                     onShowInternalTagsChange = viewModel::onShowInternalTagsChange,
                                     onShowEmptyProjectsChange = viewModel::onShowEmptyProjectsChange,
                                     onShowWaitingTasksChange = viewModel::onShowWaitingTasksChange,
+                                    onAutoWaitingChange = viewModel::onAutoWaitingChange,
                                     onShowPriorityBadgeChange = viewModel::onShowPriorityBadgeChange,
                                     onShowUrgencyBarChange = viewModel::onShowUrgencyBarChange,
                                     onHideBlockedTasksWaitingChange = viewModel::onHideBlockedTasksWaitingChange,
@@ -464,6 +469,27 @@ private fun AboutSettingsSection(scrollState: ScrollState) {
                 )
                 Text(
                     text = "Built on: ${com.brokenpip3.fatto.BuildConfig.BUILD_DATE}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Source code",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "https://github.com/brokenpip3/fatto",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "Please report bugs at",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "https://github.com/brokenpip3/fatto/issues",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -836,6 +862,12 @@ private fun DisplaySettingsSection(
             checked = state.showWaitingTasks,
             onCheckedChange = actions.onShowWaitingTasksChange,
             label = "Show waiting tasks",
+        )
+
+        SettingsCheckboxRow(
+            checked = state.autoWaiting,
+            onCheckedChange = actions.onAutoWaitingChange,
+            label = "Auto wait due/scheduled tasks",
         )
 
         SettingsCheckboxRow(

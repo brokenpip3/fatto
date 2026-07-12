@@ -4,6 +4,8 @@ import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.vm.TaskViewModel
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -33,6 +35,7 @@ class TaskContextViewModelTest {
     private val contextsFlow = MutableStateFlow<List<TaskContext>>(emptyList())
     private val activeContextIdFlow = MutableStateFlow<String?>(null)
     private val showCompletedFlow = MutableStateFlow(false)
+    private val autoWaitingFlow = MutableStateFlow(false)
 
     @Before
     fun setup() {
@@ -45,6 +48,11 @@ class TaskContextViewModelTest {
         every { repository.sortDirection } returns MutableStateFlow("")
         every { repository.taskContexts } returns contextsFlow
         every { repository.activeTaskContextId } returns activeContextIdFlow
+        every { repository.autoWaiting } returns autoWaitingFlow
+        coEvery {
+            repository.addTask(any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Unit
+        coEvery { repository.updateTask(any()) } returns Unit
     }
 
     @After
@@ -211,12 +219,216 @@ class TaskContextViewModelTest {
         verify { repository.setActiveTaskContextId(null) }
     }
 
+    @Test
+    fun `add task applies auto wait one week before due when enabled and wait is empty`() =
+        runTest {
+            autoWaitingFlow.value = true
+            val viewModel = TaskViewModel(repository)
+
+            viewModel.addTask(
+                description = "Prepare release",
+                project = null,
+                tags = emptyList(),
+                wait = null,
+                due = "2030-08-15T00:00:00Z",
+                scheduled = null,
+            )
+            advanceUntilIdle()
+
+            coVerify {
+                repository.addTask(
+                    "Prepare release",
+                    null,
+                    emptyList(),
+                    "2030-08-08T00:00:00Z",
+                    "2030-08-15T00:00:00Z",
+                    null,
+                    null,
+                    null,
+                    emptyList(),
+                )
+            }
+        }
+
+    @Test
+    fun `add task does not apply auto wait when setting is disabled`() =
+        runTest {
+            autoWaitingFlow.value = false
+            val viewModel = TaskViewModel(repository)
+
+            viewModel.addTask(
+                description = "Visible due task",
+                project = null,
+                tags = emptyList(),
+                wait = null,
+                due = "2030-08-15T00:00:00Z",
+                scheduled = null,
+            )
+            advanceUntilIdle()
+
+            coVerify {
+                repository.addTask(
+                    "Visible due task",
+                    null,
+                    emptyList(),
+                    null,
+                    "2030-08-15T00:00:00Z",
+                    null,
+                    null,
+                    null,
+                    emptyList(),
+                )
+            }
+        }
+
+    @Test
+    fun `add task applies auto wait one week before scheduled when enabled and wait is empty`() =
+        runTest {
+            autoWaitingFlow.value = true
+            val viewModel = TaskViewModel(repository)
+
+            viewModel.addTask(
+                description = "Start implementation",
+                project = null,
+                tags = emptyList(),
+                wait = null,
+                due = null,
+                scheduled = "2030-09-10T00:00:00Z",
+            )
+            advanceUntilIdle()
+
+            coVerify {
+                repository.addTask(
+                    "Start implementation",
+                    null,
+                    emptyList(),
+                    "2030-09-03T00:00:00Z",
+                    null,
+                    "2030-09-10T00:00:00Z",
+                    null,
+                    null,
+                    emptyList(),
+                )
+            }
+        }
+
+    @Test
+    fun `add task does not apply auto wait without due or scheduled date`() =
+        runTest {
+            autoWaitingFlow.value = true
+            val viewModel = TaskViewModel(repository)
+
+            viewModel.addTask(
+                description = "Plain task",
+                project = null,
+                tags = emptyList(),
+                wait = null,
+                due = null,
+                scheduled = null,
+            )
+            advanceUntilIdle()
+
+            coVerify {
+                repository.addTask(
+                    "Plain task",
+                    null,
+                    emptyList(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    emptyList(),
+                )
+            }
+        }
+
+    @Test
+    fun `add task does not override explicit wait when auto waiting is enabled`() =
+        runTest {
+            autoWaitingFlow.value = true
+            val viewModel = TaskViewModel(repository)
+
+            viewModel.addTask(
+                description = "Manual wait",
+                project = null,
+                tags = emptyList(),
+                wait = "2030-08-01T00:00:00Z",
+                due = "2030-08-15T00:00:00Z",
+                scheduled = null,
+            )
+            advanceUntilIdle()
+
+            coVerify {
+                repository.addTask(
+                    "Manual wait",
+                    null,
+                    emptyList(),
+                    "2030-08-01T00:00:00Z",
+                    "2030-08-15T00:00:00Z",
+                    null,
+                    null,
+                    null,
+                    emptyList(),
+                )
+            }
+        }
+
+    @Test
+    fun `update task applies auto wait one week before earliest target when enabled and wait is empty`() =
+        runTest {
+            autoWaitingFlow.value = true
+            val viewModel = TaskViewModel(repository)
+            val edited =
+                task(
+                    uuid = "task-1",
+                    description = "Edited task",
+                    dates =
+                        TaskDates(
+                            due = "2030-09-15T00:00:00Z",
+                            scheduled = "2030-09-10T00:00:00Z",
+                        ),
+                )
+
+            viewModel.updateTask(edited)
+            advanceUntilIdle()
+
+            coVerify {
+                repository.updateTask(
+                    edited.copy(wait = "2030-09-03T00:00:00Z"),
+                )
+            }
+        }
+
+    @Test
+    fun `update task does not override explicit wait when auto waiting is enabled`() =
+        runTest {
+            autoWaitingFlow.value = true
+            val viewModel = TaskViewModel(repository)
+            val edited =
+                task(
+                    uuid = "task-1",
+                    description = "Edited task",
+                    dates =
+                        TaskDates(
+                            wait = "2030-08-01T00:00:00Z",
+                            due = "2030-08-15T00:00:00Z",
+                        ),
+                )
+
+            viewModel.updateTask(edited)
+            advanceUntilIdle()
+
+            coVerify { repository.updateTask(edited) }
+        }
+
     private fun task(
         uuid: String,
         description: String,
         status: TaskStatus = TaskStatus.PENDING,
         project: String? = null,
         tags: List<String> = emptyList(),
+        dates: TaskDates = TaskDates(),
         start: String? = null,
         urgency: Float = 0f,
     ): Task =
@@ -227,9 +439,9 @@ class TaskContextViewModelTest {
             tags = tags,
             project = project,
             entry = "2026-01-01T00:00:00Z",
-            wait = null,
-            due = null,
-            scheduled = null,
+            wait = dates.wait,
+            due = dates.due,
+            scheduled = dates.scheduled,
             start = start,
             priority = null,
             urgency = urgency,
@@ -238,4 +450,10 @@ class TaskContextViewModelTest {
             dependencies = emptyList(),
             udas = emptyMap(),
         )
+
+    private data class TaskDates(
+        val wait: String? = null,
+        val due: String? = null,
+        val scheduled: String? = null,
+    )
 }

@@ -43,6 +43,11 @@ class SettingsIntegrationTest {
 
         // Verify Build date exists (partial match)
         composeTestRule.onNodeWithText("Built on:", substring = true).assertExists()
+
+        composeTestRule.onNodeWithText("Source code").assertExists()
+        composeTestRule.onNodeWithText("https://github.com/brokenpip3/fatto").assertExists()
+        composeTestRule.onNodeWithText("Please report bugs at").assertExists()
+        composeTestRule.onNodeWithText("https://github.com/brokenpip3/fatto/issues").assertExists()
     }
 
     @Test
