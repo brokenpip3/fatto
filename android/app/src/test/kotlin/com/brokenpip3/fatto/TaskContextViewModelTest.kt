@@ -175,6 +175,27 @@ class TaskContextViewModelTest {
         }
 
     @Test
+    fun `urgency bar max remains based on all tasks while filtered`() =
+        runTest {
+            tasksFlow.value =
+                listOf(
+                    task(uuid = "low", description = "Low urgency", project = "Work", urgency = 2f),
+                    task(uuid = "high", description = "High urgency", project = "Home", urgency = 10f),
+                )
+            val viewModel = TaskViewModel(repository)
+
+            viewModel.setActiveProject("Work")
+            val job = launch { viewModel.activeTasks.collect {} }
+            val maxJob = launch { viewModel.maxUrgency.collect {} }
+            advanceUntilIdle()
+
+            assertEquals(listOf("low"), viewModel.activeTasks.value.map { it.uuid })
+            assertEquals(10f, viewModel.maxUrgency.value)
+            job.cancel()
+            maxJob.cancel()
+        }
+
+    @Test
     fun `context actions delegate to repository`() {
         val context = TaskContext(id = "work", name = "Work")
         val viewModel = TaskViewModel(repository)
@@ -197,6 +218,7 @@ class TaskContextViewModelTest {
         project: String? = null,
         tags: List<String> = emptyList(),
         start: String? = null,
+        urgency: Float = 0f,
     ): Task =
         Task(
             uuid = uuid,
@@ -210,7 +232,7 @@ class TaskContextViewModelTest {
             scheduled = null,
             start = start,
             priority = null,
-            urgency = 0f,
+            urgency = urgency,
             isBlocked = false,
             isBlocking = false,
             dependencies = emptyList(),

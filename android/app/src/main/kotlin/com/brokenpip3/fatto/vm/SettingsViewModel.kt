@@ -23,6 +23,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     private val _encryptionSecret = MutableStateFlow("")
     val encryptionSecret = _encryptionSecret.asStateFlow()
+    private var serverEncryptionSecret = ""
+    private var s3EncryptionSecret = ""
 
     private val _s3Bucket = MutableStateFlow("")
     val s3Bucket = _s3Bucket.asStateFlow()
@@ -107,7 +109,10 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         if (creds != null) {
             _syncUrl.value = creds.url
             _clientId.value = creds.clientId
-            _encryptionSecret.value = creds.secret
+            serverEncryptionSecret = creds.secret
+            if (_syncType.value == SyncType.SERVER) {
+                _encryptionSecret.value = serverEncryptionSecret
+            }
             Log.d("SettingsViewModel", "Loaded credentials from repository")
         } else {
             Log.d("SettingsViewModel", "No credentials found in repository")
@@ -120,10 +125,9 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
             _s3EndpointUrl.value = s3Creds.endpointUrl ?: ""
             _s3AccessKeyId.value = s3Creds.accessKeyId
             _s3SecretAccessKey.value = s3Creds.secretAccessKey
-            // For S3 the encryption secret lives alongside the S3 credentials; surface
-            // it in the shared field so the user can review/edit it.
+            s3EncryptionSecret = s3Creds.secret
             if (_syncType.value == SyncType.S3) {
-                _encryptionSecret.value = s3Creds.secret
+                _encryptionSecret.value = s3EncryptionSecret
             }
             Log.d("SettingsViewModel", "Loaded S3 credentials from repository")
         }
@@ -146,7 +150,13 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     }
 
     fun onSyncTypeChange(value: SyncType) {
+        cacheVisibleSecretForCurrentBackend()
         _syncType.value = value
+        _encryptionSecret.value =
+            when (value) {
+                SyncType.SERVER -> serverEncryptionSecret
+                SyncType.S3 -> s3EncryptionSecret
+            }
     }
 
     fun onUrlChange(value: String) {
@@ -179,6 +189,14 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     fun onSecretChange(value: String) {
         _encryptionSecret.value = value
+        cacheVisibleSecretForCurrentBackend()
+    }
+
+    private fun cacheVisibleSecretForCurrentBackend() {
+        when (_syncType.value) {
+            SyncType.SERVER -> serverEncryptionSecret = _encryptionSecret.value
+            SyncType.S3 -> s3EncryptionSecret = _encryptionSecret.value
+        }
     }
 
     fun onDailyNotificationsChange(value: Boolean) {
@@ -359,6 +377,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _syncUrl.value = ""
         _clientId.value = ""
         _encryptionSecret.value = ""
+        serverEncryptionSecret = ""
+        s3EncryptionSecret = ""
         _s3Bucket.value = ""
         _s3Region.value = ""
         _s3EndpointUrl.value = ""

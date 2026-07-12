@@ -67,6 +67,7 @@ fun TaskDetailBottomSheet(
     onDismiss: () -> Unit,
     onSave: (Task) -> Unit,
     availableProjects: List<String>,
+    availableTags: List<String>,
     showInternalTags: Boolean = true,
     firstDayOfWeek: Int = Calendar.MONDAY,
     onAddAnnotation: (suspend (String, String) -> Annotation)? = null,
@@ -96,6 +97,16 @@ fun TaskDetailBottomSheet(
                 emptyList()
             } else {
                 availableProjects.filter { it.contains(project, ignoreCase = true) && it != project }
+            }
+        }
+    val filteredTags =
+        remember(newTag, availableTags, tags) {
+            if (newTag.isBlank()) {
+                emptyList()
+            } else {
+                availableTags.filter {
+                    it.contains(newTag, ignoreCase = true) && !tags.contains(it)
+                }
             }
         }
 
@@ -324,6 +335,22 @@ fun TaskDetailBottomSheet(
                     }
                 },
             )
+
+            if (filteredTags.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(filteredTags) { suggestion ->
+                        SuggestionChip(
+                            label = suggestion,
+                            onClick = {
+                                if (!tags.contains(suggestion)) {
+                                    tags = tags + suggestion
+                                }
+                                newTag = ""
+                            },
+                        )
+                    }
+                }
+            }
 
             AccordionSection(
                 title = "Annotations",

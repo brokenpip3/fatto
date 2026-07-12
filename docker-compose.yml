@@ -1,7 +1,4 @@
 services:
-  # Local S3-compatible endpoint for the s3 sync backend integration tests.
-  # Pinned to the last community release of minio (the image is no longer
-  # updated upstream but remains available and is plenty for a test endpoint).
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     ports:
@@ -16,7 +13,6 @@ services:
       timeout: 5s
       retries: 15
 
-  # One-shot job that creates the bucket used by the s3 integration tests.
   minio-init:
     image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:

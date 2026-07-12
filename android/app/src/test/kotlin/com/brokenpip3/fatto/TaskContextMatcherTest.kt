@@ -92,6 +92,11 @@ class TaskContextMatcherTest {
     }
 
     @Test
+    fun `waiting virtual tag accepts numeric utc offset timestamps`() {
+        assertTrue(TaskContextMatcher.matches(task(wait = "2026-07-04T12:05:00+00:00"), context("+WAITING"), now))
+    }
+
+    @Test
     fun `invalid context matches no tasks`() {
         val context = context("priority:H")
 

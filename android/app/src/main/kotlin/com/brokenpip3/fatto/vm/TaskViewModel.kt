@@ -240,6 +240,10 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     val showInternalTags: StateFlow<Boolean> = repository.showInternalTags
     val showPriorityBadge: StateFlow<Boolean> = repository.showPriorityBadge
     val showUrgencyBar: StateFlow<Boolean> = repository.showUrgencyBar
+    val maxUrgency: StateFlow<Float> =
+        repository.tasks
+            .map { tasks -> tasks.maxOfOrNull { it.urgency } ?: 0.0f }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0f)
 
     val availableTags: StateFlow<Set<String>> =
         repository.tasks
