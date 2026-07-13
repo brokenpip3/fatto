@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.event.release.tag_name, 'v')
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Maximize Runner Space
         run: |
@@ -44,7 +44,7 @@ jobs:
     needs: build-rust-nix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Maximize Runner Space
         run: |
@@ -69,7 +69,7 @@ jobs:
           path: android/app/src/main
 
       - name: Cache Gradle
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             ~/.gradle/caches
@@ -104,7 +104,7 @@ jobs:
           path: dist/*.apk
 
       - name: Attach APK to Release (nix)
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           files: dist/*.apk
         env:
@@ -114,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.event.release.tag_name, 'v')
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install system deps
         run: sudo apt-get install -y gcc libc6-dev rustup
@@ -127,7 +127,7 @@ jobs:
           rustup default 1.94.1
 
       - name: Cache Cargo
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             rust/taskchampion-android/target
@@ -169,10 +169,10 @@ jobs:
     needs: build-rust-fdroid
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup JDK 17
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -191,7 +191,7 @@ jobs:
           path: android/app/src/main
 
       - name: Cache Gradle
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             ~/.gradle/caches
@@ -262,7 +262,7 @@ jobs:
           path: dist-fdroid/*.apk
 
       - name: Attach APK to Release (fdroid)
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           files: dist-fdroid/*.apk
         env:

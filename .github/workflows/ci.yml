@@ -7,7 +7,7 @@ jobs:
   generate-bindings:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Maximize Runner Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -20,7 +20,7 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
       - name: Cache Rust
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             rust/taskchampion-android/target
@@ -58,7 +58,7 @@ jobs:
           - command: build-debug-only
             shell: fatto-ci-kotlin
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Maximize Runner Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -78,7 +78,7 @@ jobs:
           path: android/app/src/main/uniffi/
       - name: Cache Rust
         if: contains(matrix.shell, 'rust')
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             rust/taskchampion-android/target
@@ -89,7 +89,7 @@ jobs:
             ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}
       - name: Cache Gradle
         if: contains(matrix.shell, 'kotlin')
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches
