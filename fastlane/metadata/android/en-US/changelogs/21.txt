@@ -1,0 +1,5 @@
+- contexts v2: contexts now support richer expressions with multiple filters, negative terms, parentheses, virtual tags, and both guided selection and direct expression editing.
+- initial taskrc support: we can now import supported settings from a pasted taskwarrior config. The importer adds or updates contexts and reports what was imported, changed, skipped, or unsupported. Right now we only support importing contexts and start of the week day.
+- settings tabs: settings are now split into sync, taskrc, display, and about sections
+- S3 sync backend: fatto now supports AWS S3 and S3-compatible sync in addition to taskchampion sync server.
+- auto waiting: optional auto-wait can hide due or scheduled tasks until one week before their target date, without overwriting explicit wait dates.
