@@ -40,6 +40,28 @@ You can download the latest apk from the [releases](https://github.com/brokenpip
 
 By time to time we also release beta versions, you can test it without interfering with the stable version, the stable version is a different app from an android perspective, so you can keep both or only use the stable one.
 
+## S3 sync
+
+Settings → Sync → *S3 storage* syncs directly with a bucket, with no server in between.
+
+| Field | AWS S3 | S3-compatible service (minio, Garage, ...) |
+| --- | --- | --- |
+| Bucket | the bucket name, e.g. `my-tasks` | same |
+| Endpoint URL | leave empty | required, with scheme: `https://minio.example.com` |
+| Region | the region the bucket was created in, e.g. `eu-west-2` (empty means `us-east-1`) | whatever the service expects, often empty |
+| Access Key ID | 20 upper-case characters, e.g. `AKIAIOSFODNN7EXAMPLE` | the service's key |
+| Secret Access Key | 40 characters, e.g. `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` | the service's secret |
+| Encryption Secret | your passphrase; must match the one used on your other clients | same |
+
+The keys are used verbatim: no quotes around them, and no escaping of the `/` in the
+secret. The key needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` and
+`s3:ListBucket` on the bucket. Temporary credentials (`ASIA...`) are not supported,
+since they also require a session token.
+
+If a sync fails with `SignatureDoesNotMatch`, the access key ID or the secret access
+key does not match what the bucket expects: re-enter both, watching for characters
+added or changed by the keyboard while typing.
+
 ## Architecture
 
 The backend is built in Rust using the official [taskChampion](https://github.com/GothenburgBitFactory/taskchampion), which provides a robust and efficient way to manage tasks and sync with `taskchampion-sync` servers. The frontend is written in Kotlin using Jetpack Compose.

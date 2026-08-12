@@ -2,6 +2,7 @@ package com.brokenpip3.fatto.vm
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.brokenpip3.fatto.data.S3SettingsValidator
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.data.TaskrcImportPreview
@@ -40,6 +41,10 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     private val _s3SecretAccessKey = MutableStateFlow("")
     val s3SecretAccessKey = _s3SecretAccessKey.asStateFlow()
+
+    /** Why the last [save] was refused, or null if it succeeded. */
+    private val _syncSettingsError = MutableStateFlow<String?>(null)
+    val syncSettingsError = _syncSettingsError.asStateFlow()
 
     private val _showCompleted = MutableStateFlow(true)
     val showCompleted = _showCompleted.asStateFlow()
@@ -331,6 +336,7 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun save(): Boolean {
         val type = _syncType.value
         val secret = _encryptionSecret.value.trim()
+        _syncSettingsError.value = null
 
         val saved =
             when (type) {
@@ -345,17 +351,32 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 
     private fun saveS3Credentials(secret: String): Boolean {
         val bucket = _s3Bucket.value.trim()
+        val region = _s3Region.value.trim()
+        val endpointUrl = _s3EndpointUrl.value.trim()
         val accessKeyId = _s3AccessKeyId.value.trim()
         val secretAccessKey = _s3SecretAccessKey.value.trim()
-        if (bucket.isEmpty() || accessKeyId.isEmpty() || secretAccessKey.isEmpty() || secret.isEmpty()) {
-            Log.d("SettingsViewModel", "Not saving: incomplete S3 credentials")
+
+        // Credentials that are merely malformed are rejected here: S3 reports
+        // them as a signature mismatch, which is impossible to act on.
+        val error =
+            S3SettingsValidator.validate(
+                bucket = bucket,
+                region = region,
+                endpointUrl = endpointUrl,
+                accessKeyId = accessKeyId,
+                secretAccessKey = secretAccessKey,
+                encryptionSecret = secret,
+            )
+        if (error != null) {
+            Log.d("SettingsViewModel", "Not saving S3 credentials: $error")
+            _syncSettingsError.value = error
             return false
         }
         Log.d("SettingsViewModel", "Saving S3 settings to repository")
         repository.saveS3Credentials(
             bucket = bucket,
-            region = _s3Region.value.trim().ifEmpty { null },
-            endpointUrl = _s3EndpointUrl.value.trim().ifEmpty { null },
+            region = region.ifEmpty { null },
+            endpointUrl = endpointUrl.ifEmpty { null },
             accessKeyId = accessKeyId,
             secretAccessKey = secretAccessKey,
             secret = secret,
@@ -368,6 +389,7 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         val clientId = _clientId.value.trim()
         if (url.isEmpty() || clientId.isEmpty() || secret.isEmpty()) {
             Log.d("SettingsViewModel", "Not saving: incomplete server credentials")
+            _syncSettingsError.value = "Fill in the server URL, client ID and encryption secret"
             return false
         }
         Log.d("SettingsViewModel", "Saving server settings to repository")

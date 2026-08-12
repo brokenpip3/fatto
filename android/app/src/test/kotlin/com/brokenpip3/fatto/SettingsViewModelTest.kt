@@ -20,6 +20,12 @@ import org.junit.Test
 import java.util.Calendar
 
 class SettingsViewModelTest {
+    private companion object {
+        // The credentials AWS uses in its own documentation examples.
+        const val ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"
+        const val SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    }
+
     @Test
     fun `preview taskrc import does not mutate repository`() {
         val repository = FakeSettingsRepository()
@@ -80,23 +86,96 @@ class SettingsViewModelTest {
 
         viewModel.onSyncTypeChange(SyncType.S3)
         viewModel.onS3BucketChange("my-bucket")
-        viewModel.onS3AccessKeyIdChange("access-key")
-        viewModel.onS3SecretAccessKeyChange("secret-key")
+        viewModel.onS3AccessKeyIdChange(ACCESS_KEY_ID)
+        viewModel.onS3SecretAccessKeyChange(SECRET_ACCESS_KEY)
         viewModel.onSecretChange("encryption-secret")
 
         assertTrue(viewModel.save())
+        assertNull(viewModel.syncSettingsError.value)
         assertEquals(SyncType.S3, repository.getSyncType())
         assertEquals(
             S3Credentials(
                 bucket = "my-bucket",
                 region = null,
                 endpointUrl = null,
-                accessKeyId = "access-key",
-                secretAccessKey = "secret-key",
+                accessKeyId = ACCESS_KEY_ID,
+                secretAccessKey = SECRET_ACCESS_KEY,
                 secret = "encryption-secret",
             ),
             repository.getS3Credentials(),
         )
+    }
+
+    @Test
+    fun `save trims credentials picked up from a paste`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onSyncTypeChange(SyncType.S3)
+        viewModel.onS3BucketChange(" my-bucket ")
+        viewModel.onS3RegionChange(" eu-west-2\n")
+        viewModel.onS3AccessKeyIdChange("$ACCESS_KEY_ID\n")
+        viewModel.onS3SecretAccessKeyChange(" $SECRET_ACCESS_KEY ")
+        viewModel.onSecretChange("encryption-secret")
+
+        assertTrue(viewModel.save())
+        val saved = repository.getS3Credentials()
+        assertEquals("my-bucket", saved?.bucket)
+        assertEquals("eu-west-2", saved?.region)
+        assertEquals(ACCESS_KEY_ID, saved?.accessKeyId)
+        assertEquals(SECRET_ACCESS_KEY, saved?.secretAccessKey)
+    }
+
+    @Test
+    fun `save rejects malformed aws credentials with a specific reason`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onSyncTypeChange(SyncType.S3)
+        viewModel.onS3BucketChange("my-bucket")
+        viewModel.onS3AccessKeyIdChange("\"$ACCESS_KEY_ID\"")
+        viewModel.onS3SecretAccessKeyChange(SECRET_ACCESS_KEY)
+        viewModel.onSecretChange("encryption-secret")
+
+        assertFalse(viewModel.save())
+        assertNull(repository.getS3Credentials())
+        assertTrue(viewModel.syncSettingsError.value.orEmpty().contains("Access key ID"))
+    }
+
+    @Test
+    fun `save rejects a region that is not an aws region`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onSyncTypeChange(SyncType.S3)
+        viewModel.onS3BucketChange("my-bucket")
+        viewModel.onS3RegionChange("eu-west")
+        viewModel.onS3AccessKeyIdChange(ACCESS_KEY_ID)
+        viewModel.onS3SecretAccessKeyChange(SECRET_ACCESS_KEY)
+        viewModel.onSecretChange("encryption-secret")
+
+        assertFalse(viewModel.save())
+        assertTrue(viewModel.syncSettingsError.value.orEmpty().contains("eu-west"))
+
+        viewModel.onS3RegionChange("eu-west-2")
+        assertTrue(viewModel.save())
+        assertNull(viewModel.syncSettingsError.value)
+    }
+
+    @Test
+    fun `save accepts the credentials of an s3 compatible service`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onSyncTypeChange(SyncType.S3)
+        viewModel.onS3BucketChange("fatto-tasks")
+        viewModel.onS3EndpointUrlChange("http://localhost:9000")
+        viewModel.onS3AccessKeyIdChange("minioadmin")
+        viewModel.onS3SecretAccessKeyChange("minioadmin")
+        viewModel.onSecretChange("encryption-secret")
+
+        assertTrue(viewModel.save())
+        assertEquals("http://localhost:9000", repository.getS3Credentials()?.endpointUrl)
     }
 
     @Test
@@ -123,8 +202,8 @@ class SettingsViewModelTest {
             bucket = "my-bucket",
             region = null,
             endpointUrl = null,
-            accessKeyId = "access-key",
-            secretAccessKey = "secret-key",
+            accessKeyId = ACCESS_KEY_ID,
+            secretAccessKey = SECRET_ACCESS_KEY,
             secret = "s3-secret",
         )
         repository.setSyncType(SyncType.SERVER)
