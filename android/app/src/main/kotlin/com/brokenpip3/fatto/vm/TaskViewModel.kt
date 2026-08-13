@@ -248,7 +248,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     val availableTags: StateFlow<Set<String>> =
         repository.tasks
             .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
-                tasks.flatMap { it.tags }
+                tasks.filter { it.status == TaskStatus.PENDING }
+                    .flatMap { it.tags }
                     .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
                     .toSet()
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())

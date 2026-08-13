@@ -107,4 +107,62 @@ class TagsIntegrationTest {
         composeTestRule.onNodeWithText("banana").assertExists()
         composeTestRule.onNodeWithText("zebra").assertExists()
     }
+
+    @Test
+    fun testStaleTagChipRemovedAfterComplete() {
+        // Wait for the app to load
+        composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Add Task"), 30000)
+
+        val staleTag = "stale-complete-${System.currentTimeMillis()}"
+        val taskDescription = "Complete me ${System.currentTimeMillis()}"
+
+        // Create a task carrying a tag
+        composeTestRule.onNodeWithContentDescription("Add Task").performClick()
+        composeTestRule.onNode(hasTestTag("DescriptionInput")).performTextInput(taskDescription)
+        composeTestRule.onNode(hasContentDescription("TagInput")).performTextInput(staleTag)
+        composeTestRule.onNodeWithContentDescription("AddTagButton").performClick()
+        composeTestRule.onNodeWithText("Create").performClick()
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("AddTaskDialog"), 15000)
+
+        // Open the Filters panel and verify the tag chip appears
+        composeTestRule.onNodeWithContentDescription("Toggle Filters").performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasText(staleTag), 15000)
+
+        // Complete the task (confirmation dialog)
+        composeTestRule.onNodeWithContentDescription("Complete").performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Confirm"), 15000)
+        composeTestRule.onNodeWithText("Confirm").performClick()
+
+        // The chip must disappear once no pending task carries the tag
+        composeTestRule.waitUntilDoesNotExist(hasText(staleTag), 15000)
+    }
+
+    @Test
+    fun testStaleTagChipRemovedAfterDelete() {
+        // Wait for the app to load
+        composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Add Task"), 30000)
+
+        val staleTag = "stale-delete-${System.currentTimeMillis()}"
+        val taskDescription = "Delete me ${System.currentTimeMillis()}"
+
+        // 1. Create a task carrying a tag
+        composeTestRule.onNodeWithContentDescription("Add Task").performClick()
+        composeTestRule.onNode(hasTestTag("DescriptionInput")).performTextInput(taskDescription)
+        composeTestRule.onNode(hasContentDescription("TagInput")).performTextInput(staleTag)
+        composeTestRule.onNodeWithContentDescription("AddTagButton").performClick()
+        composeTestRule.onNodeWithText("Create").performClick()
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("AddTaskDialog"), 15000)
+
+        // 2. Open the Filters panel and verify the tag chip appears
+        composeTestRule.onNodeWithContentDescription("Toggle Filters").performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasText(staleTag), 15000)
+
+        // 3. Delete the task (confirmation dialog)
+        composeTestRule.onNodeWithContentDescription("DeleteTask").performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Confirm"), 15000)
+        composeTestRule.onNodeWithText("Confirm").performClick()
+
+        // 4. The chip must disappear once no pending task carries the tag
+        composeTestRule.waitUntilDoesNotExist(hasText(staleTag), 15000)
+    }
 }
