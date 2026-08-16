@@ -20,3 +20,4 @@
 - [ ] better notification: when tap the notification, open the app and show the task details
 - [ ] support builtin UDA like tag and project colours
 - [x] support custom UDA
+- [x] support share target for creating tasks from shared links/text

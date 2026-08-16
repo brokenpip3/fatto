@@ -48,6 +48,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
+import com.brokenpip3.fatto.data.ShareIntentParser
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.notification.NotificationNavigation
@@ -71,6 +72,7 @@ import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     private var notificationTaskUuid by mutableStateOf<String?>(null)
+    private var pendingShareDescription by mutableStateOf<String?>(null)
 
     private val requestPermissionLauncher =
         registerForActivityResult(
@@ -88,6 +90,7 @@ class MainActivity : ComponentActivity() {
         val taskViewModel = TaskViewModel(taskRepository)
         val settingsViewModel = SettingsViewModel(settingsRepository)
         notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
+        pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
 
         scheduleSync()
         requestNotificationPermission()
@@ -124,6 +127,18 @@ class MainActivity : ComponentActivity() {
                             restoreState = true
                         }
                         notificationTaskUuid = null
+                    }
+                }
+
+                LaunchedEffect(pendingShareDescription) {
+                    if (pendingShareDescription != null) {
+                        navController.navigate("tasks") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 }
 
@@ -188,6 +203,7 @@ class MainActivity : ComponentActivity() {
                         composable("tasks") {
                             var showAddTaskDialog by remember { mutableStateOf(false) }
                             var selectedTask by remember { mutableStateOf<Task?>(null) }
+                            var dialogInitialDescription by remember { mutableStateOf<String?>(null) }
                             val availableTags by taskViewModel.availableTags.collectAsState()
                             val hierarchicalProjects by taskViewModel.hierarchicalProjects.collectAsState()
                             val activeProject by taskViewModel.activeProject.collectAsState()
@@ -196,9 +212,21 @@ class MainActivity : ComponentActivity() {
                             val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
                             val confirmActions by settingsViewModel.confirmActions.collectAsState()
 
+                            LaunchedEffect(pendingShareDescription) {
+                                val shared = pendingShareDescription
+                                if (shared != null) {
+                                    dialogInitialDescription = shared
+                                    pendingShareDescription = null
+                                    showAddTaskDialog = true
+                                }
+                            }
+
                             TaskListScreen(
                                 viewModel = taskViewModel,
-                                onAddTaskClick = { showAddTaskDialog = true },
+                                onAddTaskClick = {
+                                    dialogInitialDescription = null
+                                    showAddTaskDialog = true
+                                },
                                 onTaskClick = { selectedTask = it },
                                 onManageContexts = { navController.navigate("settings") },
                                 confirmActions = confirmActions,
@@ -210,6 +238,7 @@ class MainActivity : ComponentActivity() {
                                     availableTags = availableTags.toList(),
                                     initialProject = activeProject,
                                     initialTags = selectedTags.toList(),
+                                    initialDescription = dialogInitialDescription ?: "",
                                     onDismiss = { showAddTaskDialog = false },
                                     onConfirm = { desc, proj, tgs, w, d, sch, st, p, deps ->
                                         taskViewModel.addTask(desc, proj, tgs, w, d, sch, st, p, deps)
@@ -286,6 +315,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
+        pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
     }
 
     private fun requestNotificationPermission() {
