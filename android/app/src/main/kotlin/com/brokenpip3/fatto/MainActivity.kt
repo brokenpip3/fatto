@@ -206,6 +206,7 @@ class MainActivity : ComponentActivity() {
                             var dialogInitialDescription by remember { mutableStateOf<String?>(null) }
                             val availableTags by taskViewModel.availableTags.collectAsState()
                             val hierarchicalProjects by taskViewModel.hierarchicalProjects.collectAsState()
+                            val allTasks by taskViewModel.allTasks.collectAsState()
                             val activeProject by taskViewModel.activeProject.collectAsState()
                             val selectedTags by taskViewModel.selectedTags.collectAsState()
                             val showInternalTags by taskViewModel.showInternalTags.collectAsState()
@@ -264,6 +265,13 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onRemoveAnnotation = { uuid, entry ->
                                         taskViewModel.removeAnnotation(uuid, entry)
+                                    },
+                                    allTasks = allTasks,
+                                    onAddDependencies = { uuid, deps ->
+                                        taskViewModel.addDependencies(uuid, deps)
+                                    },
+                                    onRemoveDependency = { uuid, dep ->
+                                        taskViewModel.removeDependency(uuid, dep)
                                     },
                                 )
                             }

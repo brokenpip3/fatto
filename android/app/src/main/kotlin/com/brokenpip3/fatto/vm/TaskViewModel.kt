@@ -240,6 +240,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     val showInternalTags: StateFlow<Boolean> = repository.showInternalTags
     val showPriorityBadge: StateFlow<Boolean> = repository.showPriorityBadge
     val showUrgencyBar: StateFlow<Boolean> = repository.showUrgencyBar
+    val allTasks: StateFlow<List<Task>> = repository.tasks
     val maxUrgency: StateFlow<Float> =
         repository.tasks
             .map { tasks -> tasks.maxOfOrNull { it.urgency } ?: 0.0f }
@@ -472,6 +473,32 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                         wait = autoWait(wait = task.wait, due = task.due, scheduled = task.scheduled),
                     ),
                 )
+            } catch (e: Exception) {
+                _uiEvent.emit("Failed to update task: ${e.message}")
+            }
+        }
+    }
+
+    fun addDependencies(
+        uuid: String,
+        deps: List<String>,
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.addDependencies(uuid, deps)
+            } catch (e: Exception) {
+                _uiEvent.emit("Failed to update task: ${e.message}")
+            }
+        }
+    }
+
+    fun removeDependency(
+        uuid: String,
+        depUuid: String,
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.removeDependency(uuid, depUuid)
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to update task: ${e.message}")
             }
