@@ -105,5 +105,5 @@ run-deploy:
 - **aapt2 path**: nix-provided `aapt2` is forced via `GRADLE_OPTS` in `flake.nix` to ensure compatibility across environments.
 - **synthetic tags** (PENDING, COMPLETED, etc.) are filtered out in the ui but preserved in the backend.
 - **tests**: instrumented tests are stabilized and run against the `com.brokenpip3.fatto` namespace.
-- **running tests**: IMPORTANT before running a test check if a file called fatto-test-running is present in the /tmp directory.
+- **running tests**: IMPORTANT before running a test check if a file called .test-running is present in the root directory.
   If present wait 60 seconds and check again. If not present create the file and run the tests. After the tests are finished remove the file.
