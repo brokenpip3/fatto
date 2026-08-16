@@ -1,11 +1,15 @@
 package com.brokenpip3.fatto.ui.tasklist
 
 import android.content.res.Configuration
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -13,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Info
@@ -54,13 +59,16 @@ import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.ui.common.TaskPickerDialog
 import kotlinx.coroutines.launch
+import uniffi.taskchampion_android.TaskStatus
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Calendar
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun TaskDetailBottomSheet(
     task: Task,
@@ -72,6 +80,9 @@ fun TaskDetailBottomSheet(
     firstDayOfWeek: Int = Calendar.MONDAY,
     onAddAnnotation: (suspend (String, String) -> Annotation)? = null,
     onRemoveAnnotation: ((String, String) -> Unit)? = null,
+    allTasks: List<Task> = emptyList(),
+    onAddDependencies: suspend (String, List<String>) -> Unit = { _, _ -> },
+    onRemoveDependency: suspend (String, String) -> Unit = { _, _ -> },
 ) {
     var description by remember(task) { mutableStateOf(task.description) }
     var project by remember(task) { mutableStateOf(task.project ?: "") }
@@ -88,6 +99,20 @@ fun TaskDetailBottomSheet(
     var showAnnotations by remember(task) { mutableStateOf(task.annotations.isNotEmpty()) }
     var showDependencies by remember(task) { mutableStateOf(task.dependencies.isNotEmpty()) }
     var showDetails by remember(task) { mutableStateOf(false) }
+    var showBlocking by remember(task) { mutableStateOf(false) }
+    var showBlockedByPicker by remember { mutableStateOf(false) }
+    var showBlockingPicker by remember { mutableStateOf(false) }
+
+    val blockingTasks =
+        allTasks.filter {
+            it.dependencies.contains(task.uuid) && it.status != TaskStatus.DELETED
+        }
+    // Live flags — the `task` param is a snapshot; recompute from local state + allTasks
+    val isBlockedLive =
+        dependencies.any { depUuid ->
+            allTasks.find { it.uuid == depUuid }?.status == TaskStatus.PENDING
+        }
+    val isBlockingLive = blockingTasks.any { it.status == TaskStatus.PENDING }
 
     val scope = rememberCoroutineScope()
 
@@ -147,12 +172,12 @@ fun TaskDetailBottomSheet(
                     .testTag("TaskDetailBottomSheet"),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (task.isBlocked || task.isBlocking) {
+            if (isBlockedLive || isBlockingLive) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (task.isBlocked) {
+                    if (isBlockedLive) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
                             shape = MaterialTheme.shapes.small,
@@ -165,7 +190,7 @@ fun TaskDetailBottomSheet(
                             )
                         }
                     }
-                    if (task.isBlocking) {
+                    if (isBlockingLive) {
                         Surface(
                             color = MaterialTheme.colorScheme.tertiaryContainer,
                             shape = MaterialTheme.shapes.small,
@@ -431,29 +456,53 @@ fun TaskDetailBottomSheet(
                 onToggle = { showDependencies = !showDependencies },
             ) {
                 dependencies.forEach { depUuid ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = depUuid,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        IconButton(onClick = { dependencies = dependencies - depUuid }) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remove dependency",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+                    val depTask = allTasks.find { it.uuid == depUuid }
+                    DependencyRow(
+                        task = depTask,
+                        fallbackUuid = depUuid,
+                        onRemove = {
+                            scope.launch {
+                                try {
+                                    onRemoveDependency(task.uuid, depUuid)
+                                    dependencies = dependencies - depUuid
+                                } catch (_: Exception) {
+                                }
+                            }
+                        },
+                    )
                 }
-                Text(
-                    text = "Manage dependencies in task detail",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                AddDependencyRow(
+                    label = "Add task",
+                    contentDescription = "AddBlockedByButton",
+                    onClick = { showBlockedByPicker = true },
+                )
+            }
+
+            AccordionSection(
+                title = "Blocking",
+                icon = Icons.Default.Link,
+                count = blockingTasks.size,
+                expanded = showBlocking,
+                onToggle = { showBlocking = !showBlocking },
+            ) {
+                blockingTasks.forEach { dependent ->
+                    DependencyRow(
+                        task = dependent,
+                        fallbackUuid = dependent.uuid,
+                        onRemove = {
+                            scope.launch {
+                                try {
+                                    onRemoveDependency(dependent.uuid, task.uuid)
+                                } catch (_: Exception) {
+                                }
+                            }
+                        },
+                    )
+                }
+                AddDependencyRow(
+                    label = "Add task",
+                    contentDescription = "AddBlockingButton",
+                    onClick = { showBlockingPicker = true },
                 )
             }
 
@@ -548,5 +597,136 @@ fun TaskDetailBottomSheet(
                 DatePicker(state = datePickerState)
             }
         }
+    }
+
+    if (showBlockedByPicker) {
+        val pool =
+            allTasks.filter {
+                it.uuid != task.uuid &&
+                    it.status != TaskStatus.DELETED &&
+                    it.uuid !in dependencies
+            }
+        TaskPickerDialog(
+            title = "Add blocked by",
+            tasks = pool,
+            onDismiss = { showBlockedByPicker = false },
+            onConfirm = { picked ->
+                showBlockedByPicker = false
+                scope.launch {
+                    try {
+                        onAddDependencies(task.uuid, picked.map { it.uuid })
+                        dependencies = dependencies + picked.map { it.uuid }
+                    } catch (_: Exception) {
+                    }
+                }
+            },
+        )
+    }
+
+    if (showBlockingPicker) {
+        val pool =
+            allTasks.filter {
+                it.uuid != task.uuid &&
+                    it.status != TaskStatus.DELETED &&
+                    !it.dependencies.contains(task.uuid)
+            }
+        TaskPickerDialog(
+            title = "Add blocking task",
+            tasks = pool,
+            onDismiss = { showBlockingPicker = false },
+            onConfirm = { picked ->
+                showBlockingPicker = false
+                scope.launch {
+                    try {
+                        picked.forEach { onAddDependencies(it.uuid, listOf(task.uuid)) }
+                    } catch (_: Exception) {
+                    }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun DependencyRow(
+    task: Task?,
+    fallbackUuid: String,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = task?.description ?: fallbackUuid,
+                style = MaterialTheme.typography.bodyMedium,
+                color =
+                    if (task?.status == TaskStatus.COMPLETED) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+            )
+            if (task != null) {
+                val subtitle =
+                    listOfNotNull(
+                        task.project,
+                        task.userTags.joinToString(" ").takeIf { it.isNotEmpty() },
+                    ).joinToString(" · ")
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        if (task?.status == TaskStatus.COMPLETED) {
+            Icon(
+                Icons.Default.Check,
+                contentDescription = "Completed",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        IconButton(onClick = onRemove) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Remove dependency",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddDependencyRow(
+    label: String,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(vertical = 8.dp)
+                .semantics { this.contentDescription = contentDescription },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Add,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
