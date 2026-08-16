@@ -190,6 +190,17 @@ run-emulator-start:
         adb wait-for-device; \
     fi
 
+# start android emulator headless (for low-resource environments)
+run-emulator-start-headless:
+    @command -v emulator >/dev/null 2>&1 || { echo >&2 "emulator is required but not installed."; exit 1; }
+    @if adb devices | grep -q emulator; then \
+        echo "Emulator is already running."; \
+    else \
+        export ANDROID_AVD_HOME="$HOME/.config/.android/avd" && \
+        (emulator -avd dev_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot-load &) && \
+        adb wait-for-device; \
+    fi
+
 # start android emulator with fresh data
 run-emulator-start-fresh:
     @command -v emulator >/dev/null 2>&1 || { echo >&2 "emulator is required but not installed."; exit 1; }

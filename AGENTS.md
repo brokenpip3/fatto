@@ -17,6 +17,7 @@
     - task creation with auto-suggestions for projects and tags.
     - task detail bottom sheet with auto-save and date pickers.
     - **daily notifications**: periodic summary of due/scheduled tasks using `WorkManager`.
+    - **share target**: create tasks from Android's share sheet (`ACTION_SEND` `text/plain`) with the shared content prefilled in the New Task dialog.
 - **testing**: rust unit/integration tests and android instrumentation tests (all located in `src/androidTest`).
 - **release optimization**: streamlined for 64-bit architectures (`arm64-v8a`, `x86_64`) and prepared with F-Droid metadata.
 
