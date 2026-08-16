@@ -598,6 +598,22 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         replaceTaskContexts(preview.contextsAfter)
         setActiveTaskContextId(preview.activeContextIdAfter)
         setFirstDayOfWeek(preview.firstDayOfWeekAfter)
+        preview.serverCredentialsAfter?.let {
+            saveCredentials(it.url, it.clientId, it.secret)
+        }
+        preview.s3CredentialsAfter?.let {
+            saveS3Credentials(it.bucket, it.region, it.endpointUrl, it.accessKeyId, it.secretAccessKey, it.secret)
+        }
+        preview.encryptionSecretAfter?.let { secret ->
+            sharedPreferences
+                ?.edit()
+                ?.putString("encryption_secret", secret)
+                ?.putString("s3_encryption_secret", secret)
+                ?.apply()
+        }
+        if (preview.syncTypeAfter != getSyncType()) {
+            setSyncType(preview.syncTypeAfter)
+        }
     }
 
     override fun deleteTaskContext(id: String) {

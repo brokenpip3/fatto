@@ -312,12 +312,38 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
                 existingContexts = repository.getTaskContexts(),
                 currentActiveContextId = repository.getActiveTaskContextId(),
                 currentFirstDayOfWeek = repository.getFirstDayOfWeek(),
+                currentSyncCredentials = repository.getCredentials(),
+                currentS3Credentials = repository.getS3Credentials(),
+                currentSyncType = repository.getSyncType(),
             )
     }
 
     fun applyTaskrcImport() {
         val preview = _taskrcImportPreview.value ?: return
         repository.applyTaskrcImport(preview)
+        preview.serverCredentialsAfter?.let { creds ->
+            _syncUrl.value = creds.url
+            _clientId.value = creds.clientId
+            serverEncryptionSecret = creds.secret
+        }
+        preview.s3CredentialsAfter?.let { creds ->
+            _s3Bucket.value = creds.bucket
+            _s3Region.value = creds.region ?: ""
+            _s3EndpointUrl.value = creds.endpointUrl ?: ""
+            _s3AccessKeyId.value = creds.accessKeyId
+            _s3SecretAccessKey.value = creds.secretAccessKey
+            s3EncryptionSecret = creds.secret
+        }
+        preview.encryptionSecretAfter?.let { secret ->
+            serverEncryptionSecret = secret
+            s3EncryptionSecret = secret
+        }
+        _syncType.value = preview.syncTypeAfter
+        _encryptionSecret.value =
+            when (_syncType.value) {
+                SyncType.SERVER -> serverEncryptionSecret
+                SyncType.S3 -> s3EncryptionSecret
+            }
         _taskrcImportPreview.value = preview
     }
 
