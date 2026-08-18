@@ -6,6 +6,8 @@ import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -88,5 +90,51 @@ class RepositoryIntegrityTest {
             repository.init()
             // Tags with spaces are invalid in TaskChampion
             repository.addTask("Bad tag task", null, listOf("tag with space"), null, null, null)
+        }
+
+    @Test
+    fun testDependencyRoundtrip() =
+        runBlocking {
+            repository.init()
+            repository.addTask("Dep A", null, emptyList(), null, null, null)
+            repository.addTask("Dep B", null, emptyList(), null, null, null)
+
+            val a = repository.tasks.value.find { it.description == "Dep A" }!!
+            val b = repository.tasks.value.find { it.description == "Dep B" }!!
+
+            repository.addDependencies(a.uuid, listOf(b.uuid))
+
+            var tasks = repository.tasks.value
+            var aAfter = tasks.find { it.uuid == a.uuid }!!
+            var bAfter = tasks.find { it.uuid == b.uuid }!!
+            assertEquals(listOf(b.uuid), aAfter.dependencies)
+            assertTrue(aAfter.isBlocked)
+            assertTrue(bAfter.isBlocking)
+
+            repository.removeDependency(a.uuid, b.uuid)
+
+            tasks = repository.tasks.value
+            aAfter = tasks.find { it.uuid == a.uuid }!!
+            bAfter = tasks.find { it.uuid == b.uuid }!!
+            assertTrue(aAfter.dependencies.isEmpty())
+            assertFalse(aAfter.isBlocked)
+            assertFalse(bAfter.isBlocking)
+        }
+
+    @Test
+    fun testAddDependenciesDedupes() =
+        runBlocking {
+            repository.init()
+            repository.addTask("Dup A", null, emptyList(), null, null, null)
+            repository.addTask("Dup B", null, emptyList(), null, null, null)
+
+            val a = repository.tasks.value.find { it.description == "Dup A" }!!
+            val b = repository.tasks.value.find { it.description == "Dup B" }!!
+
+            repository.addDependencies(a.uuid, listOf(b.uuid, b.uuid))
+
+            val aAfter = repository.tasks.value.find { it.uuid == a.uuid }!!
+            assertEquals(1, aAfter.dependencies.size)
+            assertEquals(listOf(b.uuid), aAfter.dependencies)
         }
 }

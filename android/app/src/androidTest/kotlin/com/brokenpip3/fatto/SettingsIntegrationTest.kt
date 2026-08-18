@@ -12,11 +12,17 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
+import com.brokenpip3.fatto.data.S3Credentials
+import com.brokenpip3.fatto.data.SettingsRepositoryImpl
+import com.brokenpip3.fatto.data.SyncCredentials
+import com.brokenpip3.fatto.data.SyncType
+import com.brokenpip3.fatto.data.TaskrcImporter
 import com.brokenpip3.fatto.ui.theme.NordicNight
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.Calendar
 
 @RunWith(AndroidJUnit4::class)
 class SettingsIntegrationTest {
@@ -120,6 +126,69 @@ class SettingsIntegrationTest {
 
         // Verify it exists (we can't easily check 'checked' state with onNodeWithText but we verify it's still clickable/present)
         composeTestRule.onNodeWithText("Confirm complete/delete").assertExists()
+    }
+
+    @Test
+    fun testApplyTaskrcImportPersistsStorageSettings() {
+        val context = composeTestRule.activity.applicationContext
+        val repository = SettingsRepositoryImpl(context)
+        val uuid = "768d9f09-accd-406d-8685-7b977b83d5c6"
+        try {
+            val serverPreview =
+                TaskrcImporter.preview(
+                    text =
+                        "sync.server.url=http://localhost:8080\n" +
+                            "sync.server.client_id=$uuid\n" +
+                            "sync.encryption_secret=my-secret",
+                    existingContexts = emptyList(),
+                    currentActiveContextId = null,
+                    currentFirstDayOfWeek = Calendar.MONDAY,
+                    currentSyncCredentials = repository.getCredentials(),
+                    currentS3Credentials = repository.getS3Credentials(),
+                    currentSyncType = repository.getSyncType(),
+                )
+            repository.applyTaskrcImport(serverPreview)
+            assertEquals(SyncType.SERVER, repository.getSyncType())
+            assertEquals(SyncCredentials("http://localhost:8080", uuid, "my-secret"), repository.getCredentials())
+
+            val s3Preview =
+                TaskrcImporter.preview(
+                    text =
+                        "sync.aws.bucket=fatto-tasks\n" +
+                            "sync.aws.access_key_id=minioadmin\n" +
+                            "sync.aws.secret_access_key=minioadmin\n" +
+                            "sync.encryption_secret=my-secret",
+                    existingContexts = emptyList(),
+                    currentActiveContextId = null,
+                    currentFirstDayOfWeek = Calendar.MONDAY,
+                    currentSyncCredentials = repository.getCredentials(),
+                    currentS3Credentials = repository.getS3Credentials(),
+                    currentSyncType = repository.getSyncType(),
+                )
+            repository.applyTaskrcImport(s3Preview)
+            assertEquals(SyncType.S3, repository.getSyncType())
+            assertEquals(
+                S3Credentials("fatto-tasks", null, null, "minioadmin", "minioadmin", "my-secret"),
+                repository.getS3Credentials(),
+            )
+
+            val secretPreview =
+                TaskrcImporter.preview(
+                    text = "sync.encryption_secret=secret-only",
+                    existingContexts = emptyList(),
+                    currentActiveContextId = null,
+                    currentFirstDayOfWeek = Calendar.MONDAY,
+                    currentSyncCredentials = repository.getCredentials(),
+                    currentS3Credentials = repository.getS3Credentials(),
+                    currentSyncType = repository.getSyncType(),
+                )
+            repository.applyTaskrcImport(secretPreview)
+            assertEquals("secret-only", repository.getCredentials()?.secret)
+            assertEquals("secret-only", repository.getS3Credentials()?.secret)
+            assertEquals(SyncType.S3, repository.getSyncType())
+        } finally {
+            repository.clearCredentials()
+        }
     }
 
     @Test

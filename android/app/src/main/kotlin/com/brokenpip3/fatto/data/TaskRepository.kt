@@ -146,6 +146,23 @@ class TaskRepository(
             }
         }
 
+    suspend fun addDependencies(
+        uuid: String,
+        depUuids: List<String>,
+    ) = withContext(Dispatchers.IO) {
+        val current = _tasks.value.find { it.uuid == uuid } ?: throw Exception("Task not found")
+        val merged = (current.dependencies + depUuids).distinct()
+        updateTask(current.copy(dependencies = merged))
+    }
+
+    suspend fun removeDependency(
+        uuid: String,
+        depUuid: String,
+    ) = withContext(Dispatchers.IO) {
+        val current = _tasks.value.find { it.uuid == uuid } ?: throw Exception("Task not found")
+        updateTask(current.copy(dependencies = current.dependencies - depUuid))
+    }
+
     suspend fun completeTask(
         uuid: String,
         sync: Boolean = true,

@@ -1138,4 +1138,227 @@ mod tests {
         assert!(descriptions.contains(&"Note 1"));
         assert!(descriptions.contains(&"Note 2"));
     }
+    #[test]
+    fn test_dependency_at_creation() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let blocker = wrapper
+            .add_task(TaskAddProps {
+                description: "Blocker".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+        let blocked = wrapper
+            .add_task(TaskAddProps {
+                description: "Blocked task".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![blocker.uuid.clone()],
+            })
+            .unwrap();
+
+        // NOTE: re-read from the replica — the TaskData returned by add_task
+        // carries a stale depmap (see Global Constraints).
+        let blocked = wrapper.get_task(blocked.uuid.clone()).unwrap().unwrap();
+        let blocker = wrapper.get_task(blocker.uuid.clone()).unwrap().unwrap();
+        assert_eq!(blocked.dependencies, vec![blocker.uuid.clone()]);
+        assert!(blocked.is_blocked);
+        assert!(blocker.is_blocking);
+    }
+
+    #[test]
+    fn test_add_and_remove_dependency() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let task_a = wrapper
+            .add_task(TaskAddProps {
+                description: "A".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+        let task_b = wrapper
+            .add_task(TaskAddProps {
+                description: "B".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+
+        // A blocked by B
+        wrapper
+            .update_task(TaskUpdateProps {
+                uuid: task_a.uuid.clone(),
+                description: task_a.description.clone(),
+                status: task_a.status,
+                project: task_a.project.clone(),
+                tags: task_a.tags.clone(),
+                due: task_a.due.clone(),
+                wait: task_a.wait.clone(),
+                scheduled: task_a.scheduled.clone(),
+                start: task_a.start.clone(),
+                priority: task_a.priority.clone(),
+                dependencies: vec![task_b.uuid.clone()],
+            })
+            .unwrap();
+
+        let a = wrapper.get_task(task_a.uuid.clone()).unwrap().unwrap();
+        let b = wrapper.get_task(task_b.uuid.clone()).unwrap().unwrap();
+        assert_eq!(a.dependencies, vec![task_b.uuid.clone()]);
+        assert!(a.is_blocked);
+        assert!(b.is_blocking);
+
+        // Remove the dependency
+        wrapper
+            .update_task(TaskUpdateProps {
+                uuid: task_a.uuid.clone(),
+                description: task_a.description.clone(),
+                status: task_a.status,
+                project: task_a.project.clone(),
+                tags: task_a.tags.clone(),
+                due: task_a.due.clone(),
+                wait: task_a.wait.clone(),
+                scheduled: task_a.scheduled.clone(),
+                start: task_a.start.clone(),
+                priority: task_a.priority.clone(),
+                dependencies: vec![],
+            })
+            .unwrap();
+
+        let a = wrapper.get_task(task_a.uuid).unwrap().unwrap();
+        let b = wrapper.get_task(task_b.uuid).unwrap().unwrap();
+        assert!(a.dependencies.is_empty());
+        assert!(!a.is_blocked);
+        assert!(!b.is_blocking);
+    }
+
+    #[test]
+    fn test_update_dependencies_replaces_list() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let make = |description: &str| {
+            wrapper
+                .add_task(TaskAddProps {
+                    description: description.into(),
+                    project: None,
+                    tags: vec![],
+                    wait: None,
+                    due: None,
+                    scheduled: None,
+                    start: None,
+                    priority: None,
+                    dependencies: vec![],
+                })
+                .unwrap()
+        };
+        let a = make("A");
+        let b = make("B");
+        let c = make("C");
+
+        // Start with [B], replace with [C]
+        for deps in (vec![vec![b.uuid.clone()], vec![c.uuid.clone()]]).into_iter() {
+            wrapper
+                .update_task(TaskUpdateProps {
+                    uuid: a.uuid.clone(),
+                    description: a.description.clone(),
+                    status: a.status,
+                    project: a.project.clone(),
+                    tags: a.tags.clone(),
+                    due: a.due.clone(),
+                    wait: a.wait.clone(),
+                    scheduled: a.scheduled.clone(),
+                    start: a.start.clone(),
+                    priority: a.priority.clone(),
+                    dependencies: deps,
+                })
+                .unwrap();
+        }
+
+        let a = wrapper.get_task(a.uuid).unwrap().unwrap();
+        let b = wrapper.get_task(b.uuid).unwrap().unwrap();
+        let c = wrapper.get_task(c.uuid).unwrap().unwrap();
+        assert_eq!(a.dependencies, vec![c.uuid.clone()]);
+        assert!(a.is_blocked);
+        assert!(c.is_blocking);
+        assert!(!b.is_blocking);
+    }
+
+    #[test]
+    fn test_completed_dependency_does_not_block() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let blocked = wrapper
+            .add_task(TaskAddProps {
+                description: "Blocked".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+        let blocker = wrapper
+            .add_task(TaskAddProps {
+                description: "Blocker".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+
+        wrapper
+            .update_task(TaskUpdateProps {
+                uuid: blocked.uuid.clone(),
+                description: blocked.description.clone(),
+                status: blocked.status,
+                project: blocked.project.clone(),
+                tags: blocked.tags.clone(),
+                due: blocked.due.clone(),
+                wait: blocked.wait.clone(),
+                scheduled: blocked.scheduled.clone(),
+                start: blocked.start.clone(),
+                priority: blocked.priority.clone(),
+                dependencies: vec![blocker.uuid.clone()],
+            })
+            .unwrap();
+        // Complete the blocker
+        wrapper
+            .update_task_status(blocker.uuid.clone(), TaskStatus::Completed)
+            .unwrap();
+
+        let blocked = wrapper.get_task(blocked.uuid).unwrap().unwrap();
+        let blocker = wrapper.get_task(blocker.uuid).unwrap().unwrap();
+        // Dependency record remains, but no longer blocks
+        assert_eq!(blocked.dependencies.len(), 1);
+        assert!(!blocked.is_blocked);
+        assert!(!blocker.is_blocking);
+    }
 }

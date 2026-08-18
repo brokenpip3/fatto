@@ -45,6 +45,15 @@ class ShareTargetColdStartTest {
     fun closeScenario() {
         scenario?.close()
         scenario = null
+
+        // Tests in this class create tasks (e.g. testShareColdStartCreateAddsTask).
+        // Delete the database so no tasks leak into subsequent test classes, which
+        // rely on starting from an empty task list.
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val dbDir = File(context.filesDir, "taskchampion")
+        if (dbDir.exists()) {
+            dbDir.deleteRecursively()
+        }
     }
 
     private fun launchWithShare(text: String) {

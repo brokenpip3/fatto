@@ -60,6 +60,84 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `preview taskrc import classifies storage keys against stored credentials`() {
+        val repository = FakeSettingsRepository()
+        val uuid = "768d9f09-accd-406d-8685-7b977b83d5c6"
+        repository.saveCredentials("http://localhost:8080", uuid, "my-secret")
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onTaskrcImportTextChange(
+            "sync.server.url=http://localhost:8080\nsync.server.client_id=$uuid\nsync.encryption_secret=my-secret",
+        )
+        viewModel.previewTaskrcImport()
+
+        val preview = viewModel.taskrcImportPreview.value
+        assertNotNull(preview)
+        assertTrue(
+            preview!!.actions
+                .filter { it.key.startsWith("sync.") }
+                .all { it.type == TaskrcImportResultType.UNCHANGED },
+        )
+    }
+
+    @Test
+    fun `apply taskrc import refreshes server form state`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+        val uuid = "768d9f09-accd-406d-8685-7b977b83d5c6"
+
+        viewModel.onTaskrcImportTextChange(
+            "sync.server.url=http://localhost:8080\nsync.server.client_id=$uuid\nsync.encryption_secret=my-secret",
+        )
+        viewModel.previewTaskrcImport()
+        viewModel.applyTaskrcImport()
+
+        assertEquals("http://localhost:8080", viewModel.syncUrl.value)
+        assertEquals(uuid, viewModel.clientId.value)
+        assertEquals(SyncType.SERVER, viewModel.syncType.value)
+        assertEquals("my-secret", viewModel.encryptionSecret.value)
+    }
+
+    @Test
+    fun `apply taskrc import refreshes s3 form state and switches backend`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onTaskrcImportTextChange(
+            "sync.aws.bucket=fatto-tasks\n" +
+                "sync.aws.region=eu-central-1\n" +
+                "sync.aws.endpoint=http://localhost:9000\n" +
+                "sync.aws.access_key_id=minioadmin\n" +
+                "sync.aws.secret_access_key=minioadmin\n" +
+                "sync.encryption_secret=my-secret",
+        )
+        viewModel.previewTaskrcImport()
+        viewModel.applyTaskrcImport()
+
+        assertEquals("fatto-tasks", viewModel.s3Bucket.value)
+        assertEquals("eu-central-1", viewModel.s3Region.value)
+        assertEquals("http://localhost:9000", viewModel.s3EndpointUrl.value)
+        assertEquals("minioadmin", viewModel.s3AccessKeyId.value)
+        assertEquals("minioadmin", viewModel.s3SecretAccessKey.value)
+        assertEquals(SyncType.S3, viewModel.syncType.value)
+        assertEquals("my-secret", viewModel.encryptionSecret.value)
+    }
+
+    @Test
+    fun `apply taskrc import with secret alone sets secret for both backends`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onTaskrcImportTextChange("sync.encryption_secret=new-secret")
+        viewModel.previewTaskrcImport()
+        viewModel.applyTaskrcImport()
+
+        assertEquals("new-secret", viewModel.encryptionSecret.value)
+        viewModel.onSyncTypeChange(SyncType.S3)
+        assertEquals("new-secret", viewModel.encryptionSecret.value)
+    }
+
+    @Test
     fun `save with incomplete s3 fields does not switch backend`() {
         val repository = FakeSettingsRepository()
         val viewModel = SettingsViewModel(repository)
