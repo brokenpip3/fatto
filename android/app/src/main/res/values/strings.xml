@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Fatto</string>
+    <string name="widget_name">Next Tasks</string>
+    <string name="widget_description">Shows your next pending tasks</string>
 </resources>

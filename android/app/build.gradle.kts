@@ -163,6 +163,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("androidx.navigation:navigation-compose:2.9.8")
+    implementation("androidx.glance:glance-appwidget:1.2.0-rc01")
+    implementation("androidx.glance:glance-material3:1.2.0-rc01")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.14.11")
