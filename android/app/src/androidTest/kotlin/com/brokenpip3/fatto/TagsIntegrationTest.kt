@@ -14,23 +14,39 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
 import java.io.File
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class TagsIntegrationTest {
+    /**
+     * Clears the taskchampion database and sync prefs BEFORE the activity launches.
+     *
+     * createAndroidComposeRule launches MainActivity inside its own before(), and the
+     * repository loads tasks asynchronously from disk. A plain @Before clearDatabase()
+     * races with that load, so tasks left behind by a previous test class can end up
+     * in the UI. Declaring this rule before composeTestRule makes it the outermost
+     * rule, so it runs first.
+     */
+    @get:Rule
+    val clearDatabaseRule: ExternalResource =
+        object : ExternalResource() {
+            override fun before() {
+                clearDatabase()
+            }
+        }
+
     @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @get:Rule
     val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
 
-    @Before
-    fun clearDatabase() {
+    private fun clearDatabase() {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
 
         // Clear taskchampion database
