@@ -41,9 +41,12 @@ services:
     environment:
       - CLIENT_ID=5c7c7ac1-7dea-43dc-be88-156128be2a96
       - SYNC_SECRET=ciao
-    entrypoint: >
+    entrypoint: |
       sh -c "
       pacman -Sy --noconfirm task &&
+      #hack for issue: https://github.com/GothenburgBitFactory/taskwarrior/issues/4174
+      mkdir -p /build/task/src/task/doc/rc &&
+      curl -fsSL https://raw.githubusercontent.com/GothenburgBitFactory/taskwarrior/c1958786deb9be8b245b4fc4c3efd0258cd70782/doc/rc/default.theme -o /build/task/src/task/doc/rc/default.theme &&
       mkdir -p ~/.task &&
       echo 'sync.server.url=http://tss:8080' > ~/.taskrc &&
       echo \"sync.server.client_id=$$CLIENT_ID\" >> ~/.taskrc &&
