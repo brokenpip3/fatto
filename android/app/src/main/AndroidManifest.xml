@@ -54,5 +54,13 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/task_list_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".widget.WidgetRefreshReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.brokenpip3.fatto.action.WIDGET_REFRESH" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
