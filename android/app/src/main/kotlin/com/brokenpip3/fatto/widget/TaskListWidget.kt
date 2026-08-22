@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto.widget
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +60,9 @@ class TaskListWidget : GlanceAppWidget() {
         id: GlanceId,
     ) {
         val result = runCatching { loadTasks(context) }
+        if (result.isFailure) {
+            Log.e("TaskListWidget", "Failed to load tasks for widget", result.exceptionOrNull())
+        }
         provideContent {
             GlanceTheme {
                 TaskListWidgetContent(
@@ -104,7 +108,7 @@ internal fun TaskListWidgetContent(
             modifier = GlanceModifier.padding(bottom = 8.dp),
         )
         when {
-            error -> EmptyState("Open Fatto to sync")
+            error -> EmptyState(LocalContext.current.getString(R.string.widget_error_message))
             tasks.isEmpty() -> EmptyState("No pending tasks")
             else -> visibleTasks.forEach { task -> TaskRow(task) }
         }

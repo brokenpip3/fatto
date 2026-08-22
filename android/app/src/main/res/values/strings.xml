@@ -3,4 +3,5 @@
     <string name="app_name">Fatto</string>
     <string name="widget_name">Next Tasks</string>
     <string name="widget_description">Shows your next pending tasks</string>
+    <string name="widget_error_message">Couldn\'t load tasks</string>
 </resources>

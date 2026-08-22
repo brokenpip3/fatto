@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.Syncer
+import com.brokenpip3.fatto.widget.WidgetRefreshReceiver
 import uniffi.taskchampion_android.ReplicaWrapper
 import java.io.File
 
@@ -24,6 +25,9 @@ class SyncWorker(
             Log.d("SyncWorker", "Starting background sync...")
             Syncer.sync(replica, settingsRepository)
             Log.d("SyncWorker", "Background sync completed successfully.")
+
+            // Task data may have changed: refresh the home-screen widget.
+            WidgetRefreshReceiver.sendRefresh(applicationContext)
 
             Result.success()
         } catch (e: Exception) {

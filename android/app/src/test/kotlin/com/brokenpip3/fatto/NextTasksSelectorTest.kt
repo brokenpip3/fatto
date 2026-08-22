@@ -12,6 +12,8 @@ class NextTasksSelectorTest {
         desc: String,
         due: String?,
         status: TaskStatus = TaskStatus.PENDING,
+        wait: String? = null,
+        scheduled: String? = null,
     ): Task =
         Task(
             uuid = "uuid-$desc",
@@ -21,8 +23,8 @@ class NextTasksSelectorTest {
             project = "Project",
             entry = null,
             due = due,
-            wait = null,
-            scheduled = null,
+            wait = wait,
+            scheduled = scheduled,
             start = null,
             priority = null,
             urgency = 0f,
@@ -81,6 +83,35 @@ class NextTasksSelectorTest {
     @Test
     fun testEmptyListReturnsEmpty() {
         assertEquals(emptyList<Task>(), NextTasksSelector.nextTasks(emptyList(), 8))
+    }
+
+    @Test
+    fun testExcludesTasksWithFutureWait() {
+        val waiting = createTask("Waiting", day(1), wait = day(1))
+        val ready = createTask("Ready", day(1))
+
+        val result = NextTasksSelector.nextTasks(listOf(waiting, ready), 8)
+
+        assertEquals(listOf("Ready"), result.map { it.description })
+    }
+
+    @Test
+    fun testIncludesTasksWhoseWaitDateHasPassed() {
+        val released = createTask("Released", day(1), wait = day(-1))
+
+        val result = NextTasksSelector.nextTasks(listOf(released), 8)
+
+        assertEquals(listOf("Released"), result.map { it.description })
+    }
+
+    @Test
+    fun testIncludesTasksScheduledInTheFuture() {
+        val scheduled = createTask("Scheduled", day(1), scheduled = day(5))
+        val plain = createTask("Plain", day(1))
+
+        val result = NextTasksSelector.nextTasks(listOf(scheduled, plain), 8)
+
+        assertEquals(listOf("Scheduled", "Plain"), result.map { it.description })
     }
 
     @Test

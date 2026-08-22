@@ -39,12 +39,16 @@ class TaskListWorker(
     }
 
     companion object {
-        private const val UNIQUE_WORK_NAME = "task-list-widget-refresh"
+        /** Periodic fallback refresh; must NOT share a name with [ONE_TIME_WORK_NAME]. */
+        const val PERIODIC_WORK_NAME = "task-list-widget-refresh-periodic"
+
+        /** Mutation-triggered refresh; must NOT share a name with [PERIODIC_WORK_NAME]. */
+        const val ONE_TIME_WORK_NAME = "task-list-widget-refresh-once"
 
         fun enqueueOneTime(context: Context) {
             val request = OneTimeWorkRequestBuilder<TaskListWorker>().build()
             WorkManager.getInstance(context).enqueueUniqueWork(
-                UNIQUE_WORK_NAME,
+                ONE_TIME_WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
                 request,
             )
@@ -54,10 +58,14 @@ class TaskListWorker(
             val request =
                 PeriodicWorkRequestBuilder<TaskListWorker>(30, TimeUnit.MINUTES).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                UNIQUE_WORK_NAME,
+                PERIODIC_WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
                 request,
             )
+        }
+
+        fun cancelPeriodic(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK_NAME)
         }
     }
 }
