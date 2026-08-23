@@ -6,6 +6,7 @@ import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.data.model.toModel
+import com.brokenpip3.fatto.widget.WidgetRefreshReceiver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +86,11 @@ class TaskRepository(
             }
         }
 
+    /** Notifies the home-screen widget that task data changed. */
+    private fun notifyWidgetRefresh() {
+        WidgetRefreshReceiver.sendRefresh(context)
+    }
+
     suspend fun addTask(
         description: String,
         project: String?,
@@ -112,6 +118,7 @@ class TaskRepository(
                 )
             r.addTask(props)
             loadTasks()
+            notifyWidgetRefresh()
             triggerSync()
         } catch (e: Exception) {
             Log.e("TaskRepository", "Failed to add task", e)
@@ -139,6 +146,7 @@ class TaskRepository(
                     )
                 r.updateTask(props)
                 loadTasks()
+                notifyWidgetRefresh()
                 triggerSync()
             } catch (e: Exception) {
                 Log.e("TaskRepository", "Failed to update task", e)
@@ -171,6 +179,7 @@ class TaskRepository(
         try {
             r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
             loadTasks()
+            notifyWidgetRefresh()
             if (sync) {
                 triggerSync()
             }
@@ -186,6 +195,7 @@ class TaskRepository(
             try {
                 r.updateTaskStatus(uuid, TaskStatus.DELETED)
                 loadTasks()
+                notifyWidgetRefresh()
                 triggerSync()
             } catch (e: Exception) {
                 Log.e("TaskRepository", "Failed to delete task", e)
@@ -202,6 +212,7 @@ class TaskRepository(
             try {
                 val uniffiAnn = r.addAnnotation(uuid, description)
                 loadTasks()
+                notifyWidgetRefresh()
                 triggerSync()
                 Annotation(entry = uniffiAnn.entry, description = uniffiAnn.description)
             } catch (e: Exception) {
@@ -218,6 +229,7 @@ class TaskRepository(
         try {
             r.removeAnnotation(uuid, entry)
             loadTasks()
+            notifyWidgetRefresh()
             triggerSync()
         } catch (e: Exception) {
             Log.e("TaskRepository", "Failed to remove annotation", e)
@@ -238,6 +250,7 @@ class TaskRepository(
                     Syncer.sync(r, settingsRepository)
                     Log.d("TaskRepository", "Manual sync successful")
                     loadTasks()
+                    notifyWidgetRefresh()
                 } catch (e: Exception) {
                     Log.e("TaskRepository", "Manual sync failed", e)
                     throw e

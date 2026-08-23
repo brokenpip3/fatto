@@ -35,15 +35,15 @@ services:
       - "LISTEN=0.0.0.0:8080"
 
   taskwarrior-client:
-    image: archlinux:latest
+    image: alpine:latest
     depends_on:
       - tss
     environment:
       - CLIENT_ID=5c7c7ac1-7dea-43dc-be88-156128be2a96
       - SYNC_SECRET=ciao
-    entrypoint: >
+    entrypoint: |
       sh -c "
-      pacman -Sy --noconfirm task &&
+      apk add --no-cache task3 &&
       mkdir -p ~/.task &&
       echo 'sync.server.url=http://tss:8080' > ~/.taskrc &&
       echo \"sync.server.client_id=$$CLIENT_ID\" >> ~/.taskrc &&

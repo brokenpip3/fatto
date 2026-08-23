@@ -2,7 +2,6 @@ package com.brokenpip3.fatto
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -13,7 +12,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
 import androidx.test.core.app.ActivityScenario
@@ -83,13 +81,16 @@ class DataIntegrityTest {
         // Wait for sheet
         composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
 
-        // Add tag
+        // Add tag. Espresso.closeSoftKeyboard / touch clicks are avoided on
+        // purpose: the emulator does not reliably give the app window focus
+        // while the soft keyboard is shown, which intermittently times out
+        // Espresso's onView(isRoot()). A semantics click works regardless of
+        // the keyboard covering the button.
         composeTestRule.onNode(hasContentDescription("TagInput"), useUnmergedTree = true).performScrollTo().performTextInput(tagName)
-        androidx.test.espresso.Espresso.closeSoftKeyboard()
         composeTestRule.onNode(
             hasContentDescription("AddTagButton"),
             useUnmergedTree = true,
-        ).performScrollTo().performTouchInput { click() }
+        ).performClick()
 
         // Verify tag chip appears in sheet
         composeTestRule.waitUntilAtLeastOneExists(hasText(tagName) and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")), 15000)
