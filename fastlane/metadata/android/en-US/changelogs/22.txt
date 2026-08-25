@@ -1,0 +1,5 @@
+- add next-tasks widget
+- add android share target
+- add support blocked/blocking prop
+- import taskrc storage settings
+- several bug fixes
