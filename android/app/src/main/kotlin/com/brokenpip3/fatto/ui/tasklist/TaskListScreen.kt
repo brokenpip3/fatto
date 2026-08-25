@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -130,6 +131,10 @@ fun TaskListScreen(
     var showWaiting by remember { mutableStateOf(false) }
 
     val lazyListState = rememberLazyListState()
+    ScrollToTopOnListChange(
+        lazyListState, currentSortOrder, currentSortDirection, searchQuery,
+        selectedTags, activeProject, activeContextId, showOnlyActiveTasks,
+    )
     var pullAccumulator by remember { mutableFloatStateOf(0f) }
 
     val pullToRefreshConnection =
@@ -964,5 +969,18 @@ fun UrgencyBar(
                     .fillMaxHeight()
                     .background(barColor),
         )
+    }
+}
+
+// When sort/filter state changes, the list is reordered/filtered in place and
+// the scroll position would otherwise be retained. Jump back to the top so
+// the first task of the new ordering is visible.
+@Composable
+private fun ScrollToTopOnListChange(
+    lazyListState: LazyListState,
+    vararg keys: Any?,
+) {
+    LaunchedEffect(*keys) {
+        lazyListState.scrollToItem(0)
     }
 }
