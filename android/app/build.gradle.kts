@@ -148,10 +148,10 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
-    implementation(platform("androidx.compose:compose-bom:2026.06.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -163,8 +163,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("androidx.navigation:navigation-compose:2.9.8")
-    implementation("androidx.glance:glance-appwidget:1.2.0-rc01")
-    implementation("androidx.glance:glance-material3:1.2.0-rc01")
+    implementation("androidx.glance:glance-appwidget:1.3.0-alpha02")
+    implementation("androidx.glance:glance-material3:1.3.0-alpha02")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.14.11")
@@ -174,7 +174,7 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2026.06.00"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.work:work-testing:2.11.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
