@@ -7,7 +7,7 @@ repos:
     - id: check-toml
 
 - repo: https://github.com/python-jsonschema/check-jsonschema
-  rev: 8db279a37c552206d2df62269ff6f9d31125815a  # frozen: 0.37.0
+  rev: c4654a7e007c9619a5eb63c39a456572a0fa1851  # frozen: 0.38.0
   hooks:
     - id: check-dependabot
     - id: check-github-workflows
