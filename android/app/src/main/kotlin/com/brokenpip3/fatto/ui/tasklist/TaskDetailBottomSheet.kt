@@ -81,6 +81,7 @@ fun TaskDetailBottomSheet(
     onAddAnnotation: (suspend (String, String) -> Annotation)? = null,
     onRemoveAnnotation: ((String, String) -> Unit)? = null,
     allTasks: List<Task> = emptyList(),
+    showCompleted: Boolean = true,
     onAddDependencies: suspend (String, List<String>) -> Unit = { _, _ -> },
     onRemoveDependency: suspend (String, String) -> Unit = { _, _ -> },
 ) {
@@ -604,6 +605,7 @@ fun TaskDetailBottomSheet(
             allTasks.filter {
                 it.uuid != task.uuid &&
                     it.status != TaskStatus.DELETED &&
+                    (showCompleted || it.status != TaskStatus.COMPLETED) &&
                     it.uuid !in dependencies
             }
         TaskPickerDialog(
@@ -628,6 +630,7 @@ fun TaskDetailBottomSheet(
             allTasks.filter {
                 it.uuid != task.uuid &&
                     it.status != TaskStatus.DELETED &&
+                    (showCompleted || it.status != TaskStatus.COMPLETED) &&
                     !it.dependencies.contains(task.uuid)
             }
         TaskPickerDialog(

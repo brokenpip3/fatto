@@ -191,6 +191,101 @@ class TaskDetailBottomSheetTest {
     }
 
     @Test
+    fun blockedByPickerExcludesCompletedWhenShowCompletedIsFalse() {
+        val open = task()
+        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.COMPLETED)
+        val other = task(uuid = "task-3", description = "Open task")
+        composeTestRule.setContent {
+            TaskDetailBottomSheet(
+                task = open,
+                onDismiss = {},
+                onSave = {},
+                availableProjects = emptyList(),
+                availableTags = emptyList(),
+                allTasks = listOf(open, completed, other),
+                showCompleted = false,
+            )
+        }
+
+        composeTestRule.onNodeWithText("Blocked by").performScrollTo().performClick()
+        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+
+        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+            .performTextInput("Done task")
+        composeTestRule.onNodeWithText("No tasks found").assertExists()
+
+        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+            .performTextReplacement("Open task")
+        composeTestRule.onNode(
+            hasAnyDescendant(hasText("Open task")) and hasClickAction(),
+            useUnmergedTree = true,
+        ).assertExists()
+    }
+
+    @Test
+    fun blockedByPickerShowsCompletedWhenShowCompletedIsTrue() {
+        val open = task()
+        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.COMPLETED)
+        composeTestRule.setContent {
+            TaskDetailBottomSheet(
+                task = open,
+                onDismiss = {},
+                onSave = {},
+                availableProjects = emptyList(),
+                availableTags = emptyList(),
+                allTasks = listOf(open, completed),
+                showCompleted = true,
+            )
+        }
+
+        composeTestRule.onNodeWithText("Blocked by").performScrollTo().performClick()
+        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+
+        composeTestRule.onNode(
+            hasAnyDescendant(hasText("Done task")) and hasClickAction(),
+            useUnmergedTree = true,
+        ).assertExists()
+    }
+
+    @Test
+    fun blockingPickerExcludesCompletedWhenShowCompletedIsFalse() {
+        val open = task()
+        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.COMPLETED)
+        val other = task(uuid = "task-3", description = "Open task")
+        composeTestRule.setContent {
+            TaskDetailBottomSheet(
+                task = open,
+                onDismiss = {},
+                onSave = {},
+                availableProjects = emptyList(),
+                availableTags = emptyList(),
+                allTasks = listOf(open, completed, other),
+                showCompleted = false,
+            )
+        }
+
+        composeTestRule.onNodeWithText("Blocking").performScrollTo().performClick()
+        composeTestRule.onNodeWithContentDescription("AddBlockingButton", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+
+        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+            .performTextInput("Done task")
+        composeTestRule.onNodeWithText("No tasks found").assertExists()
+
+        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+            .performTextReplacement("Open task")
+        composeTestRule.onNode(
+            hasAnyDescendant(hasText("Open task")) and hasClickAction(),
+            useUnmergedTree = true,
+        ).assertExists()
+    }
+
+    @Test
     fun blockingPickerAddsOpenTaskToPickedTask() {
         var added: Pair<String, List<String>>? = null
         val open = task()
@@ -230,11 +325,12 @@ class TaskDetailBottomSheetTest {
         description: String = "Edit me",
         tags: List<String> = emptyList(),
         dependencies: List<String> = emptyList(),
+        status: TaskStatus = TaskStatus.PENDING,
     ): Task =
         Task(
             uuid = uuid,
             description = description,
-            status = TaskStatus.PENDING,
+            status = status,
             tags = tags,
             due = null,
             entry = null,

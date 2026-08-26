@@ -212,6 +212,7 @@ class MainActivity : ComponentActivity() {
                             val showInternalTags by taskViewModel.showInternalTags.collectAsState()
                             val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
                             val confirmActions by settingsViewModel.confirmActions.collectAsState()
+                            val showCompleted by settingsViewModel.showCompleted.collectAsState()
 
                             LaunchedEffect(pendingShareDescription) {
                                 val shared = pendingShareDescription
@@ -267,6 +268,7 @@ class MainActivity : ComponentActivity() {
                                         taskViewModel.removeAnnotation(uuid, entry)
                                     },
                                     allTasks = allTasks,
+                                    showCompleted = showCompleted,
                                     onAddDependencies = { uuid, deps ->
                                         taskViewModel.addDependencies(uuid, deps)
                                     },

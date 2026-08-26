@@ -105,5 +105,8 @@ run-deploy:
 - **aapt2 path**: nix-provided `aapt2` is forced via `GRADLE_OPTS` in `flake.nix` to ensure compatibility across environments.
 - **synthetic tags** (PENDING, COMPLETED, etc.) are filtered out in the ui but preserved in the backend.
 - **tests**: instrumented tests are stabilized and run against the `com.brokenpip3.fatto` namespace.
+- **running android tests**: always drive the emulator through the `justfile` recipes. Start a headless emulator with
+  `just run-emulator-start-headless` (or `just run-emulator-start` for a windowed one) and stop it with `just run-emulator-stop`.
+  For a clean slate use `just run-emulator-start-fresh`. Run the suite with `just test-android`.
 - **running tests**: IMPORTANT before running a test check if a file called fatto-test-running is present in the /tmp directory.
   If present wait 60 seconds and check again. If not present create the file and run the tests. After the tests are finished remove the file.
