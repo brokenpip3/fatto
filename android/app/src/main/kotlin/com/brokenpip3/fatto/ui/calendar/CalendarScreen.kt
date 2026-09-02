@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.ui.tasklist.TaskItem
+import com.brokenpip3.fatto.ui.tasklist.completionConfirmationMessage
 import com.brokenpip3.fatto.vm.TaskViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -59,11 +62,13 @@ fun CalendarScreen(
     onTaskClick: (Task) -> Unit,
 ) {
     val tasksByDate by viewModel.tasksByDate.collectAsState()
+    val allTasks by viewModel.allTasks.collectAsState()
     val firstDayOfWeekSetting by viewModel.firstDayOfWeek.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var taskToComplete by remember { mutableStateOf<Task?>(null) }
 
     val daysInMonth = currentMonth.lengthOfMonth()
     // Convert Calendar constant (Sun=1, Mon=2) to DayOfWeek value (Mon=1, Sun=7)
@@ -221,7 +226,9 @@ fun CalendarScreen(
                                     onTaskClick(task)
                                     selectedDate = null
                                 },
-                                onComplete = { viewModel.completeTask(task.uuid) },
+                                onComplete = {
+                                    if (task.isBlocked) taskToComplete = task else viewModel.completeTask(task.uuid)
+                                },
                                 onDelete = { viewModel.deleteTask(task.uuid) },
                                 maxUrgency = maxUrgency,
                                 showPriorityBadge = showPriorityBadge,
@@ -231,6 +238,23 @@ fun CalendarScreen(
                     }
                 }
             }
+        }
+
+        taskToComplete?.let { task ->
+            AlertDialog(
+                onDismissRequest = { taskToComplete = null },
+                title = { Text("Complete Task") },
+                text = { Text(completionConfirmationMessage(task, allTasks)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.completeTask(task.uuid)
+                        taskToComplete = null
+                    }) { Text("Confirm") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { taskToComplete = null }) { Text("Cancel") }
+                },
+            )
         }
     }
 }

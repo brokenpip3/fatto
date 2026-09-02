@@ -71,6 +71,44 @@ class DependencyIntegrationTest {
     }
 
     @Test
+    fun blockedTaskRequiresCompletionConfirmation() {
+        val suffix = System.currentTimeMillis()
+        val blockerName = "Warning blocker $suffix"
+        val blockedName = "Warning blocked $suffix"
+        createTask(blockerName)
+        createTask(blockedName)
+
+        composeTestRule.onNodeWithText(blockedName).performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
+        composeTestRule.onNodeWithText("Blocked by").performClick()
+        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+            .performScrollTo().performClick()
+        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+            .performTextInput(blockerName)
+        pickerRow(blockerName).performClick()
+        composeTestRule.onNodeWithText("Add (1)").performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Task is blocked"), 15000)
+        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+            .performScrollTo().performClick()
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
+
+        composeTestRule.onNode(
+            hasContentDescription("Complete") and hasAnyAncestor(hasText(blockedName)),
+        ).performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasText("currently blocked"), 15000)
+        composeTestRule.onNodeWithText("View blocking tasks").assertExists()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+        composeTestRule.onNodeWithText(blockedName).assertExists()
+
+        composeTestRule.onNode(
+            hasContentDescription("Complete") and hasAnyAncestor(hasText(blockedName)),
+        ).performClick()
+        composeTestRule.onNodeWithText("Confirm").performClick()
+        composeTestRule.waitUntilDoesNotExist(hasText(blockedName), 15000)
+        deleteTask(blockerName)
+    }
+
+    @Test
     fun testAddAndRemoveDependencyFlow() {
         val suffix = System.currentTimeMillis()
         val blockerName = "Blocker Task $suffix"
