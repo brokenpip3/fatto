@@ -104,7 +104,7 @@ internal fun TaskListWidgetContent(
     ) {
         Text(
             text = widgetTitle,
-            style = titleStyle,
+            style = titleStyle.copy(color = colors.onSurface),
             modifier = GlanceModifier.padding(bottom = 8.dp),
         )
         when {
@@ -146,6 +146,7 @@ private fun TaskRow(task: Task) {
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 text = task.description,
+                style = TextStyle(color = colors.onSurface),
                 maxLines = 1,
             )
             task.project?.let { project ->
