@@ -66,6 +66,7 @@ private data class TaskListFilterState(
 
 class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
+    private val uuidFilter = MutableStateFlow<Set<String>>(emptySet())
     val searchQuery = _searchQuery.asStateFlow()
 
     private val _selectedTags = MutableStateFlow<Set<String>>(emptySet())
@@ -127,8 +128,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             repository.tasks,
             _searchQuery,
             _selectedTags,
+            uuidFilter,
             taskListFilterState,
-        ) { tasks, query, tags, filters ->
+        ) { tasks, query, tags, uuidFilter, filters ->
             val parsed = com.brokenpip3.fatto.data.SearchParser.parse(query)
             val effectiveProject = parsed.project ?: filters.project
             val effectiveTags = if (parsed.tags.isNotEmpty()) parsed.tags else tags
@@ -138,7 +140,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
 
             tasks.filter { task ->
                 val matchesContext = contextExpression?.let { TaskContextMatcher.matches(task, it, now) } ?: false
-                val matchesUuid = parsed.uuid == null || task.uuid == parsed.uuid
+                val matchesUuid =
+                    (parsed.uuid == null || task.uuid == parsed.uuid) &&
+                        (uuidFilter.isEmpty() || task.uuid in uuidFilter)
                 val matchesQuery = task.description.contains(searchFilter, ignoreCase = true)
                 val matchesTags = effectiveTags.isEmpty() || task.tags.intersect(effectiveTags).isNotEmpty()
                 val matchesProject =
@@ -522,6 +526,10 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             }
         val candidate = target?.minus(AUTO_WAIT_LEAD_DAYS, ChronoUnit.DAYS)
         return if (candidate?.isAfter(Instant.now()) == true) candidate.toString() else wait
+    }
+
+    fun showTasksWithUuids(uuids: List<String>) {
+        uuidFilter.value = uuids.toSet()
     }
 
     fun completeTask(uuid: String) {

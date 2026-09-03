@@ -93,6 +93,7 @@ import uniffi.taskchampion_android.TaskStatus
 private const val PULL_TO_REFRESH_THRESHOLD = 100f
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Suppress("detekt.LongMethod")
 @Composable
 fun TaskListScreen(
     viewModel: TaskViewModel,
@@ -102,6 +103,7 @@ fun TaskListScreen(
     confirmActions: Boolean,
 ) {
     val tasks by viewModel.activeTasks.collectAsState()
+    val allTasks by viewModel.allTasks.collectAsState()
     val waitingTasks by viewModel.waitingTasks.collectAsState()
     val completedTasks by viewModel.completedTasks.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -513,7 +515,7 @@ fun TaskListScreen(
                         task = task,
                         onClick = { onTaskClick(task) },
                         onComplete = {
-                            if (confirmActions) {
+                            if (confirmActions || task.isBlocked) {
                                 taskToComplete = task
                             } else {
                                 viewModel.completeTask(task.uuid)
@@ -549,7 +551,7 @@ fun TaskListScreen(
                                 task = task,
                                 onClick = { onTaskClick(task) },
                                 onComplete = {
-                                    if (confirmActions) {
+                                    if (confirmActions || task.isBlocked) {
                                         taskToComplete = task
                                     } else {
                                         viewModel.completeTask(task.uuid)
@@ -608,7 +610,21 @@ fun TaskListScreen(
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { taskToComplete = null },
                     title = { Text("Complete Task") },
-                    text = { Text("Are you sure you want to mark this task as completed?") },
+                    text = {
+                        val task = taskToComplete!!
+                        val dependencyUuids = unresolvedDependencyUuids(task, allTasks)
+                        Column {
+                            Text(completionConfirmationMessage(task, allTasks))
+                            if (dependencyUuids.isNotEmpty()) {
+                                TextButton(onClick = {
+                                    viewModel.showTasksWithUuids(dependencyUuids)
+                                    taskToComplete = null
+                                }) {
+                                    Text("View blocking tasks")
+                                }
+                            }
+                        }
+                    },
                     confirmButton = {
                         TextButton(
                             onClick = {
