@@ -162,7 +162,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
-    implementation("androidx.navigation:navigation-compose:2.9.8")
+    implementation("androidx.navigation:navigation-compose:2.10.0")
     implementation("androidx.glance:glance-appwidget:1.2.0-rc01")
     implementation("androidx.glance:glance-material3:1.2.0-rc01")
 
