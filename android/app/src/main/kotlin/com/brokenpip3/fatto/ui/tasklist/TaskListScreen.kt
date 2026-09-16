@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -81,6 +82,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
@@ -101,6 +103,8 @@ fun TaskListScreen(
     onAddTaskClick: () -> Unit,
     onManageContexts: () -> Unit,
     confirmActions: Boolean,
+    swipeStartToEndAction: TaskSwipeAction,
+    swipeEndToStartAction: TaskSwipeAction,
 ) {
     val tasks by viewModel.activeTasks.collectAsState()
     val allTasks by viewModel.allTasks.collectAsState()
@@ -187,6 +191,27 @@ fun TaskListScreen(
 
     var taskToComplete by remember { mutableStateOf<Task?>(null) }
     var taskToDelete by remember { mutableStateOf<Task?>(null) }
+
+    fun requestComplete(task: Task) {
+        val currentTask = allTasks.firstOrNull { it.uuid == task.uuid } ?: task
+        if (confirmActions || currentTask.isBlocked) {
+            taskToComplete = currentTask
+        } else {
+            viewModel.completeTask(currentTask.uuid)
+        }
+    }
+
+    fun requestRestore(task: Task) {
+        viewModel.restoreTask(task.uuid)
+    }
+
+    fun requestDelete(task: Task) {
+        if (confirmActions) {
+            taskToDelete = task
+        } else {
+            viewModel.deleteTask(task.uuid)
+        }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -511,23 +536,16 @@ fun TaskListScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(tasks, key = { it.uuid }) { task ->
-                    TaskItem(
+                    TaskListRow(
                         task = task,
+                        swipeStartToEndAction = swipeStartToEndAction,
+                        swipeEndToStartAction = swipeEndToStartAction,
                         onClick = { onTaskClick(task) },
-                        onComplete = {
-                            if (confirmActions || task.isBlocked) {
-                                taskToComplete = task
-                            } else {
-                                viewModel.completeTask(task.uuid)
-                            }
-                        },
-                        onDelete = {
-                            if (confirmActions) {
-                                taskToDelete = task
-                            } else {
-                                viewModel.deleteTask(task.uuid)
-                            }
-                        },
+                        onComplete = { requestComplete(task) },
+                        onRestore = { requestRestore(task) },
+                        onDelete = { requestDelete(task) },
+                        onEdit = { onTaskClick(task) },
+                        onStartStop = { viewModel.toggleTaskActive(task) },
                         showInternalTags = showInternalTags,
                         maxUrgency = maxUrgency,
                         showPriorityBadge = showPriorityBadge,
@@ -547,23 +565,16 @@ fun TaskListScreen(
 
                     if (showWaiting) {
                         items(waitingTasks, key = { it.uuid }) { task ->
-                            TaskItem(
+                            TaskListRow(
                                 task = task,
+                                swipeStartToEndAction = swipeStartToEndAction,
+                                swipeEndToStartAction = swipeEndToStartAction,
                                 onClick = { onTaskClick(task) },
-                                onComplete = {
-                                    if (confirmActions || task.isBlocked) {
-                                        taskToComplete = task
-                                    } else {
-                                        viewModel.completeTask(task.uuid)
-                                    }
-                                },
-                                onDelete = {
-                                    if (confirmActions) {
-                                        taskToDelete = task
-                                    } else {
-                                        viewModel.deleteTask(task.uuid)
-                                    }
-                                },
+                                onComplete = { requestComplete(task) },
+                                onRestore = { requestRestore(task) },
+                                onDelete = { requestDelete(task) },
+                                onEdit = { onTaskClick(task) },
+                                onStartStop = { viewModel.toggleTaskActive(task) },
                                 showInternalTags = showInternalTags,
                                 maxUrgency = maxUrgency,
                                 showPriorityBadge = showPriorityBadge,
@@ -585,17 +596,16 @@ fun TaskListScreen(
 
                     if (showCompleted) {
                         items(completedTasks, key = { it.uuid }) { task ->
-                            TaskItem(
+                            TaskListRow(
                                 task = task,
+                                swipeStartToEndAction = swipeStartToEndAction,
+                                swipeEndToStartAction = swipeEndToStartAction,
                                 onClick = { onTaskClick(task) },
-                                onComplete = { },
-                                onDelete = {
-                                    if (confirmActions) {
-                                        taskToDelete = task
-                                    } else {
-                                        viewModel.deleteTask(task.uuid)
-                                    }
-                                },
+                                onComplete = { requestComplete(task) },
+                                onRestore = { requestRestore(task) },
+                                onDelete = { requestDelete(task) },
+                                onEdit = { onTaskClick(task) },
+                                onStartStop = { viewModel.toggleTaskActive(task) },
                                 showInternalTags = showInternalTags,
                                 maxUrgency = maxUrgency,
                                 showPriorityBadge = showPriorityBadge,
@@ -700,6 +710,46 @@ fun TaskListScreen(
     }
 }
 
+@Suppress("detekt.LongParameterList")
+@Composable
+private fun TaskListRow(
+    task: Task,
+    swipeStartToEndAction: TaskSwipeAction,
+    swipeEndToStartAction: TaskSwipeAction,
+    onClick: () -> Unit,
+    onComplete: () -> Unit,
+    onRestore: () -> Unit,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit,
+    onStartStop: () -> Unit,
+    showInternalTags: Boolean,
+    maxUrgency: Float,
+    showPriorityBadge: Boolean,
+    showUrgencyBar: Boolean,
+) {
+    SwipeableTaskRow(
+        task = task,
+        startToEndAction = swipeStartToEndAction,
+        endToStartAction = swipeEndToStartAction,
+        onComplete = onComplete,
+        onDelete = onDelete,
+        onEdit = onEdit,
+        onStartStop = onStartStop,
+    ) {
+        TaskItem(
+            task = task,
+            onClick = onClick,
+            onComplete = onComplete,
+            onDelete = onDelete,
+            onRestore = if (task.status == TaskStatus.COMPLETED) onRestore else null,
+            showInternalTags = showInternalTags,
+            maxUrgency = maxUrgency,
+            showPriorityBadge = showPriorityBadge,
+            showUrgencyBar = showUrgencyBar,
+        )
+    }
+}
+
 @Composable
 private fun ContextErrorBanner(
     contextName: String,
@@ -798,6 +848,7 @@ fun TaskItem(
     maxUrgency: Float = 0.0f,
     showPriorityBadge: Boolean = false,
     showUrgencyBar: Boolean = false,
+    onRestore: (() -> Unit)? = null,
 ) {
     Card(
         modifier =
@@ -913,6 +964,15 @@ fun TaskItem(
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = "Complete",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                            )
+                        }
+                    } else if (task.status == TaskStatus.COMPLETED && onRestore != null) {
+                        IconButton(onClick = onRestore, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Restore,
+                                contentDescription = "Restore",
                                 modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                             )

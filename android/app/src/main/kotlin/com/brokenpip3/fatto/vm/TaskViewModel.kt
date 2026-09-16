@@ -542,6 +542,16 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         }
     }
 
+    fun restoreTask(uuid: String) {
+        viewModelScope.launch {
+            try {
+                repository.restoreTask(uuid)
+            } catch (e: Exception) {
+                _uiEvent.emit("Failed to restore task: ${e.message}")
+            }
+        }
+    }
+
     fun deleteTask(uuid: String) {
         viewModelScope.launch {
             try {

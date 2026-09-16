@@ -2,6 +2,7 @@ package com.brokenpip3.fatto
 
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
@@ -16,9 +17,11 @@ import com.brokenpip3.fatto.data.S3Credentials
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.SyncCredentials
 import com.brokenpip3.fatto.data.SyncType
+import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImporter
 import com.brokenpip3.fatto.ui.theme.NordicNight
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,9 +54,15 @@ class SettingsIntegrationTest {
         composeTestRule.onNodeWithText("Built on:", substring = true).assertExists()
 
         composeTestRule.onNodeWithText("Source code").assertExists()
-        composeTestRule.onNodeWithText("https://github.com/brokenpip3/fatto").assertExists()
+        composeTestRule
+            .onNodeWithText("https://github.com/brokenpip3/fatto")
+            .assertExists()
+            .assertHasClickAction()
         composeTestRule.onNodeWithText("Please report bugs at").assertExists()
-        composeTestRule.onNodeWithText("https://github.com/brokenpip3/fatto/issues").assertExists()
+        composeTestRule
+            .onNodeWithText("https://github.com/brokenpip3/fatto/issues")
+            .assertExists()
+            .assertHasClickAction()
     }
 
     @Test
@@ -126,6 +135,55 @@ class SettingsIntegrationTest {
 
         // Verify it exists (we can't easily check 'checked' state with onNodeWithText but we verify it's still clickable/present)
         composeTestRule.onNodeWithText("Confirm complete/delete").assertExists()
+    }
+
+    @Test
+    fun testTaskSwipeActionsCanBeConfiguredIndependently() {
+        val repository = SettingsRepositoryImpl(composeTestRule.activity.applicationContext)
+        try {
+            composeTestRule.onNodeWithText("Settings").performClick()
+            composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
+
+            composeTestRule.onNodeWithText("Swipe Actions").performScrollTo().assertIsDisplayed()
+            composeTestRule
+                .onNodeWithTag("SwipeRightActionSelector")
+                .performScrollTo()
+                .performClick()
+            composeTestRule
+                .onNodeWithTag("SwipeRightActionSelector-COMPLETE")
+                .performClick()
+            composeTestRule
+                .onNodeWithTag("SwipeLeftActionSelector")
+                .performScrollTo()
+                .performClick()
+            composeTestRule.onNodeWithTag("SwipeLeftActionSelector-DELETE").performClick()
+
+            assertEquals(TaskSwipeAction.COMPLETE, repository.getSwipeStartToEndAction())
+            assertEquals(TaskSwipeAction.DELETE, repository.getSwipeEndToStartAction())
+        } finally {
+            repository.setSwipeStartToEndAction(TaskSwipeAction.NONE)
+            repository.setSwipeEndToStartAction(TaskSwipeAction.NONE)
+        }
+    }
+
+    @Test
+    fun testDisplaySettingsFollowRequestedOrder() {
+        composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
+
+        val themeTop = composeTestRule.onNodeWithText("Theme").fetchSemanticsNode().boundsInRoot.top
+        val swipeActionsTop = composeTestRule.onNodeWithText("Swipe Actions").fetchSemanticsNode().boundsInRoot.top
+        val optionsTop = composeTestRule.onNodeWithText("Options").fetchSemanticsNode().boundsInRoot.top
+        val tagsPerLineTop =
+            composeTestRule
+                .onNodeWithText("Tags per line", substring = true)
+                .fetchSemanticsNode()
+                .boundsInRoot
+                .top
+
+        assertTrue("Theme should appear before Swipe Actions", themeTop < swipeActionsTop)
+        assertTrue("Swipe Actions should appear before Options", swipeActionsTop < optionsTop)
+        assertTrue("Options should appear before Tags per line", optionsTop < tagsPerLineTop)
     }
 
     @Test

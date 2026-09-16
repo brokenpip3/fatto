@@ -189,6 +189,20 @@ class TaskRepository(
         }
     }
 
+    suspend fun restoreTask(uuid: String) =
+        withContext(Dispatchers.IO) {
+            val r = replica ?: throw Exception("Replica not initialized")
+            try {
+                r.updateTaskStatus(uuid, TaskStatus.PENDING)
+                loadTasks()
+                notifyWidgetRefresh()
+                triggerSync()
+            } catch (e: Exception) {
+                Log.e("TaskRepository", "Failed to restore task", e)
+                throw e
+            }
+        }
+
     suspend fun deleteTask(uuid: String) =
         withContext(Dispatchers.IO) {
             val r = replica ?: throw Exception("Replica not initialized")

@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SyncType
+import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImporter
 import com.brokenpip3.fatto.data.model.TaskContext
@@ -11,6 +12,7 @@ import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+@Suppress("TooManyFunctions")
 class SettingsViewModel(private val repository: SettingsRepository) : ViewModel() {
     private val _syncType = MutableStateFlow(SyncType.SERVER)
     val syncType = _syncType.asStateFlow()
@@ -89,6 +91,12 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _showUrgencyBar = MutableStateFlow(false)
     val showUrgencyBar = _showUrgencyBar.asStateFlow()
 
+    private val _swipeStartToEndAction = MutableStateFlow(TaskSwipeAction.NONE)
+    val swipeStartToEndAction = _swipeStartToEndAction.asStateFlow()
+
+    private val _swipeEndToStartAction = MutableStateFlow(TaskSwipeAction.NONE)
+    val swipeEndToStartAction = _swipeEndToStartAction.asStateFlow()
+
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode = _themeMode.asStateFlow()
 
@@ -150,6 +158,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _autoWaiting.value = repository.getAutoWaiting()
         _showPriorityBadge.value = repository.getShowPriorityBadge()
         _showUrgencyBar.value = repository.getShowUrgencyBar()
+        _swipeStartToEndAction.value = repository.getSwipeStartToEndAction()
+        _swipeEndToStartAction.value = repository.getSwipeEndToStartAction()
         _themeMode.value = repository.getThemeMode()
     }
 
@@ -281,6 +291,16 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun onShowUrgencyBarChange(value: Boolean) {
         _showUrgencyBar.value = value
         repository.setShowUrgencyBar(value)
+    }
+
+    fun onSwipeStartToEndActionChange(value: TaskSwipeAction) {
+        _swipeStartToEndAction.value = value
+        repository.setSwipeStartToEndAction(value)
+    }
+
+    fun onSwipeEndToStartActionChange(value: TaskSwipeAction) {
+        _swipeEndToStartAction.value = value
+        repository.setSwipeEndToStartAction(value)
     }
 
     fun onThemeModeChange(value: ThemeMode) {

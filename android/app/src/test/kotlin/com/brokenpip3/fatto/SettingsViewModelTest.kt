@@ -4,6 +4,7 @@ import com.brokenpip3.fatto.data.S3Credentials
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SyncCredentials
 import com.brokenpip3.fatto.data.SyncType
+import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
@@ -230,6 +231,25 @@ class SettingsViewModelTest {
         assertTrue(repository.getAutoWaiting())
     }
 
+    @Test
+    fun `swipe actions load and persist independently`() {
+        val repository =
+            FakeSettingsRepository().apply {
+                setSwipeStartToEndAction(TaskSwipeAction.DELETE)
+                setSwipeEndToStartAction(TaskSwipeAction.COMPLETE)
+            }
+        val viewModel = SettingsViewModel(repository)
+
+        assertEquals(TaskSwipeAction.DELETE, viewModel.swipeStartToEndAction.value)
+        assertEquals(TaskSwipeAction.COMPLETE, viewModel.swipeEndToStartAction.value)
+
+        viewModel.onSwipeStartToEndActionChange(TaskSwipeAction.NONE)
+        viewModel.onSwipeEndToStartActionChange(TaskSwipeAction.DELETE)
+
+        assertEquals(TaskSwipeAction.NONE, repository.getSwipeStartToEndAction())
+        assertEquals(TaskSwipeAction.DELETE, repository.getSwipeEndToStartAction())
+    }
+
     private class FakeSettingsRepository : SettingsRepository {
         override val showCompleted = MutableStateFlow(true)
         override val showInternalTags = MutableStateFlow(false)
@@ -249,6 +269,8 @@ class SettingsViewModelTest {
         override val sortDirection = MutableStateFlow("")
         override val showPriorityBadge = MutableStateFlow(false)
         override val showUrgencyBar = MutableStateFlow(false)
+        override val swipeStartToEndAction = MutableStateFlow(TaskSwipeAction.NONE)
+        override val swipeEndToStartAction = MutableStateFlow(TaskSwipeAction.NONE)
         override val themeMode = MutableStateFlow(ThemeMode.SYSTEM)
         override val taskContexts: StateFlow<List<TaskContext>> = MutableStateFlow(emptyList())
         override val activeTaskContextId: StateFlow<String?> = MutableStateFlow(null)
@@ -406,6 +428,18 @@ class SettingsViewModelTest {
 
         override fun setShowUrgencyBar(enabled: Boolean) {
             showUrgencyBar.value = enabled
+        }
+
+        override fun getSwipeStartToEndAction(): TaskSwipeAction = swipeStartToEndAction.value
+
+        override fun setSwipeStartToEndAction(value: TaskSwipeAction) {
+            swipeStartToEndAction.value = value
+        }
+
+        override fun getSwipeEndToStartAction(): TaskSwipeAction = swipeEndToStartAction.value
+
+        override fun setSwipeEndToStartAction(value: TaskSwipeAction) {
+            swipeEndToStartAction.value = value
         }
 
         override fun getThemeMode(): ThemeMode = themeMode.value

@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto.ui.settings
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -72,6 +75,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.SyncType
+import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
@@ -149,6 +153,8 @@ private data class DisplaySettingsSectionState(
     val showUrgencyBar: Boolean,
     val hideBlockedTasksWaiting: Boolean,
     val tagsPerLine: Int,
+    val swipeStartToEndAction: TaskSwipeAction,
+    val swipeEndToStartAction: TaskSwipeAction,
 )
 
 private data class DisplaySettingsSectionActions(
@@ -161,6 +167,8 @@ private data class DisplaySettingsSectionActions(
     val onShowUrgencyBarChange: (Boolean) -> Unit,
     val onHideBlockedTasksWaitingChange: (Boolean) -> Unit,
     val onTagsPerLineChange: (Int) -> Unit,
+    val onSwipeStartToEndActionChange: (TaskSwipeAction) -> Unit,
+    val onSwipeEndToStartActionChange: (TaskSwipeAction) -> Unit,
 )
 
 private data class NotificationSettingsSectionState(
@@ -211,6 +219,8 @@ fun SettingsScreen(
     val autoWaiting by viewModel.autoWaiting.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
+    val swipeStartToEndAction by viewModel.swipeStartToEndAction.collectAsState()
+    val swipeEndToStartAction by viewModel.swipeEndToStartAction.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val taskContexts by viewModel.taskContexts.collectAsState()
     val activeTaskContextId by viewModel.activeTaskContextId.collectAsState()
@@ -371,6 +381,8 @@ fun SettingsScreen(
                                     showUrgencyBar = showUrgencyBar,
                                     hideBlockedTasksWaiting = hideBlockedTasksWaiting,
                                     tagsPerLine = tagsPerLine,
+                                    swipeStartToEndAction = swipeStartToEndAction,
+                                    swipeEndToStartAction = swipeEndToStartAction,
                                 ),
                             actions =
                                 DisplaySettingsSectionActions(
@@ -383,6 +395,8 @@ fun SettingsScreen(
                                     onShowUrgencyBarChange = viewModel::onShowUrgencyBarChange,
                                     onHideBlockedTasksWaitingChange = viewModel::onHideBlockedTasksWaitingChange,
                                     onTagsPerLineChange = viewModel::onTagsPerLineChange,
+                                    onSwipeStartToEndActionChange = viewModel::onSwipeStartToEndActionChange,
+                                    onSwipeEndToStartActionChange = viewModel::onSwipeEndToStartActionChange,
                                 ),
                             onThemeModeChange = viewModel::onThemeModeChange,
                             onConfirmActionsChange = viewModel::onConfirmActionsChange,
@@ -440,6 +454,8 @@ fun SettingsScreen(
 
 @Composable
 private fun AboutSettingsSection(scrollState: ScrollState) {
+    val uriHandler = LocalUriHandler.current
+
     SettingsSection(scrollState = scrollState) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -480,6 +496,7 @@ private fun AboutSettingsSection(scrollState: ScrollState) {
                 )
                 Text(
                     text = "https://github.com/brokenpip3/fatto",
+                    modifier = Modifier.clickable { uriHandler.openUri("https://github.com/brokenpip3/fatto") },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -490,6 +507,7 @@ private fun AboutSettingsSection(scrollState: ScrollState) {
                 )
                 Text(
                     text = "https://github.com/brokenpip3/fatto/issues",
+                    modifier = Modifier.clickable { uriHandler.openUri("https://github.com/brokenpip3/fatto/issues") },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -834,6 +852,36 @@ private fun DisplaySettingsSection(
             onThemeModeChange = onThemeModeChange,
         )
 
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Text(
+            text = "Swipe Actions",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+
+        SwipeActionSetting(
+            label = "Swipe right",
+            testTag = "SwipeRightActionSelector",
+            value = state.swipeStartToEndAction,
+            onValueChange = actions.onSwipeStartToEndActionChange,
+        )
+
+        SwipeActionSetting(
+            label = "Swipe left",
+            testTag = "SwipeLeftActionSelector",
+            value = state.swipeEndToStartAction,
+            onValueChange = actions.onSwipeEndToStartActionChange,
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Text(
+            text = "Options",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+
         SettingsCheckboxRow(
             checked = confirmActions,
             onCheckedChange = onConfirmActionsChange,
@@ -888,6 +936,8 @@ private fun DisplaySettingsSection(
             label = "Hide blocked tasks (waiting-only deps)",
         )
 
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             Text(
                 text = "Tags per line: ${state.tagsPerLine}",
@@ -904,6 +954,58 @@ private fun DisplaySettingsSection(
                         activeTrackColor = MaterialTheme.colorScheme.primary,
                     ),
             )
+        }
+    }
+}
+
+private fun TaskSwipeAction.displayLabel(): String =
+    when (this) {
+        TaskSwipeAction.NONE -> "Disabled"
+        TaskSwipeAction.COMPLETE -> "Complete"
+        TaskSwipeAction.EDIT -> "Edit"
+        TaskSwipeAction.START_STOP -> "Start/Stop"
+        TaskSwipeAction.DELETE -> "Delete"
+    }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeActionSetting(
+    label: String,
+    testTag: String,
+    value: TaskSwipeAction,
+    onValueChange: (TaskSwipeAction) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        TextField(
+            value = value.displayLabel(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier =
+                Modifier
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                    .fillMaxWidth()
+                    .testTag(testTag),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            TaskSwipeAction.entries.forEach { action ->
+                DropdownMenuItem(
+                    text = { Text(action.displayLabel()) },
+                    modifier = Modifier.testTag("$testTag-${action.name}"),
+                    onClick = {
+                        onValueChange(action)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }
