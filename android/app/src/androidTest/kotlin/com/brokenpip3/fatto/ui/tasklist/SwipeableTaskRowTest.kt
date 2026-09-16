@@ -164,6 +164,24 @@ class SwipeableTaskRowTest {
     }
 
     @Test
+    fun completedTaskStartStopDoesNotDispatch() {
+        var startStops = 0
+
+        setSwipeableTaskRow(
+            task = completedTask,
+            startToEndAction = TaskSwipeAction.START_STOP,
+            endToStartAction = TaskSwipeAction.NONE,
+            onComplete = {},
+            onDelete = {},
+            onStartStop = { startStops++ },
+        )
+
+        swipeRowFor(completedTask).performTouchInput { swipeRight() }
+
+        composeTestRule.runOnIdle { assertEquals(0, startStops) }
+    }
+
+    @Test
     fun recomposedCallbacksAreUsedForSwipe() {
         val showCompletedTask = mutableStateOf(false)
         var initialEdits = 0

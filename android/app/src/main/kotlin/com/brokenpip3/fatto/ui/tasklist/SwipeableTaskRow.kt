@@ -63,7 +63,8 @@ internal fun SwipeableTaskRow(
             TaskSwipeAction.COMPLETE ->
                 if (currentTask.status != TaskStatus.COMPLETED) currentOnComplete()
             TaskSwipeAction.EDIT -> currentOnEdit()
-            TaskSwipeAction.START_STOP -> currentOnStartStop()
+            TaskSwipeAction.START_STOP ->
+                if (currentTask.status != TaskStatus.COMPLETED) currentOnStartStop()
         }
     }
 

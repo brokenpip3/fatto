@@ -129,7 +129,7 @@ class TaskSwipeIntegrationTest {
     }
 
     @Test
-    fun toggleSwipeCompletesThenRestoresWithoutRestoreConfirmation() {
+    fun completeSwipeOnCompletedTaskLeavesItCompleted() {
         val description = "Restore swipe ${System.currentTimeMillis()}"
         configureActions(TaskSwipeAction.COMPLETE, TaskSwipeAction.NONE, confirm = false)
         createTask(description)
@@ -140,8 +140,8 @@ class TaskSwipeIntegrationTest {
         taskRow(description).performTouchInput { swipeRight() }
 
         composeTestRule.onNodeWithText("Complete Task").assertDoesNotExist()
-        composeTestRule.waitUntilAtLeastOneExists(taskAction(description, "Complete"), 15_000)
-        composeTestRule.onNode(taskAction(description, "Restore")).assertDoesNotExist()
+        composeTestRule.onNode(taskAction(description, "Complete")).assertDoesNotExist()
+        composeTestRule.onNode(taskAction(description, "Restore")).assertIsDisplayed()
     }
 
     @Test
