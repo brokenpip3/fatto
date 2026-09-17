@@ -59,6 +59,8 @@ interface SettingsRepository {
     val sortDirection: StateFlow<String>
     val showPriorityBadge: StateFlow<Boolean>
     val showUrgencyBar: StateFlow<Boolean>
+    val swipeStartToEndAction: StateFlow<TaskSwipeAction>
+    val swipeEndToStartAction: StateFlow<TaskSwipeAction>
     val themeMode: StateFlow<ThemeMode>
     val taskContexts: StateFlow<List<TaskContext>>
     val activeTaskContextId: StateFlow<String?>
@@ -162,6 +164,14 @@ interface SettingsRepository {
 
     fun setShowUrgencyBar(enabled: Boolean)
 
+    fun getSwipeStartToEndAction(): TaskSwipeAction
+
+    fun setSwipeStartToEndAction(value: TaskSwipeAction)
+
+    fun getSwipeEndToStartAction(): TaskSwipeAction
+
+    fun setSwipeEndToStartAction(value: TaskSwipeAction)
+
     fun getThemeMode(): ThemeMode
 
     fun setThemeMode(value: ThemeMode)
@@ -258,6 +268,12 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private val _showUrgencyBar = MutableStateFlow(getShowUrgencyBar())
     override val showUrgencyBar: StateFlow<Boolean> = _showUrgencyBar.asStateFlow()
+
+    private val _swipeStartToEndAction = MutableStateFlow(getSwipeStartToEndAction())
+    override val swipeStartToEndAction: StateFlow<TaskSwipeAction> = _swipeStartToEndAction.asStateFlow()
+
+    private val _swipeEndToStartAction = MutableStateFlow(getSwipeEndToStartAction())
+    override val swipeEndToStartAction: StateFlow<TaskSwipeAction> = _swipeEndToStartAction.asStateFlow()
 
     private val _themeMode = MutableStateFlow(getThemeMode())
     override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -559,6 +575,22 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setShowUrgencyBar(enabled: Boolean) {
         sharedPreferences?.edit()?.putBoolean("show_urgency_bar", enabled)?.apply()
         _showUrgencyBar.value = enabled
+    }
+
+    override fun getSwipeStartToEndAction(): TaskSwipeAction =
+        TaskSwipeAction.fromPersistedValue(sharedPreferences?.getString("swipe_start_to_end_action", null))
+
+    override fun setSwipeStartToEndAction(value: TaskSwipeAction) {
+        sharedPreferences?.edit()?.putString("swipe_start_to_end_action", value.persistedValue)?.apply()
+        _swipeStartToEndAction.value = value
+    }
+
+    override fun getSwipeEndToStartAction(): TaskSwipeAction =
+        TaskSwipeAction.fromPersistedValue(sharedPreferences?.getString("swipe_end_to_start_action", null))
+
+    override fun setSwipeEndToStartAction(value: TaskSwipeAction) {
+        sharedPreferences?.edit()?.putString("swipe_end_to_start_action", value.persistedValue)?.apply()
+        _swipeEndToStartAction.value = value
     }
 
     override fun getThemeMode(): ThemeMode {

@@ -11,8 +11,10 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -420,6 +422,19 @@ class TaskContextViewModelTest {
             advanceUntilIdle()
 
             coVerify { repository.updateTask(edited) }
+        }
+
+    @Test
+    fun `restore task emits failure event when repository restore fails`() =
+        runTest {
+            coEvery { repository.restoreTask("task-1") } throws IllegalStateException("disk error")
+            val viewModel = TaskViewModel(repository)
+            val message = async { viewModel.uiEvent.first() }
+
+            viewModel.restoreTask("task-1")
+            advanceUntilIdle()
+
+            assertEquals("Failed to restore task: disk error", message.await())
         }
 
     private fun task(

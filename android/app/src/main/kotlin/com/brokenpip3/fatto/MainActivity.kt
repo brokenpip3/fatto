@@ -213,6 +213,8 @@ class MainActivity : ComponentActivity() {
                             val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
                             val confirmActions by settingsViewModel.confirmActions.collectAsState()
                             val showCompleted by settingsViewModel.showCompleted.collectAsState()
+                            val swipeStartToEndAction by settingsViewModel.swipeStartToEndAction.collectAsState()
+                            val swipeEndToStartAction by settingsViewModel.swipeEndToStartAction.collectAsState()
 
                             LaunchedEffect(pendingShareDescription) {
                                 val shared = pendingShareDescription
@@ -232,6 +234,8 @@ class MainActivity : ComponentActivity() {
                                 onTaskClick = { selectedTask = it },
                                 onManageContexts = { navController.navigate("settings") },
                                 confirmActions = confirmActions,
+                                swipeStartToEndAction = swipeStartToEndAction,
+                                swipeEndToStartAction = swipeEndToStartAction,
                             )
 
                             if (showAddTaskDialog) {

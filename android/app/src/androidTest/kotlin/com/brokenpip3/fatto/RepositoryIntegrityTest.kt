@@ -57,6 +57,11 @@ class RepositoryIntegrityTest {
             tasks = repository.tasks.value
             assertEquals(TaskStatus.COMPLETED, tasks[0].status)
 
+            // Restore
+            repository.restoreTask(task.uuid)
+            tasks = repository.tasks.value
+            assertEquals(TaskStatus.PENDING, tasks[0].status)
+
             // Delete
             repository.deleteTask(task.uuid)
             tasks = repository.tasks.value
