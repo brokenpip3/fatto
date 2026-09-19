@@ -24,30 +24,36 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
-import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskSwipeAction
-import org.junit.After
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
+import java.io.File
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class TaskSwipeIntegrationTest {
+    @get:Rule
+    val clearAppStateRule: ExternalResource =
+        object : ExternalResource() {
+            override fun before() {
+                val context =
+                    androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+                File(context.filesDir, "taskchampion").deleteRecursively()
+                context.getSharedPreferences("sync_settings", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .clear()
+                    .commit()
+            }
+        }
+
     @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @get:Rule
     val permissionRule: GrantPermissionRule =
         GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
-
-    @After
-    fun resetSwipeActions() {
-        SettingsRepositoryImpl(composeTestRule.activity.applicationContext).apply {
-            setSwipeStartToEndAction(TaskSwipeAction.NONE)
-            setSwipeEndToStartAction(TaskSwipeAction.NONE)
-        }
-    }
 
     private fun taskRow(description: String) =
         composeTestRule.onNode(

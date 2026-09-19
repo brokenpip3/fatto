@@ -42,6 +42,10 @@ class CalendarIntegrationTest {
         if (dbDir.exists()) {
             dbDir.deleteRecursively()
         }
+        context.getSharedPreferences("sync_settings", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
         scenario = ActivityScenario.launch(MainActivity::class.java)
     }
 

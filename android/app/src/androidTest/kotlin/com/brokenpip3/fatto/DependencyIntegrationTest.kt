@@ -17,9 +17,9 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
 import java.io.File
 
@@ -27,21 +27,25 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class DependencyIntegrationTest {
     @get:Rule
+    val clearAppStateRule: ExternalResource =
+        object : ExternalResource() {
+            override fun before() {
+                val context =
+                    androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+                File(context.filesDir, "taskchampion").deleteRecursively()
+                context.getSharedPreferences("sync_settings", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .clear()
+                    .commit()
+            }
+        }
+
+    @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @get:Rule
     val permissionRule: GrantPermissionRule =
         GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
-
-    @Before
-    fun clearDatabase() {
-        val context =
-            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-        val dbDir = File(context.filesDir, "taskchampion")
-        if (dbDir.exists()) {
-            dbDir.deleteRecursively()
-        }
-    }
 
     private fun createTask(description: String) {
         composeTestRule.onNodeWithContentDescription("Add Task").performClick()
