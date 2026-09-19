@@ -488,29 +488,25 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         }
     }
 
-    fun addDependencies(
+    suspend fun addDependencies(
         uuid: String,
         deps: List<String>,
     ) {
-        viewModelScope.launch {
-            try {
-                repository.addDependencies(uuid, deps)
-            } catch (e: Exception) {
-                _uiEvent.emit("Failed to update task: ${e.message}")
-            }
+        try {
+            repository.addDependencies(uuid, deps)
+        } catch (e: Exception) {
+            _uiEvent.emit("Failed to update task: ${e.message}")
         }
     }
 
-    fun removeDependency(
+    suspend fun removeDependency(
         uuid: String,
         depUuid: String,
     ) {
-        viewModelScope.launch {
-            try {
-                repository.removeDependency(uuid, depUuid)
-            } catch (e: Exception) {
-                _uiEvent.emit("Failed to update task: ${e.message}")
-            }
+        try {
+            repository.removeDependency(uuid, depUuid)
+        } catch (e: Exception) {
+            _uiEvent.emit("Failed to update task: ${e.message}")
         }
     }
 

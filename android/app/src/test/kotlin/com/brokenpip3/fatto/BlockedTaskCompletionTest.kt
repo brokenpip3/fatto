@@ -30,6 +30,17 @@ class BlockedTaskCompletionTest {
     }
 
     @Test
+    fun pendingDependencyProducesWarningWhenBackendBlockedFlagIsStale() {
+        val dependency = task("Finish prerequisite")
+        val blocked = task("Blocked task", dependencies = listOf(dependency.uuid))
+
+        val message = completionConfirmationMessage(blocked, listOf(dependency))
+
+        assertTrue(message.contains("currently blocked"))
+        assertEquals(listOf(dependency.uuid), unresolvedDependencyUuids(blocked, listOf(dependency)))
+    }
+
+    @Test
     fun blockedTaskWithUnknownDependencyStillProducesWarning() {
         val message =
             completionConfirmationMessage(
