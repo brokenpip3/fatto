@@ -10,20 +10,16 @@ fun unresolvedDependencyUuids(
     task: Task,
     tasks: List<Task>,
 ): List<String> =
-    if (!task.isBlocked) {
-        emptyList()
-    } else {
-        task.dependencies.filter { dependencyUuid ->
-            tasks.any { it.uuid == dependencyUuid && it.status == TaskStatus.PENDING }
-        }.distinct()
-    }
+    task.dependencies.filter { dependencyUuid ->
+        tasks.any { it.uuid == dependencyUuid && it.status == TaskStatus.PENDING }
+    }.distinct()
 
 fun completionConfirmationMessage(
     task: Task,
     tasks: List<Task>,
 ): String {
-    if (!task.isBlocked) return GENERIC_COMPLETION_CONFIRMATION
     val count = unresolvedDependencyUuids(task, tasks).size
+    if (!task.isBlocked && count == 0) return GENERIC_COMPLETION_CONFIRMATION
     val dependencyText = if (count == 0) "one or more unfinished tasks" else "$count tasks"
     return "This task is currently blocked by $dependencyText. Are you sure you want to mark it as completed?"
 }

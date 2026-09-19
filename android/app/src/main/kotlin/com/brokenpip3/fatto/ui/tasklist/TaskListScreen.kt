@@ -194,7 +194,10 @@ fun TaskListScreen(
 
     fun requestComplete(task: Task) {
         val currentTask = allTasks.firstOrNull { it.uuid == task.uuid } ?: task
-        if (confirmActions || currentTask.isBlocked) {
+        if (confirmActions ||
+            currentTask.isBlocked ||
+            unresolvedDependencyUuids(currentTask, allTasks).isNotEmpty()
+        ) {
             taskToComplete = currentTask
         } else {
             viewModel.completeTask(currentTask.uuid)
