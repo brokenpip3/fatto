@@ -61,6 +61,52 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `default project import mutates only on apply and refreshes observable state`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onTaskrcImportTextChange("default.project=Imported")
+        viewModel.previewTaskrcImport()
+
+        assertNull(repository.getDefaultProject())
+        assertFalse(repository.getDefaultProjectEnabled())
+        assertNull(viewModel.defaultProject.value)
+        assertFalse(viewModel.defaultProjectEnabled.value)
+
+        viewModel.applyTaskrcImport()
+
+        assertEquals("Imported", repository.getDefaultProject())
+        assertTrue(repository.getDefaultProjectEnabled())
+        assertEquals("Imported", viewModel.defaultProject.value)
+        assertTrue(viewModel.defaultProjectEnabled.value)
+    }
+
+    @Test
+    fun `selecting default stores value and enables while disabling preserves value`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        viewModel.onDefaultProjectSelected("  Inbox  ")
+        assertEquals("Inbox", viewModel.defaultProject.value)
+        assertTrue(viewModel.defaultProjectEnabled.value)
+        assertTrue(repository.getDefaultProjectEnabled())
+
+        viewModel.onDefaultProjectEnabledChange(false)
+        assertFalse(viewModel.defaultProjectEnabled.value)
+        assertEquals("Inbox", viewModel.defaultProject.value)
+        assertEquals("Inbox", repository.getDefaultProject())
+    }
+
+    @Test
+    fun `enabling default project without a value remains disabled`() {
+        val viewModel = SettingsViewModel(FakeSettingsRepository())
+
+        viewModel.onDefaultProjectEnabledChange(true)
+
+        assertFalse(viewModel.defaultProjectEnabled.value)
+    }
+
+    @Test
     fun `preview taskrc import classifies storage keys against stored credentials`() {
         val repository = FakeSettingsRepository()
         val uuid = "768d9f09-accd-406d-8685-7b977b83d5c6"
@@ -254,6 +300,8 @@ class SettingsViewModelTest {
         override val showCompleted = MutableStateFlow(true)
         override val showInternalTags = MutableStateFlow(false)
         override val showEmptyProjects = MutableStateFlow(false)
+        override val defaultProjectEnabled = MutableStateFlow(false)
+        override val defaultProject = MutableStateFlow<String?>(null)
         override val tagsPerLine = MutableStateFlow(4)
         override val dailyNotificationsEnabled = MutableStateFlow(false)
         override val notificationHour = MutableStateFlow(9)
@@ -382,6 +430,18 @@ class SettingsViewModelTest {
             showEmptyProjects.value = show
         }
 
+        override fun getDefaultProjectEnabled(): Boolean = defaultProjectEnabled.value
+
+        override fun setDefaultProjectEnabled(enabled: Boolean) {
+            defaultProjectEnabled.value = enabled && defaultProject.value != null
+        }
+
+        override fun getDefaultProject(): String? = defaultProject.value
+
+        override fun setDefaultProject(project: String?) {
+            defaultProject.value = project?.trim()?.takeIf { it.isNotEmpty() }
+        }
+
         override fun getTagsPerLine(): Int = tagsPerLine.value
 
         override fun setTagsPerLine(count: Int) {
@@ -456,6 +516,8 @@ class SettingsViewModelTest {
 
         override fun applyTaskrcImport(preview: TaskrcImportPreview) {
             appliedPreview = preview
+            setDefaultProject(preview.defaultProjectAfter)
+            setDefaultProjectEnabled(preview.defaultProjectEnabledAfter)
         }
 
         override fun deleteTaskContext(id: String) = Unit

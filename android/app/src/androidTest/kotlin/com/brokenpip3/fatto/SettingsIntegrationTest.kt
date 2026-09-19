@@ -2,15 +2,23 @@ package com.brokenpip3.fatto
 
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import com.brokenpip3.fatto.data.S3Credentials
@@ -27,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Calendar
 
+@OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class SettingsIntegrationTest {
     @get:Rule
@@ -74,17 +83,73 @@ class SettingsIntegrationTest {
 
         composeTestRule.onNodeWithTag("SettingsTabTaskrc").performScrollTo().performClick()
         composeTestRule.onNodeWithText("Taskrc import").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Contexts").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Contexts").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("First day of week").performScrollTo().assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
-        composeTestRule.onNodeWithText("Show completed tasks").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Show completed tasks").performScrollTo().assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("SettingsTabNotifications").performScrollTo().performClick()
         composeTestRule.onNodeWithText("Enable daily notifications").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("SettingsTabAbout").performScrollTo().performClick()
         composeTestRule.onNodeWithText("Fatto").assertIsDisplayed()
+    }
+
+    @Test
+    fun testDefaultProjectCanBeSelectedAndDisabledWithoutClearingValue() {
+        val projectName = "Task6.Default"
+        val repository = SettingsRepositoryImpl(composeTestRule.activity.applicationContext)
+        try {
+            composeTestRule.onNodeWithContentDescription("Add Task").performClick()
+            composeTestRule.onNode(hasTestTag("DescriptionInput")).performTextInput("Default project source")
+            composeTestRule.onNode(hasTestTag("ProjectInput")).performTextInput(projectName)
+            composeTestRule.onNodeWithText("Create").performClick()
+            composeTestRule.waitUntilAtLeastOneExists(hasTestTag("AppRoot"), 10000)
+
+            composeTestRule.onNodeWithText("Settings").performClick()
+            composeTestRule.onNodeWithTag("SettingsTabTaskrc").performScrollTo().performClick()
+
+            val taskDefaultsTop =
+                composeTestRule
+                    .onNodeWithTag("TaskDefaultsSection")
+                    .fetchSemanticsNode()
+                    .layoutInfo
+                    .coordinates
+                    .positionInRoot()
+                    .y
+            val contextsTop =
+                composeTestRule
+                    .onNodeWithText("Contexts")
+                    .fetchSemanticsNode()
+                    .layoutInfo
+                    .coordinates
+                    .positionInRoot()
+                    .y
+            assertTrue(
+                "Task defaults should appear before Contexts ($taskDefaultsTop vs $contextsTop)",
+                taskDefaultsTop < contextsTop,
+            )
+
+            composeTestRule.onNodeWithTag("DefaultProjectToggle").performScrollTo().assertIsOff().performClick()
+            composeTestRule.onNodeWithTag("ProjectPickerDialog").assertIsDisplayed()
+            composeTestRule.onNodeWithTag("ProjectPickerCancelButton").performClick()
+            composeTestRule.onNodeWithTag("DefaultProjectToggle").assertIsOff()
+
+            composeTestRule.onNodeWithTag("DefaultProjectToggle").performClick()
+            composeTestRule.waitUntilAtLeastOneExists(hasTestTag("ProjectPickerOption-$projectName"), 15000)
+            composeTestRule.onNodeWithTag("ProjectPickerOption-$projectName").performClick()
+            composeTestRule.onNodeWithTag("ProjectPickerConfirmButton").performClick()
+            composeTestRule.onNodeWithTag("DefaultProjectToggle").assertIsOn()
+            composeTestRule.onNodeWithTag("DefaultProjectValue").performScrollTo().assertIsDisplayed()
+
+            composeTestRule.onNodeWithTag("DefaultProjectToggle").performScrollTo().performClick()
+            composeTestRule.onNodeWithTag("DefaultProjectToggle").assertIsOff()
+            assertEquals(projectName, repository.getDefaultProject())
+        } finally {
+            repository.setDefaultProjectEnabled(false)
+            repository.setDefaultProject(null)
+        }
     }
 
     @Test
@@ -171,15 +236,38 @@ class SettingsIntegrationTest {
         composeTestRule.onNodeWithText("Settings").performClick()
         composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
 
-        val themeTop = composeTestRule.onNodeWithText("Theme").fetchSemanticsNode().boundsInRoot.top
-        val swipeActionsTop = composeTestRule.onNodeWithText("Swipe Actions").fetchSemanticsNode().boundsInRoot.top
-        val optionsTop = composeTestRule.onNodeWithText("Options").fetchSemanticsNode().boundsInRoot.top
+        val themeTop =
+            composeTestRule
+                .onNodeWithText("Theme")
+                .fetchSemanticsNode()
+                .layoutInfo
+                .coordinates
+                .positionInRoot()
+                .y
+        val swipeActionsTop =
+            composeTestRule
+                .onNodeWithText("Swipe Actions")
+                .fetchSemanticsNode()
+                .layoutInfo
+                .coordinates
+                .positionInRoot()
+                .y
+        val optionsTop =
+            composeTestRule
+                .onNodeWithText("Options")
+                .fetchSemanticsNode()
+                .layoutInfo
+                .coordinates
+                .positionInRoot()
+                .y
         val tagsPerLineTop =
             composeTestRule
                 .onNodeWithText("Tags per line", substring = true)
                 .fetchSemanticsNode()
-                .boundsInRoot
-                .top
+                .layoutInfo
+                .coordinates
+                .positionInRoot()
+                .y
 
         assertTrue("Theme should appear before Swipe Actions", themeTop < swipeActionsTop)
         assertTrue("Swipe Actions should appear before Options", swipeActionsTop < optionsTop)

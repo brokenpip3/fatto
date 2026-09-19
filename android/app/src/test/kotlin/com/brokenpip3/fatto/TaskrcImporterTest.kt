@@ -391,6 +391,98 @@ class TaskrcImporterTest {
         assertEquals(SyncType.SERVER, preview.syncTypeAfter)
     }
 
+    @Test
+    fun `nonempty default project is trimmed and enabled`() {
+        val preview =
+            TaskrcImporter.preview(
+                text = "default.project=  Inbox  ",
+                existingContexts = emptyList(),
+                currentActiveContextId = null,
+                currentFirstDayOfWeek = Calendar.MONDAY,
+                currentDefaultProjectEnabled = false,
+                currentDefaultProject = null,
+            )
+
+        assertEquals("Inbox", preview.defaultProjectAfter)
+        assertTrue(preview.defaultProjectEnabledAfter)
+        assertEquals(TaskrcImportResultType.ADDED, preview.actions.single().type)
+    }
+
+    @Test
+    fun `same disabled default is reenabled as update`() {
+        val preview =
+            TaskrcImporter.preview(
+                "default.project=Inbox",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+                currentDefaultProjectEnabled = false,
+                currentDefaultProject = "Inbox",
+            )
+
+        assertTrue(preview.defaultProjectEnabledAfter)
+        assertEquals("Inbox", preview.defaultProjectAfter)
+        assertEquals(TaskrcImportResultType.UPDATED, preview.actions.single().type)
+    }
+
+    @Test
+    fun `same enabled default project is unchanged`() {
+        val preview =
+            TaskrcImporter.preview(
+                "default.project=Inbox",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+                currentDefaultProjectEnabled = true,
+                currentDefaultProject = "Inbox",
+            )
+
+        assertTrue(preview.defaultProjectEnabledAfter)
+        assertEquals("Inbox", preview.defaultProjectAfter)
+        assertEquals(TaskrcImportResultType.UNCHANGED, preview.actions.single().type)
+    }
+
+    @Test
+    fun `empty default project disables and preserves value`() {
+        val preview =
+            TaskrcImporter.preview(
+                "default.project=",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+                currentDefaultProjectEnabled = true,
+                currentDefaultProject = "Inbox",
+            )
+
+        assertFalse(preview.defaultProjectEnabledAfter)
+        assertEquals("Inbox", preview.defaultProjectAfter)
+    }
+
+    @Test
+    fun `absent key preserves default and last repeated key wins`() {
+        val absent =
+            TaskrcImporter.preview(
+                "weekstart=Monday",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+                currentDefaultProjectEnabled = true,
+                currentDefaultProject = "Inbox",
+            )
+        assertTrue(absent.defaultProjectEnabledAfter)
+        assertEquals("Inbox", absent.defaultProjectAfter)
+
+        val repeated =
+            TaskrcImporter.preview(
+                "default.project=First\ndefault.project=Second",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+            )
+        assertTrue(repeated.defaultProjectEnabledAfter)
+        assertEquals("Second", repeated.defaultProjectAfter)
+    }
+
     private fun com.brokenpip3.fatto.data.TaskrcImportPreview.types(): List<TaskrcImportResultType> {
         return actions.map { it.type }
     }

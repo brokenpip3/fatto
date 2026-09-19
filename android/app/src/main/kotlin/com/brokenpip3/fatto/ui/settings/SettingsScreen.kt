@@ -79,6 +79,7 @@ import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderPurpose
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterState
@@ -130,6 +131,8 @@ private data class SyncSettingsSectionActions(
 private data class ContextSettingsSectionState(
     val taskrcImportText: String,
     val taskrcImportPreview: TaskrcImportPreview?,
+    val defaultProjectEnabled: Boolean,
+    val defaultProject: String?,
     val taskContexts: List<TaskContext>,
     val activeTaskContextId: String?,
 )
@@ -138,6 +141,8 @@ private data class ContextSettingsSectionActions(
     val onTaskrcImportTextChange: (String) -> Unit,
     val onPreviewTaskrcImport: () -> Unit,
     val onApplyTaskrcImport: () -> Unit,
+    val onDefaultProjectEnabledChange: (Boolean) -> Unit,
+    val onDefaultProjectSelected: (String) -> Unit,
     val onUseContext: (String) -> Unit,
     val onEditContext: (TaskContext) -> Unit,
     val onDeleteContext: (String) -> Unit,
@@ -206,6 +211,8 @@ fun SettingsScreen(
     val showCompleted by viewModel.showCompleted.collectAsState()
     val showInternalTags by viewModel.showInternalTags.collectAsState()
     val showEmptyProjects by viewModel.showEmptyProjects.collectAsState()
+    val defaultProjectEnabled by viewModel.defaultProjectEnabled.collectAsState()
+    val defaultProject by viewModel.defaultProject.collectAsState()
     val tagsPerLine by viewModel.tagsPerLine.collectAsState()
     val dailyNotificationsEnabled by viewModel.dailyNotificationsEnabled.collectAsState()
     val notificationHour by viewModel.notificationHour.collectAsState()
@@ -236,6 +243,7 @@ fun SettingsScreen(
     var secretVisible by remember { mutableStateOf(false) }
     var s3SecretVisible by remember { mutableStateOf(false) }
     var editingContext by remember { mutableStateOf<TaskContext?>(null) }
+    var showDefaultProjectPicker by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -350,6 +358,8 @@ fun SettingsScreen(
                                 ContextSettingsSectionState(
                                     taskrcImportText = taskrcImportText,
                                     taskrcImportPreview = taskrcImportPreview,
+                                    defaultProjectEnabled = defaultProjectEnabled,
+                                    defaultProject = defaultProject,
                                     taskContexts = taskContexts,
                                     activeTaskContextId = activeTaskContextId,
                                 ),
@@ -358,11 +368,16 @@ fun SettingsScreen(
                                     onTaskrcImportTextChange = viewModel::onTaskrcImportTextChange,
                                     onPreviewTaskrcImport = viewModel::previewTaskrcImport,
                                     onApplyTaskrcImport = onApplyTaskrcImport,
+                                    onDefaultProjectEnabledChange = viewModel::onDefaultProjectEnabledChange,
+                                    onDefaultProjectSelected = viewModel::onDefaultProjectSelected,
                                     onUseContext = viewModel::setActiveTaskContext,
                                     onEditContext = { editingContext = it },
                                     onDeleteContext = viewModel::deleteTaskContext,
                                 ),
                             onFirstDayOfWeekChange = viewModel::onFirstDayOfWeekChange,
+                            availableProjects = availableProjects,
+                            showDefaultProjectPicker = showDefaultProjectPicker,
+                            onShowDefaultProjectPickerChange = { showDefaultProjectPicker = it },
                         )
 
                     SettingsTab.DISPLAY ->
@@ -754,6 +769,9 @@ private fun ContextSettingsSection(
     state: ContextSettingsSectionState,
     actions: ContextSettingsSectionActions,
     onFirstDayOfWeekChange: (Int) -> Unit,
+    availableProjects: List<String>,
+    showDefaultProjectPicker: Boolean,
+    onShowDefaultProjectPickerChange: (Boolean) -> Unit,
 ) {
     SettingsSection(scrollState = scrollState) {
         Text(
@@ -769,6 +787,52 @@ private fun ContextSettingsSection(
             onPreviewTaskrcImport = actions.onPreviewTaskrcImport,
             onApplyTaskrcImport = actions.onApplyTaskrcImport,
         )
+
+        Column(
+            modifier = Modifier.testTag("TaskDefaultsSection"),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Task defaults",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+
+            SettingsCheckboxRow(
+                checked = state.defaultProjectEnabled,
+                onCheckedChange = { checked ->
+                    if (checked) {
+                        onShowDefaultProjectPickerChange(true)
+                    } else {
+                        actions.onDefaultProjectEnabledChange(false)
+                    }
+                },
+                label = "Default project",
+                modifier = Modifier.testTag("DefaultProjectToggle"),
+            )
+
+            if (state.defaultProjectEnabled || !state.defaultProject.isNullOrBlank()) {
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onShowDefaultProjectPickerChange(true) }
+                            .testTag("DefaultProjectValue")
+                            .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "Project",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = state.defaultProject.orEmpty(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
 
         Text(
             text = "Contexts",
@@ -826,6 +890,18 @@ private fun ContextSettingsSection(
         FirstDayOfWeekSetting(
             firstDayOfWeek = firstDayOfWeek,
             onFirstDayOfWeekChange = onFirstDayOfWeekChange,
+        )
+    }
+
+    if (showDefaultProjectPicker) {
+        ProjectPickerDialog(
+            projects = availableProjects,
+            selectedProject = state.defaultProject,
+            onDismiss = { onShowDefaultProjectPickerChange(false) },
+            onConfirm = { project ->
+                actions.onDefaultProjectSelected(project)
+                onShowDefaultProjectPickerChange(false)
+            },
         )
     }
 }
@@ -1304,10 +1380,11 @@ private fun SettingsCheckboxRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     label: String,
+    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .toggleable(
                     value = checked,

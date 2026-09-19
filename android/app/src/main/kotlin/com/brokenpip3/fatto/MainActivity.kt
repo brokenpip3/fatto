@@ -205,10 +205,12 @@ class MainActivity : ComponentActivity() {
                             var selectedTask by remember { mutableStateOf<Task?>(null) }
                             var dialogInitialDescription by remember { mutableStateOf<String?>(null) }
                             val availableTags by taskViewModel.availableTags.collectAsState()
-                            val hierarchicalProjects by taskViewModel.hierarchicalProjects.collectAsState()
+                            val selectableProjects by taskViewModel.selectableProjects.collectAsState()
                             val allTasks by taskViewModel.allTasks.collectAsState()
                             val activeProject by taskViewModel.activeProject.collectAsState()
                             val selectedTags by taskViewModel.selectedTags.collectAsState()
+                            val defaultProjectEnabled by settingsViewModel.defaultProjectEnabled.collectAsState()
+                            val defaultProject by settingsViewModel.defaultProject.collectAsState()
                             val showInternalTags by taskViewModel.showInternalTags.collectAsState()
                             val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
                             val confirmActions by settingsViewModel.confirmActions.collectAsState()
@@ -239,10 +241,12 @@ class MainActivity : ComponentActivity() {
                             )
 
                             if (showAddTaskDialog) {
+                                val initialProject =
+                                    activeProject ?: defaultProject.takeIf { defaultProjectEnabled }
                                 AddTaskDialog(
-                                    availableProjects = hierarchicalProjects.map { it.fullName },
+                                    availableProjects = selectableProjects,
                                     availableTags = availableTags.toList(),
-                                    initialProject = activeProject,
+                                    initialProject = initialProject,
                                     initialTags = selectedTags.toList(),
                                     initialDescription = dialogInitialDescription ?: "",
                                     onDismiss = { showAddTaskDialog = false },
@@ -261,7 +265,7 @@ class MainActivity : ComponentActivity() {
                                     onSave = { updatedTask ->
                                         taskViewModel.updateTask(updatedTask)
                                     },
-                                    availableProjects = hierarchicalProjects.map { it.fullName },
+                                    availableProjects = selectableProjects,
                                     availableTags = availableTags.toList(),
                                     showInternalTags = showInternalTags,
                                     firstDayOfWeek = firstDayOfWeek,
@@ -311,11 +315,11 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("settings") {
                             val availableTags by taskViewModel.availableTags.collectAsState()
-                            val hierarchicalProjects by taskViewModel.hierarchicalProjects.collectAsState()
+                            val selectableProjects by taskViewModel.selectableProjects.collectAsState()
 
                             SettingsScreen(
                                 viewModel = settingsViewModel,
-                                availableProjects = hierarchicalProjects.map { it.fullName },
+                                availableProjects = selectableProjects,
                                 availableTags = availableTags,
                             )
                         }

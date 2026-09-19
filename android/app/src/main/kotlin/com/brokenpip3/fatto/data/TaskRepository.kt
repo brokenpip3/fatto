@@ -104,10 +104,16 @@ class TaskRepository(
     ) = withContext(Dispatchers.IO) {
         val r = replica ?: throw Exception("Replica not initialized")
         try {
+            val resolvedProject =
+                resolveProject(
+                    explicitProject = project,
+                    defaultProjectEnabled = settingsRepository.defaultProjectEnabled.value,
+                    defaultProject = settingsRepository.defaultProject.value,
+                )
             val props =
                 TaskAddProps(
                     description = description,
-                    project = project,
+                    project = resolvedProject,
                     tags = tags,
                     due = due,
                     wait = wait,

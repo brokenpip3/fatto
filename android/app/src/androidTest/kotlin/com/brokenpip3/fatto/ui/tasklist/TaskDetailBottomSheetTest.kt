@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -46,6 +47,59 @@ class TaskDetailBottomSheetTest {
         composeTestRule.onNode(
             hasText("urgent") and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")),
         ).assertExists()
+    }
+
+    @Test
+    fun tagPickerKeepsHiddenInternalTagsWhenReplacingVisibleTags() {
+        var savedTask: Task? = null
+        composeTestRule.setContent {
+            TaskDetailBottomSheet(
+                task = task(tags = listOf("home", "BLOCKING")),
+                onDismiss = {},
+                onSave = { savedTask = it },
+                availableProjects = emptyList(),
+                availableTags = listOf("home", "urgent"),
+                showInternalTags = false,
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Select tags", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+        composeTestRule.onNodeWithTag("TagPickerOption-home").performClick()
+        composeTestRule.onNodeWithTag("TagPickerOption-urgent").performClick()
+        composeTestRule.onNodeWithTag("TagPickerConfirmButton").performClick()
+        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true).performClick()
+
+        composeTestRule.runOnIdle {
+            assertEquals(setOf("BLOCKING", "urgent"), savedTask?.tags?.toSet())
+        }
+    }
+
+    @Test
+    fun tagPickerKeepsHiddenInternalTagsWhenClearingVisibleTags() {
+        var savedTask: Task? = null
+        composeTestRule.setContent {
+            TaskDetailBottomSheet(
+                task = task(tags = listOf("home", "BLOCKING")),
+                onDismiss = {},
+                onSave = { savedTask = it },
+                availableProjects = emptyList(),
+                availableTags = listOf("home", "urgent"),
+                showInternalTags = false,
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Select tags", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+        composeTestRule.onNodeWithTag("TagPickerOption-home").performClick()
+        composeTestRule.onNodeWithTag("TagPickerConfirmButton").performClick()
+        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true).performClick()
+
+        composeTestRule.runOnIdle {
+            assertEquals(setOf("BLOCKING"), savedTask?.tags?.toSet())
+        }
     }
 
     @Test

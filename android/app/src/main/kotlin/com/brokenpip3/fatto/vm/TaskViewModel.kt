@@ -286,6 +286,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 }.sortedBy { it.fullName }
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val selectableProjects: StateFlow<List<String>> =
+        combine(hierarchicalProjects, repository.showEmptyProjects) { nodes, showEmpty ->
+            selectableProjectNames(nodes, showEmpty)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val filteredProjectNodes: StateFlow<List<ProjectNode>> =
         combine(
             hierarchicalProjects,

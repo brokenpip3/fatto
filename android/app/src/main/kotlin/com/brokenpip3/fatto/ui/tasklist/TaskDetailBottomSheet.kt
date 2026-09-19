@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
@@ -59,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
+import com.brokenpip3.fatto.ui.common.TagPickerDialog
 import com.brokenpip3.fatto.ui.common.TaskPickerDialog
 import kotlinx.coroutines.launch
 import uniffi.taskchampion_android.TaskStatus
@@ -103,6 +106,8 @@ fun TaskDetailBottomSheet(
     var showBlocking by remember(task) { mutableStateOf(false) }
     var showBlockedByPicker by remember { mutableStateOf(false) }
     var showBlockingPicker by remember { mutableStateOf(false) }
+    var showProjectPicker by remember { mutableStateOf(false) }
+    var showTagPicker by remember { mutableStateOf(false) }
 
     val blockingTasks =
         allTasks.filter {
@@ -138,6 +143,10 @@ fun TaskDetailBottomSheet(
 
     var activePicker by remember { mutableStateOf<DatePickerType?>(null) }
     val datePickerState = rememberDatePickerState()
+    val visibleTags =
+        if (showInternalTags) tags else tags.filterNot { INTERNAL_TAGS.contains(it.uppercase()) }
+    val hiddenInternalTags =
+        if (showInternalTags) emptyList() else tags.filter { INTERNAL_TAGS.contains(it.uppercase()) }
 
     val saveAndDismiss = {
         onSave(
@@ -281,6 +290,14 @@ fun TaskDetailBottomSheet(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
+                trailingIcon = {
+                    IconButton(
+                        onClick = { showProjectPicker = true },
+                        modifier = Modifier.testTag("SelectProjectButton"),
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select project")
+                    }
+                },
             )
 
             if (filteredProjects.isNotEmpty()) {
@@ -324,10 +341,9 @@ fun TaskDetailBottomSheet(
 
             Text(text = "Tags", style = MaterialTheme.typography.labelLarge)
 
-            val displayTags = if (showInternalTags) tags else tags.filter { !INTERNAL_TAGS.contains(it.uppercase()) }
-            if (displayTags.isNotEmpty()) {
+            if (visibleTags.isNotEmpty()) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(displayTags) { tag ->
+                    items(visibleTags) { tag ->
                         TagChip(tag = tag, onRemove = { tags = tags - tag })
                     }
                 }
@@ -345,19 +361,27 @@ fun TaskDetailBottomSheet(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
                 trailingIcon = {
-                    TextButton(
-                        onClick = {
-                            if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
-                                tags = tags + newTag.trim()
-                                newTag = ""
-                            }
-                        },
-                        modifier =
-                            Modifier.semantics {
-                                contentDescription = "AddTagButton"
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
+                                    tags = tags + newTag.trim()
+                                    newTag = ""
+                                }
                             },
-                    ) {
-                        Text("Add", style = MaterialTheme.typography.labelLarge)
+                            modifier =
+                                Modifier.semantics {
+                                    contentDescription = "AddTagButton"
+                                },
+                        ) {
+                            Text("Add", style = MaterialTheme.typography.labelLarge)
+                        }
+                        IconButton(
+                            onClick = { showTagPicker = true },
+                            modifier = Modifier.testTag("SelectTagsButton"),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select tags")
+                        }
                     }
                 },
             )
@@ -553,6 +577,30 @@ fun TaskDetailBottomSheet(
                 }
             }
         }
+    }
+
+    if (showProjectPicker) {
+        ProjectPickerDialog(
+            projects = (availableProjects + project).toSet().toList(),
+            selectedProject = project.ifBlank { null },
+            onDismiss = { showProjectPicker = false },
+            onConfirm = { selectedProject ->
+                project = selectedProject
+                showProjectPicker = false
+            },
+        )
+    }
+
+    if (showTagPicker) {
+        TagPickerDialog(
+            tags = (availableTags + visibleTags).toSet().toList(),
+            selectedTags = visibleTags.toSet(),
+            onDismiss = { showTagPicker = false },
+            onConfirm = { selectedVisibleTags ->
+                tags = (hiddenInternalTags + selectedVisibleTags).distinct()
+                showTagPicker = false
+            },
+        )
     }
 
     if (activePicker != null) {

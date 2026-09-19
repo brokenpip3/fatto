@@ -29,4 +29,5 @@ local.properties
 .env
 .env.*
 .gradle-home/
+docs/superpowers
 result
