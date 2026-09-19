@@ -1,0 +1,5 @@
+- support swipe actions for tasks
+- create projects/tags pickers and configure default project
+- add a warning in case of blocked task completion attempt
+- confirm completion with pending dependencies
+- fix widget color when using dark theme
