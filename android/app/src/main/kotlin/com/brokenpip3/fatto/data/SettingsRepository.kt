@@ -44,6 +44,8 @@ interface SettingsRepository {
     val showCompleted: StateFlow<Boolean>
     val showInternalTags: StateFlow<Boolean>
     val showEmptyProjects: StateFlow<Boolean>
+    val defaultProjectEnabled: StateFlow<Boolean>
+    val defaultProject: StateFlow<String?>
     val tagsPerLine: StateFlow<Int>
     val dailyNotificationsEnabled: StateFlow<Boolean>
     val notificationHour: StateFlow<Int>
@@ -131,6 +133,14 @@ interface SettingsRepository {
     fun getShowEmptyProjects(): Boolean
 
     fun setShowEmptyProjects(show: Boolean)
+
+    fun getDefaultProjectEnabled(): Boolean
+
+    fun setDefaultProjectEnabled(enabled: Boolean)
+
+    fun getDefaultProject(): String?
+
+    fun setDefaultProject(project: String?)
 
     fun getTagsPerLine(): Int
 
@@ -223,6 +233,12 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private val _showEmptyProjects = MutableStateFlow(getShowEmptyProjects())
     override val showEmptyProjects: StateFlow<Boolean> = _showEmptyProjects.asStateFlow()
+
+    private val _defaultProject = MutableStateFlow(getDefaultProject())
+    override val defaultProject: StateFlow<String?> = _defaultProject.asStateFlow()
+
+    private val _defaultProjectEnabled = MutableStateFlow(getDefaultProjectEnabled())
+    override val defaultProjectEnabled: StateFlow<Boolean> = _defaultProjectEnabled.asStateFlow()
 
     private val _tagsPerLine = MutableStateFlow(getTagsPerLine())
     override val tagsPerLine: StateFlow<Int> = _tagsPerLine.asStateFlow()
@@ -505,6 +521,26 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _showEmptyProjects.value = show
     }
 
+    override fun getDefaultProjectEnabled(): Boolean {
+        return sharedPreferences?.getBoolean("default_project_enabled", false) ?: false
+    }
+
+    override fun setDefaultProjectEnabled(enabled: Boolean) {
+        val persistedEnabled = enabled && getDefaultProject() != null
+        sharedPreferences?.edit()?.putBoolean("default_project_enabled", persistedEnabled)?.apply()
+        _defaultProjectEnabled.value = persistedEnabled
+    }
+
+    override fun getDefaultProject(): String? {
+        return sharedPreferences?.getString("default_project", null)?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    override fun setDefaultProject(project: String?) {
+        val normalizedProject = project?.trim()?.takeIf { it.isNotEmpty() }
+        sharedPreferences?.edit()?.putString("default_project", normalizedProject)?.apply()
+        _defaultProject.value = normalizedProject
+    }
+
     override fun getTagsPerLine(): Int {
         return sharedPreferences?.getInt("tags_per_line", 4) ?: 4
     }
@@ -630,6 +666,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         replaceTaskContexts(preview.contextsAfter)
         setActiveTaskContextId(preview.activeContextIdAfter)
         setFirstDayOfWeek(preview.firstDayOfWeekAfter)
+        setDefaultProject(preview.defaultProjectAfter)
+        setDefaultProjectEnabled(preview.defaultProjectEnabledAfter)
         preview.serverCredentialsAfter?.let {
             saveCredentials(it.url, it.clientId, it.secret)
         }

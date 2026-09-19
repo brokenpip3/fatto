@@ -52,6 +52,12 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     private val _showEmptyProjects = MutableStateFlow(false)
     val showEmptyProjects = _showEmptyProjects.asStateFlow()
 
+    private val _defaultProjectEnabled = MutableStateFlow(false)
+    val defaultProjectEnabled = _defaultProjectEnabled.asStateFlow()
+
+    private val _defaultProject = MutableStateFlow<String?>(null)
+    val defaultProject = _defaultProject.asStateFlow()
+
     private val _tagsPerLine = MutableStateFlow(4)
     val tagsPerLine = _tagsPerLine.asStateFlow()
 
@@ -145,6 +151,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _showCompleted.value = repository.getShowCompleted()
         _showInternalTags.value = repository.getShowInternalTags()
         _showEmptyProjects.value = repository.getShowEmptyProjects()
+        _defaultProjectEnabled.value = repository.getDefaultProjectEnabled()
+        _defaultProject.value = repository.getDefaultProject()
         _tagsPerLine.value = repository.getTagsPerLine()
         _dailyNotificationsEnabled.value = repository.getDailyNotificationsEnabled()
         _notificationHour.value = repository.getNotificationHour()
@@ -253,6 +261,21 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         repository.setShowEmptyProjects(value)
     }
 
+    fun onDefaultProjectEnabledChange(enabled: Boolean) {
+        repository.setDefaultProjectEnabled(enabled)
+        _defaultProjectEnabled.value = repository.getDefaultProjectEnabled()
+    }
+
+    fun onDefaultProjectSelected(project: String) {
+        val normalized = project.trim()
+        if (normalized.isEmpty()) return
+
+        repository.setDefaultProject(normalized)
+        repository.setDefaultProjectEnabled(true)
+        _defaultProject.value = normalized
+        _defaultProjectEnabled.value = true
+    }
+
     fun onTagsPerLineChange(value: Int) {
         _tagsPerLine.value = value
         repository.setTagsPerLine(value)
@@ -332,6 +355,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
                 existingContexts = repository.getTaskContexts(),
                 currentActiveContextId = repository.getActiveTaskContextId(),
                 currentFirstDayOfWeek = repository.getFirstDayOfWeek(),
+                currentDefaultProjectEnabled = repository.getDefaultProjectEnabled(),
+                currentDefaultProject = repository.getDefaultProject(),
                 currentSyncCredentials = repository.getCredentials(),
                 currentS3Credentials = repository.getS3Credentials(),
                 currentSyncType = repository.getSyncType(),
@@ -341,6 +366,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun applyTaskrcImport() {
         val preview = _taskrcImportPreview.value ?: return
         repository.applyTaskrcImport(preview)
+        _defaultProject.value = repository.getDefaultProject()
+        _defaultProjectEnabled.value = repository.getDefaultProjectEnabled()
         preview.serverCredentialsAfter?.let { creds ->
             _syncUrl.value = creds.url
             _clientId.value = creds.clientId

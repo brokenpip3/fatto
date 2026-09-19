@@ -31,6 +31,8 @@ data class TaskrcImportPreview(
     val s3CredentialsAfter: S3Credentials? = null,
     val encryptionSecretAfter: String? = null,
     val syncTypeAfter: SyncType = SyncType.SERVER,
+    val defaultProjectEnabledAfter: Boolean = false,
+    val defaultProjectAfter: String? = null,
 ) {
     val hasErrors: Boolean = actions.any { it.type == TaskrcImportResultType.ERROR }
 }
@@ -44,6 +46,8 @@ object TaskrcImporter {
         existingContexts: List<TaskContext>,
         currentActiveContextId: String?,
         currentFirstDayOfWeek: Int,
+        currentDefaultProjectEnabled: Boolean = false,
+        currentDefaultProject: String? = null,
         currentSyncCredentials: SyncCredentials? = null,
         currentS3Credentials: S3Credentials? = null,
         currentSyncType: SyncType = SyncType.SERVER,
@@ -53,6 +57,8 @@ object TaskrcImporter {
         var requestedActiveName: String? = null
         var activeContextId = currentActiveContextId
         var firstDayOfWeek = currentFirstDayOfWeek
+        var defaultProjectEnabled = currentDefaultProjectEnabled
+        var defaultProject = currentDefaultProject
 
         // Storage key collection: short name -> (line number, value). Only non-empty values.
         val serverValues = mutableMapOf<String, Pair<Int, String>>()
@@ -71,6 +77,43 @@ object TaskrcImporter {
 
                     entry.key == "weekstart" ->
                         actions += previewWeekstart(lineNumber, entry.value, firstDayOfWeek) { firstDayOfWeek = it }
+
+                    entry.key == "default.project" -> {
+                        val value = entry.value.trim()
+                        if (value.isEmpty()) {
+                            val type =
+                                if (defaultProjectEnabled) {
+                                    TaskrcImportResultType.UPDATED
+                                } else {
+                                    TaskrcImportResultType.UNCHANGED
+                                }
+                            val message =
+                                if (defaultProjectEnabled) {
+                                    "Default project disabled"
+                                } else {
+                                    "Default project already disabled"
+                                }
+                            actions += TaskrcImportAction(type, lineNumber, entry.key, message)
+                            defaultProjectEnabled = false
+                        } else {
+                            val type =
+                                when {
+                                    defaultProject == null -> TaskrcImportResultType.ADDED
+                                    defaultProject == value && defaultProjectEnabled -> TaskrcImportResultType.UNCHANGED
+                                    else -> TaskrcImportResultType.UPDATED
+                                }
+                            val message =
+                                when {
+                                    type == TaskrcImportResultType.ADDED -> "Default project set to '$value'"
+                                    defaultProject == value && !defaultProjectEnabled -> "Default project enabled for '$value'"
+                                    type == TaskrcImportResultType.UNCHANGED -> "Default project unchanged at '$value'"
+                                    else -> "Default project set to '$value'"
+                                }
+                            actions += TaskrcImportAction(type, lineNumber, entry.key, message)
+                            defaultProject = value
+                            defaultProjectEnabled = true
+                        }
+                    }
 
                     entry.key.startsWith("context.") && entry.key.endsWith(".read") ->
                         actions += previewContextRead(lineNumber, entry.key, entry.value, contextsByName)
@@ -162,6 +205,8 @@ object TaskrcImporter {
             s3CredentialsAfter = storage.s3CredentialsAfter,
             encryptionSecretAfter = storage.encryptionSecretAfter,
             syncTypeAfter = storage.syncTypeAfter,
+            defaultProjectEnabledAfter = defaultProjectEnabled,
+            defaultProjectAfter = defaultProject,
         )
     }
 

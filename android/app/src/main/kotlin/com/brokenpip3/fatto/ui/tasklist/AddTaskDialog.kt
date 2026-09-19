@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Schedule
@@ -18,6 +19,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +39,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
+import com.brokenpip3.fatto.ui.common.TagPickerDialog
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
@@ -64,6 +69,8 @@ fun AddTaskDialog(
     var scheduledDate by remember { mutableStateOf<String?>(null) }
 
     var activePicker by remember { mutableStateOf<DatePickerType?>(null) }
+    var showProjectPicker by remember { mutableStateOf(false) }
+    var showTagPicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
 
     val filteredProjects =
@@ -128,6 +135,14 @@ fun AddTaskDialog(
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                         ),
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { showProjectPicker = true },
+                            modifier = Modifier.testTag("SelectProjectButton"),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select project")
+                        }
+                    },
                 )
 
                 if (filteredProjects.isNotEmpty()) {
@@ -161,19 +176,27 @@ fun AddTaskDialog(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                         ),
                     trailingIcon = {
-                        TextButton(
-                            onClick = {
-                                if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
-                                    tags = tags + newTag.trim()
-                                    newTag = ""
-                                }
-                            },
-                            modifier =
-                                androidx.compose.ui.Modifier.semantics {
-                                    contentDescription = "AddTagButton"
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            TextButton(
+                                onClick = {
+                                    if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
+                                        tags = tags + newTag.trim()
+                                        newTag = ""
+                                    }
                                 },
-                        ) {
-                            Text("Add", style = MaterialTheme.typography.labelLarge)
+                                modifier =
+                                    Modifier.semantics {
+                                        contentDescription = "AddTagButton"
+                                    },
+                            ) {
+                                Text("Add", style = MaterialTheme.typography.labelLarge)
+                            }
+                            IconButton(
+                                onClick = { showTagPicker = true },
+                                modifier = Modifier.testTag("SelectTagsButton"),
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select tags")
+                            }
                         }
                     },
                 )
@@ -259,6 +282,30 @@ fun AddTaskDialog(
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp),
     )
+
+    if (showProjectPicker) {
+        ProjectPickerDialog(
+            projects = (availableProjects + project).toSet().toList(),
+            selectedProject = project.ifBlank { null },
+            onDismiss = { showProjectPicker = false },
+            onConfirm = { selectedProject ->
+                project = selectedProject
+                showProjectPicker = false
+            },
+        )
+    }
+
+    if (showTagPicker) {
+        TagPickerDialog(
+            tags = (availableTags + tags).toSet().toList(),
+            selectedTags = tags.toSet(),
+            onDismiss = { showTagPicker = false },
+            onConfirm = { selectedTags ->
+                tags = selectedTags.toList()
+                showTagPicker = false
+            },
+        )
+    }
 
     if (activePicker != null) {
         DatePickerDialog(
