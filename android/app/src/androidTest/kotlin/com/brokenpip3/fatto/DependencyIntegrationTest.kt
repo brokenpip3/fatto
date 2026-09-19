@@ -111,7 +111,10 @@ class DependencyIntegrationTest {
         composeTestRule.onNode(
             hasContentDescription("Complete") and hasAnyAncestor(hasText(blockedName)),
         ).performClick()
-        composeTestRule.waitUntilAtLeastOneExists(hasText("currently blocked"), 15000)
+        composeTestRule.waitUntilAtLeastOneExists(
+            hasText("currently blocked", substring = true),
+            15000,
+        )
         composeTestRule.onNodeWithText("View blocking tasks").assertExists()
         composeTestRule.onNodeWithText("Cancel").performClick()
         composeTestRule.onNodeWithText(blockedName).assertExists()
