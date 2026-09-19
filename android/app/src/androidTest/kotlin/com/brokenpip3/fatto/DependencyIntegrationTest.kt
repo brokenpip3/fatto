@@ -96,6 +96,18 @@ class DependencyIntegrationTest {
             .performScrollTo().performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
 
+        // The detail save is asynchronous. Reopen the task and wait for the
+        // persisted dependency state before exercising completion blocking.
+        composeTestRule.onNodeWithText(blockedName).performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
+        composeTestRule.waitUntilAtLeastOneExists(
+            hasText("Task is blocked") and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")),
+            15000,
+        )
+        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+            .performScrollTo().performClick()
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
+
         composeTestRule.onNode(
             hasContentDescription("Complete") and hasAnyAncestor(hasText(blockedName)),
         ).performClick()

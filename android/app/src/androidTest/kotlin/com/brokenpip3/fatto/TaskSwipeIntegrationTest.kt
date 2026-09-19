@@ -141,6 +141,7 @@ class TaskSwipeIntegrationTest {
         createTask(description)
 
         taskRow(description).performTouchInput { swipeRight() }
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Completed", substring = true), 15000)
         composeTestRule.onNodeWithText("Completed", substring = true).performClick()
         composeTestRule.onNode(taskAction(description, "Restore")).assertIsDisplayed()
         taskRow(description).performTouchInput { swipeRight() }
