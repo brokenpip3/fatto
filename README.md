@@ -48,3 +48,7 @@ The backend is built in Rust using the official [taskChampion](https://github.co
 
 If you want to poke around the internals or build it yourself, the entire development environment is done via nix devshells.
 You can build the debug apk with: `just build-debug`. The `justfile` handles the heavy lifting, including cross-compiling the Rust JNI libraries and orchestrating the Kotlin build.
+
+## Other projects
+
+If you’re also interested in fitness you might like [Gymbro](https://github.com/brokenpip3/gymbro), my open-source local-only workout tracker for android
