@@ -70,6 +70,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -86,6 +87,19 @@ import com.brokenpip3.fatto.ui.tasklist.TaskFilterState
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import kotlinx.coroutines.launch
+
+/**
+ * Keyboard options for fields that must be stored exactly as entered.
+ *
+ * Auto-correction, word suggestions and automatic capitalization all rewrite
+ * what the user typed, and a credential altered that way is only reported by
+ * the server as an unexplained authentication failure.
+ */
+private val VerbatimKeyboard =
+    KeyboardOptions(
+        capitalization = KeyboardCapitalization.None,
+        autoCorrectEnabled = false,
+    )
 
 private enum class SettingsTab(
     val label: String,
@@ -110,6 +124,7 @@ private data class SyncSettingsSectionState(
     val s3AccessKeyId: String,
     val s3SecretAccessKey: String,
     val s3SecretVisible: Boolean,
+    val validationError: String?,
 )
 
 private data class SyncSettingsSectionActions(
@@ -208,6 +223,7 @@ fun SettingsScreen(
     val s3EndpointUrl by viewModel.s3EndpointUrl.collectAsState()
     val s3AccessKeyId by viewModel.s3AccessKeyId.collectAsState()
     val s3SecretAccessKey by viewModel.s3SecretAccessKey.collectAsState()
+    val syncSettingsError by viewModel.syncSettingsError.collectAsState()
     val showCompleted by viewModel.showCompleted.collectAsState()
     val showInternalTags by viewModel.showInternalTags.collectAsState()
     val showEmptyProjects by viewModel.showEmptyProjects.collectAsState()
@@ -257,7 +273,13 @@ fun SettingsScreen(
     val onSaveSyncSettings: () -> Unit = {
         val saved = viewModel.save()
         focusManager.clearFocus()
-        launchSnackbar(if (saved) "Settings saved" else "Fill in all required sync fields")
+        launchSnackbar(
+            if (saved) {
+                "Settings saved"
+            } else {
+                viewModel.syncSettingsError.value ?: "Fill in all required sync fields"
+            },
+        )
     }
     val onClearSyncSettings: () -> Unit = {
         viewModel.clear()
@@ -331,6 +353,7 @@ fun SettingsScreen(
                                     s3AccessKeyId = s3AccessKeyId,
                                     s3SecretAccessKey = s3SecretAccessKey,
                                     s3SecretVisible = s3SecretVisible,
+                                    validationError = syncSettingsError,
                                 ),
                             actions =
                                 SyncSettingsSectionActions(
@@ -599,7 +622,8 @@ private fun SyncSettingsSection(
                 label = { Text("Sync Server URL") },
                 placeholder = { Text("http://example.com:8080") },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                singleLine = true,
+                keyboardOptions = VerbatimKeyboard.copy(keyboardType = KeyboardType.Uri),
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -613,6 +637,8 @@ private fun SyncSettingsSection(
                 label = { Text("Client ID (UUID)") },
                 placeholder = { Text("00000000-0000-0000-0000-000000000000") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = VerbatimKeyboard,
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -626,6 +652,8 @@ private fun SyncSettingsSection(
                 label = { Text("Bucket") },
                 placeholder = { Text("my-tasks-bucket") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = VerbatimKeyboard,
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -639,7 +667,8 @@ private fun SyncSettingsSection(
                 label = { Text("Endpoint URL (optional)") },
                 placeholder = { Text("https://minio.example.com") },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                singleLine = true,
+                keyboardOptions = VerbatimKeyboard.copy(keyboardType = KeyboardType.Uri),
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -653,6 +682,8 @@ private fun SyncSettingsSection(
                 label = { Text("Region (optional)") },
                 placeholder = { Text("us-east-1") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = VerbatimKeyboard,
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -664,7 +695,10 @@ private fun SyncSettingsSection(
                 value = state.s3AccessKeyId,
                 onValueChange = actions.onS3AccessKeyIdChange,
                 label = { Text("Access Key ID") },
+                placeholder = { Text("AKIAIOSFODNN7EXAMPLE") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = VerbatimKeyboard,
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -677,6 +711,8 @@ private fun SyncSettingsSection(
                 onValueChange = actions.onS3SecretAccessKeyChange,
                 label = { Text("Secret Access Key") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = VerbatimKeyboard.copy(keyboardType = KeyboardType.Password),
                 visualTransformation = if (state.s3SecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     IconButton(onClick = { actions.onS3SecretVisibleChange(!state.s3SecretVisible) }) {
@@ -699,6 +735,8 @@ private fun SyncSettingsSection(
             onValueChange = actions.onSecretChange,
             label = { Text("Encryption Secret") },
             modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = VerbatimKeyboard.copy(keyboardType = KeyboardType.Password),
             visualTransformation = if (state.secretVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { actions.onSecretVisibleChange(!state.secretVisible) }) {
@@ -714,6 +752,15 @@ private fun SyncSettingsSection(
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 ),
         )
+
+        state.validationError?.let { error ->
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth().testTag("SyncSettingsError"),
+            )
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

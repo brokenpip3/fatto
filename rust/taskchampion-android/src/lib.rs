@@ -380,30 +380,263 @@ impl ReplicaWrapper {
         secret_access_key: String,
         encryption_secret: String,
     ) -> Result<()> {
-        let mut replica = self.inner.lock().unwrap();
+        let settings = AwsSettings::validate(
+            bucket,
+            region,
+            endpoint_url,
+            access_key_id,
+            secret_access_key,
+            encryption_secret,
+        )?;
 
-        // Normalize empty optional strings coming across the FFI boundary to `None`.
-        let region = region.filter(|s| !s.is_empty());
-        let endpoint_url = endpoint_url.filter(|s| !s.is_empty());
+        let mut replica = self.inner.lock().unwrap();
 
         let config = ServerConfig::Aws {
             // S3-compatible endpoints generally require path-style addressing; real
             // AWS S3 (no custom endpoint) keeps the default virtual-hosted style.
-            force_path_style: endpoint_url.is_some(),
-            region,
-            bucket,
-            endpoint_url,
+            force_path_style: settings.endpoint_url.is_some(),
+            region: settings.region,
+            bucket: settings.bucket,
+            endpoint_url: settings.endpoint_url,
             credentials: AwsCredentials::AccessKey {
-                access_key_id,
-                secret_access_key,
+                access_key_id: settings.access_key_id,
+                secret_access_key: settings.secret_access_key,
             },
-            encryption_secret: encryption_secret.into_bytes(),
+            encryption_secret: settings.encryption_secret.into_bytes(),
         };
-        self.rt.block_on(async {
-            let mut server = config.into_server().await?;
-            replica.sync(&mut server, false).await
-        })?;
+        self.rt
+            .block_on(async {
+                let mut server = config.into_server().await?;
+                replica.sync(&mut server, false).await
+            })
+            .map_err(|e| TaskError::Internal(explain_aws_error(&e.to_string())))?;
         Ok(())
+    }
+}
+
+/// S3 settings that have been normalized and checked for the mistakes that would
+/// otherwise surface as an opaque S3 error at sync time.
+struct AwsSettings {
+    bucket: String,
+    region: Option<String>,
+    endpoint_url: Option<String>,
+    access_key_id: String,
+    secret_access_key: String,
+    encryption_secret: String,
+}
+
+impl AwsSettings {
+    /// Validate the settings for an S3 sync.
+    ///
+    /// The values arrive from a text form on a phone, where a stray space, a
+    /// newline from a paste or a mistyped region are easy to produce and
+    /// impossible to see. S3 answers all of those with the same opaque
+    /// `SignatureDoesNotMatch` (or a connection timeout), so the mistakes that
+    /// can be recognized without talking to the server are rejected here with a
+    /// message naming the field.
+    ///
+    /// Checks that only hold for real AWS (key shapes, region names) are applied
+    /// only when no custom endpoint is set: S3-compatible services such as minio
+    /// or Garage use credentials and regions of their own choosing.
+    fn validate(
+        bucket: String,
+        region: Option<String>,
+        endpoint_url: Option<String>,
+        access_key_id: String,
+        secret_access_key: String,
+        encryption_secret: String,
+    ) -> Result<Self> {
+        // Normalize: surrounding whitespace and empty optionals coming across the
+        // FFI boundary are never meaningful.
+        let bucket = bucket.trim().to_string();
+        let access_key_id = access_key_id.trim().to_string();
+        let secret_access_key = secret_access_key.trim().to_string();
+        let encryption_secret = encryption_secret.trim().to_string();
+        let region = region
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let endpoint_url = endpoint_url
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+
+        if bucket.is_empty() {
+            return Err(invalid("Bucket is required"));
+        }
+        if access_key_id.is_empty() {
+            return Err(invalid("Access key ID is required"));
+        }
+        if secret_access_key.is_empty() {
+            return Err(invalid("Secret access key is required"));
+        }
+        if encryption_secret.is_empty() {
+            return Err(invalid("Encryption secret is required"));
+        }
+
+        validate_bucket_name(&bucket)?;
+
+        // Interior whitespace in a key is always a mistake, and one that the
+        // server can only report as a signature mismatch.
+        if access_key_id.chars().any(char::is_whitespace) {
+            return Err(invalid(
+                "Access key ID must not contain spaces or line breaks",
+            ));
+        }
+        if secret_access_key.chars().any(char::is_whitespace) {
+            return Err(invalid(
+                "Secret access key must not contain spaces or line breaks",
+            ));
+        }
+
+        if let Some(url) = &endpoint_url {
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return Err(invalid(
+                    "Endpoint URL must start with http:// or https:// (e.g. https://minio.example.com)",
+                ));
+            }
+        } else {
+            // No endpoint means real AWS, where the credential and region formats
+            // are fixed and worth checking.
+            validate_aws_access_key_id(&access_key_id)?;
+            validate_aws_secret_access_key(&secret_access_key)?;
+            if let Some(region) = &region {
+                validate_aws_region(region)?;
+            }
+        }
+
+        Ok(Self {
+            bucket,
+            region,
+            endpoint_url,
+            access_key_id,
+            secret_access_key,
+            encryption_secret,
+        })
+    }
+}
+
+fn invalid(message: &str) -> TaskError {
+    TaskError::Internal(message.into())
+}
+
+/// Check a bucket name against the S3 bucket naming rules, which minio and
+/// Garage share with AWS.
+fn validate_bucket_name(bucket: &str) -> Result<()> {
+    const RULES: &str =
+        "Bucket names must be 3-63 characters of lowercase letters, digits, dots and hyphens, \
+         and start and end with a letter or digit";
+    let valid_chars = bucket
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.');
+    let valid_edges = bucket
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        && bucket
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
+    if !(3..=63).contains(&bucket.len()) || !valid_chars || !valid_edges || bucket.contains("..") {
+        return Err(invalid(&format!("Invalid bucket name '{bucket}'. {RULES}")));
+    }
+    Ok(())
+}
+
+/// AWS access key IDs are 16-128 upper-case alphanumeric characters, in practice
+/// `AKIA` (long-lived) or `ASIA` (temporary) followed by 16 characters.
+fn validate_aws_access_key_id(access_key_id: &str) -> Result<()> {
+    if !(16..=128).contains(&access_key_id.len())
+        || !access_key_id
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+    {
+        return Err(invalid(
+            "Access key ID does not look like an AWS key: it should be 16-128 upper-case letters \
+             and digits, such as AKIAIOSFODNN7EXAMPLE. Check for stray quotes, backslashes or \
+             characters added while typing",
+        ));
+    }
+    if access_key_id.starts_with("ASIA") {
+        return Err(invalid(
+            "This is a temporary AWS access key (ASIA...), which also requires a session token. \
+             Use a long-lived IAM user key (AKIA...) instead",
+        ));
+    }
+    Ok(())
+}
+
+/// AWS secret access keys are exactly 40 base64 characters.
+fn validate_aws_secret_access_key(secret_access_key: &str) -> Result<()> {
+    let valid_chars = secret_access_key
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=');
+    if secret_access_key.len() != 40 || !valid_chars {
+        return Err(invalid(
+            "Secret access key does not look like an AWS secret: it should be exactly 40 \
+             characters of letters, digits, '+', '/' and '='. Backslashes and quotes are not part \
+             of the key and must not be escaped or included",
+        ));
+    }
+    Ok(())
+}
+
+/// AWS region names are `<area>-<direction>-<number>`, e.g. `eu-west-2` or
+/// `us-gov-east-1`. A region that is merely misspelled resolves to nothing and
+/// surfaces as a connection failure after a long wait.
+fn validate_aws_region(region: &str) -> Result<()> {
+    let parts: Vec<&str> = region.split('-').collect();
+    let Some((number, words)) = parts.split_last() else {
+        return Err(invalid_region(region));
+    };
+    let words_ok = words.len() >= 2
+        && words
+            .iter()
+            .all(|w| !w.is_empty() && w.chars().all(|c| c.is_ascii_lowercase()));
+    let number_ok = !number.is_empty() && number.chars().all(|c| c.is_ascii_digit());
+    if !words_ok || !number_ok {
+        return Err(invalid_region(region));
+    }
+    Ok(())
+}
+
+fn invalid_region(region: &str) -> TaskError {
+    invalid(&format!(
+        "'{region}' is not an AWS region name. Regions look like eu-west-2 or us-east-1. Leave the \
+         field empty to use us-east-1, or set an endpoint URL when using an S3-compatible service"
+    ))
+}
+
+/// Turn the S3 error codes users actually hit into an explanation of what to
+/// check, keeping the original message for reference.
+fn explain_aws_error(message: &str) -> String {
+    let hint = if message.contains("SignatureDoesNotMatch") {
+        Some(
+            "S3 rejected the request signature. The access key ID and secret access key must be \
+             copied exactly, with no missing, extra or auto-corrected characters",
+        )
+    } else if message.contains("InvalidAccessKeyId") {
+        Some("S3 does not know this access key ID. Check the key, and that it belongs to the same account as the bucket")
+    } else if message.contains("AccessDenied") {
+        Some(
+            "The credentials are valid but not allowed to use this bucket. The key needs \
+             s3:GetObject, s3:PutObject, s3:DeleteObject and s3:ListBucket on the bucket",
+        )
+    } else if message.contains("NoSuchBucket") {
+        Some("The bucket does not exist. Check the bucket name, and create it if needed")
+    } else if message.contains("PermanentRedirect")
+        || message.contains("AuthorizationHeaderMalformed")
+        || message.contains("IllegalLocationConstraint")
+    {
+        Some("The bucket lives in a different region than the one configured. Set the region the bucket was created in")
+    } else if message.contains("RequestTimeTooSkewed") {
+        Some("The device clock is too far from the real time for S3 to accept the request. Enable automatic date and time")
+    } else if message.contains("dispatch failure") || message.contains("error trying to connect") {
+        Some("Could not reach the S3 endpoint. Check the region, the endpoint URL and the network connection")
+    } else {
+        None
+    };
+    match hint {
+        Some(hint) => format!("{hint} (S3 said: {message})"),
+        None => message.to_string(),
     }
 }
 
@@ -1033,6 +1266,162 @@ mod tests {
             "encryption-secret".into(),
         );
         assert!(result.is_err());
+    }
+
+    /// Build a set of settings for a real AWS bucket, with `mutate` applied.
+    fn aws_settings(mutate: impl FnOnce(&mut AwsSettings)) -> Result<AwsSettings> {
+        let mut settings = AwsSettings {
+            bucket: "fatto-tasks".into(),
+            region: Some("eu-west-2".into()),
+            endpoint_url: None,
+            access_key_id: "AKIAIOSFODNN7EXAMPLE".into(),
+            secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".into(),
+            encryption_secret: "encryption-secret".into(),
+        };
+        mutate(&mut settings);
+        AwsSettings::validate(
+            settings.bucket,
+            settings.region,
+            settings.endpoint_url,
+            settings.access_key_id,
+            settings.secret_access_key,
+            settings.encryption_secret,
+        )
+    }
+
+    #[test]
+    fn test_aws_settings_accepts_valid_aws_config() {
+        let settings = aws_settings(|_| {}).unwrap();
+        assert_eq!(settings.region.as_deref(), Some("eu-west-2"));
+        assert_eq!(settings.endpoint_url, None);
+    }
+
+    #[test]
+    fn test_aws_settings_trims_and_normalizes() {
+        let settings = aws_settings(|s| {
+            s.bucket = "  fatto-tasks\n".into();
+            s.region = Some("  ".into());
+            s.endpoint_url = Some(String::new());
+            s.access_key_id = " AKIAIOSFODNN7EXAMPLE\n".into();
+            s.secret_access_key = "\twJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY ".into();
+        })
+        .unwrap();
+        assert_eq!(settings.bucket, "fatto-tasks");
+        assert_eq!(settings.access_key_id, "AKIAIOSFODNN7EXAMPLE");
+        assert_eq!(
+            settings.secret_access_key,
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        );
+        assert_eq!(settings.region, None);
+        assert_eq!(settings.endpoint_url, None);
+    }
+
+    #[test]
+    fn test_aws_settings_rejects_missing_fields() {
+        assert!(aws_settings(|s| s.bucket = " ".into()).is_err(), "bucket");
+        assert!(
+            aws_settings(|s| s.access_key_id = String::new()).is_err(),
+            "access key id"
+        );
+        assert!(
+            aws_settings(|s| s.secret_access_key = String::new()).is_err(),
+            "secret access key"
+        );
+        assert!(
+            aws_settings(|s| s.encryption_secret = " ".into()).is_err(),
+            "encryption secret"
+        );
+    }
+
+    #[test]
+    fn test_aws_settings_rejects_whitespace_inside_credentials() {
+        assert!(aws_settings(|s| s.access_key_id = "AKIAIOSF ODNN7EXAMPL".into()).is_err());
+        assert!(aws_settings(
+            |s| s.secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCY EXAMPLEKE".into()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_aws_settings_rejects_malformed_aws_credentials() {
+        // Escaped or quoted keys, the shapes users produce when they assume the
+        // field needs shell-style quoting.
+        assert!(aws_settings(|s| s.access_key_id = "\"AKIAIOSFODNN7EXAMPLE\"".into()).is_err());
+        assert!(aws_settings(
+            |s| s.secret_access_key = "wJalrXUtnFEMI\\/K7MDENG\\/bPxRfiCYEXAMPLEKEY".into()
+        )
+        .is_err());
+        // Temporary credentials need a session token, which is not supported.
+        assert!(aws_settings(|s| s.access_key_id = "ASIAIOSFODNN7EXAMPLE".into()).is_err());
+    }
+
+    #[test]
+    fn test_aws_settings_checks_key_shape_only_for_aws() {
+        // minio's default credentials are neither 20 nor 40 characters.
+        let settings = aws_settings(|s| {
+            s.endpoint_url = Some("http://localhost:9000".into());
+            s.region = None;
+            s.access_key_id = "minioadmin".into();
+            s.secret_access_key = "minioadmin".into();
+        })
+        .unwrap();
+        assert_eq!(
+            settings.endpoint_url.as_deref(),
+            Some("http://localhost:9000")
+        );
+    }
+
+    #[test]
+    fn test_aws_settings_requires_endpoint_scheme() {
+        assert!(aws_settings(|s| s.endpoint_url = Some("minio.example.com".into())).is_err());
+        assert!(
+            aws_settings(|s| s.endpoint_url = Some("https://minio.example.com".into())).is_ok()
+        );
+    }
+
+    #[test]
+    fn test_aws_settings_validates_region_names() {
+        for region in ["us-east-1", "eu-west-2", "us-gov-east-1", "cn-northwest-1"] {
+            assert!(
+                aws_settings(|s| s.region = Some(region.into())).is_ok(),
+                "{region} should be accepted"
+            );
+        }
+        // The mistake from the bug report: a region without its number.
+        for region in ["eu-west", "EU-WEST-2", "eu_west_2", "eu-west-", "europe"] {
+            assert!(
+                aws_settings(|s| s.region = Some(region.into())).is_err(),
+                "{region} should be rejected"
+            );
+        }
+        // S3-compatible services pick their own region names.
+        assert!(aws_settings(|s| {
+            s.endpoint_url = Some("http://localhost:9000".into());
+            s.region = Some("garage".into());
+        })
+        .is_ok());
+    }
+
+    #[test]
+    fn test_aws_settings_validates_bucket_names() {
+        assert!(aws_settings(|s| s.bucket = "My.Tasks".into()).is_err());
+        assert!(aws_settings(|s| s.bucket = "ab".into()).is_err());
+        assert!(aws_settings(|s| s.bucket = "-tasks".into()).is_err());
+        assert!(aws_settings(|s| s.bucket = "tasks..backup".into()).is_err());
+        assert!(aws_settings(|s| s.bucket = "tasks.backup-1".into()).is_ok());
+    }
+
+    #[test]
+    fn test_explain_aws_error_adds_hints() {
+        let explained = explain_aws_error("unhandled error (SignatureDoesNotMatch)");
+        assert!(explained.contains("access key ID and secret access key"));
+        assert!(explained.contains("SignatureDoesNotMatch"));
+
+        // Unknown errors are passed through untouched.
+        assert_eq!(
+            explain_aws_error("some other failure"),
+            "some other failure"
+        );
     }
 
     #[test]
