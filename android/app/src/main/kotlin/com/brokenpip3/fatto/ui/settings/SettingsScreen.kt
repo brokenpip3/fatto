@@ -665,6 +665,7 @@ private fun SyncSettingsSection(
                 onValueChange = actions.onS3AccessKeyIdChange,
                 label = { Text("Access Key ID") },
                 modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -677,6 +678,7 @@ private fun SyncSettingsSection(
                 onValueChange = actions.onS3SecretAccessKeyChange,
                 label = { Text("Secret Access Key") },
                 modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = if (state.s3SecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     IconButton(onClick = { actions.onS3SecretVisibleChange(!state.s3SecretVisible) }) {
@@ -699,6 +701,7 @@ private fun SyncSettingsSection(
             onValueChange = actions.onSecretChange,
             label = { Text("Encryption Secret") },
             modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = if (state.secretVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { actions.onSecretVisibleChange(!state.secretVisible) }) {
