@@ -117,6 +117,10 @@ android {
                 signingConfig = betaSigning
             }
         }
+
+        create("play") {
+            initWith(getByName("release"))
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

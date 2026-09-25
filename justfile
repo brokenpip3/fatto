@@ -256,3 +256,28 @@ version-changelog:
     echo "Generating changelog for version code $VERSION_CODE (since $PREV_TAG)..."; \
     git cliff "$PREV_TAG..HEAD" > "fastlane/metadata/android/en-US/changelogs/$VERSION_CODE.txt"; \
     echo "Written to fastlane/metadata/android/en-US/changelogs/$VERSION_CODE.txt"
+
+# build a signed Android App Bundle for manual Google Play upload
+build-play-store:
+    @set -eu; \
+    for name in FATTO_KEYSTORE_BASE64 FATTO_KEYSTORE_PASSWORD FATTO_KEY_ALIAS; do \
+        if [ -z "$(printenv "$name" 2>/dev/null || true)" ]; then \
+            echo >&2 "Error: $name must be set to build the Google Play bundle."; \
+            exit 1; \
+        fi; \
+    done; \
+    just build-rust-all; \
+    just build-bindings; \
+    KEYSTORE=android/app/play-upload-temp.jks; \
+    trap 'rm -f "$KEYSTORE"' EXIT; \
+    umask 077; \
+    printf '%s' "$FATTO_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"; \
+    export FATTO_KEYSTORE_PATH=play-upload-temp.jks; \
+    (cd android && ./gradlew bundlePlay); \
+    VERSION=$(sed -n 's/^VERSION_NAME=//p' android/version.properties); \
+    AAB=android/app/build/outputs/bundle/play/app-play.aab; \
+    if [ ! -f "$AAB" ]; then echo >&2 "Error: expected bundle not found at $AAB"; exit 1; fi; \
+    mkdir -p dist; \
+    cp "$AAB" "dist/fatto-v$VERSION.aab"; \
+    chmod 0644 "dist/fatto-v$VERSION.aab"; \
+    echo "Google Play bundle created at: dist/fatto-v$VERSION.aab"
