@@ -53,7 +53,7 @@ class TaskContextViewModelTest {
         every { repository.autoWaiting } returns autoWaitingFlow
         coEvery {
             repository.addTask(any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } returns Unit
+        } returns task(uuid = "added", description = "Added")
         coEvery { repository.updateTask(any()) } returns Unit
     }
 

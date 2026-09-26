@@ -250,8 +250,8 @@ class MainActivity : ComponentActivity() {
                                     initialTags = selectedTags.toList(),
                                     initialDescription = dialogInitialDescription ?: "",
                                     onDismiss = { showAddTaskDialog = false },
-                                    onConfirm = { desc, proj, tgs, w, d, sch, st, p, deps ->
-                                        taskViewModel.addTask(desc, proj, tgs, w, d, sch, st, p, deps)
+                                    onConfirm = { desc, proj, tgs, w, d, sch, st, p, deps, openEditor ->
+                                        taskViewModel.addTask(desc, proj, tgs, w, d, sch, st, p, deps, openEditor)
                                         showAddTaskDialog = false
                                     },
                                     firstDayOfWeek = firstDayOfWeek,

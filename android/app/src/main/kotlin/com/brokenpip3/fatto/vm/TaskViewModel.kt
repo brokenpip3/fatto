@@ -56,6 +56,8 @@ data class ProjectNode(
 
 data class Breadcrumb(val name: String, val fullPath: String?)
 
+data class TaskCreatedEvent(val task: Task, val openEditor: Boolean)
+
 private data class TaskListFilterState(
     val project: String?,
     val context: TaskContext?,
@@ -367,6 +369,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private val _uiEvent = MutableSharedFlow<String>()
     val uiEvent = _uiEvent.asSharedFlow()
 
+    private val _taskCreatedEvent = MutableSharedFlow<TaskCreatedEvent>()
+    val taskCreatedEvent = _taskCreatedEvent.asSharedFlow()
+
     init {
         viewModelScope.launch {
             repository.init()
@@ -443,6 +448,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         }
     }
 
+    @Suppress("LongParameterList")
     fun addTask(
         description: String,
         project: String?,
@@ -453,21 +459,23 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         start: String? = null,
         priority: String? = null,
         dependencies: List<String> = emptyList(),
+        openEditor: Boolean = false,
     ) {
         viewModelScope.launch {
             try {
-                repository.addTask(
-                    description,
-                    project,
-                    tags,
-                    autoWait(wait = wait, due = due, scheduled = scheduled),
-                    due,
-                    scheduled,
-                    start,
-                    priority,
-                    dependencies,
-                )
-                _uiEvent.emit("Task created")
+                val createdTask =
+                    repository.addTask(
+                        description,
+                        project,
+                        tags,
+                        autoWait(wait = wait, due = due, scheduled = scheduled),
+                        due,
+                        scheduled,
+                        start,
+                        priority,
+                        dependencies,
+                    )
+                _taskCreatedEvent.emit(TaskCreatedEvent(createdTask, openEditor))
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to add task: ${e.message}")
             }
