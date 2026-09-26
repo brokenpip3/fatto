@@ -54,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -224,6 +225,19 @@ fun TaskListScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.taskCreatedEvent.collect { event ->
+            if (event.openEditor) {
+                onTaskClick(event.task)
+            } else {
+                val result = snackbarHostState.showSnackbar(message = "Task created", actionLabel = "Edit")
+                if (result == SnackbarResult.ActionPerformed) {
+                    onTaskClick(event.task)
+                }
+            }
+        }
+    }
+
     var textFieldValue by remember { mutableStateOf(TextFieldValue(searchQuery)) }
 
     LaunchedEffect(searchQuery) {
@@ -240,6 +254,14 @@ fun TaskListScreen(
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
+                    action =
+                        data.visuals.actionLabel?.let { label ->
+                            {
+                                TextButton(onClick = { data.performAction() }) {
+                                    Text(label, color = MaterialTheme.colorScheme.inversePrimary)
+                                }
+                            }
+                        },
                     containerColor = MaterialTheme.colorScheme.inverseSurface,
                     contentColor = MaterialTheme.colorScheme.inverseOnSurface,
                     actionContentColor = MaterialTheme.colorScheme.inversePrimary,

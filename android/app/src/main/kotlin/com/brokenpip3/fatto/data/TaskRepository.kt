@@ -101,36 +101,38 @@ class TaskRepository(
         start: String? = null,
         priority: String? = null,
         dependencies: List<String> = emptyList(),
-    ) = withContext(Dispatchers.IO) {
-        val r = replica ?: throw Exception("Replica not initialized")
-        try {
-            val resolvedProject =
-                resolveProject(
-                    explicitProject = project,
-                    defaultProjectEnabled = settingsRepository.defaultProjectEnabled.value,
-                    defaultProject = settingsRepository.defaultProject.value,
-                )
-            val props =
-                TaskAddProps(
-                    description = description,
-                    project = resolvedProject,
-                    tags = tags,
-                    due = due,
-                    wait = wait,
-                    scheduled = scheduled,
-                    start = start,
-                    priority = priority,
-                    dependencies = dependencies,
-                )
-            r.addTask(props)
-            loadTasks()
-            notifyWidgetRefresh()
-            triggerSync()
-        } catch (e: Exception) {
-            Log.e("TaskRepository", "Failed to add task", e)
-            throw e
+    ): Task =
+        withContext(Dispatchers.IO) {
+            val r = replica ?: throw Exception("Replica not initialized")
+            try {
+                val resolvedProject =
+                    resolveProject(
+                        explicitProject = project,
+                        defaultProjectEnabled = settingsRepository.defaultProjectEnabled.value,
+                        defaultProject = settingsRepository.defaultProject.value,
+                    )
+                val props =
+                    TaskAddProps(
+                        description = description,
+                        project = resolvedProject,
+                        tags = tags,
+                        due = due,
+                        wait = wait,
+                        scheduled = scheduled,
+                        start = start,
+                        priority = priority,
+                        dependencies = dependencies,
+                    )
+                val createdTask = r.addTask(props).toModel()
+                loadTasks()
+                notifyWidgetRefresh()
+                triggerSync()
+                createdTask
+            } catch (e: Exception) {
+                Log.e("TaskRepository", "Failed to add task", e)
+                throw e
+            }
         }
-    }
 
     suspend fun updateTask(task: Task) =
         withContext(Dispatchers.IO) {

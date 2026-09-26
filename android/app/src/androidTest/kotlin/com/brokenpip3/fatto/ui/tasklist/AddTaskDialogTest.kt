@@ -1,5 +1,7 @@
 package com.brokenpip3.fatto.ui.tasklist
 
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -20,6 +22,35 @@ class AddTaskDialogTest {
     val composeTestRule = createComposeRule()
 
     @Test
+    fun openEditorSwitchIsOffByDefault() {
+        composeTestRule.setContent {
+            AddTaskDialog(
+                availableProjects = emptyList(),
+                availableTags = emptyList(),
+                onDismiss = {},
+                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("OpenEditorAfterCreateSwitch").assertIsOff()
+    }
+
+    @Test
+    fun openEditorSwitchCanBeEnabled() {
+        composeTestRule.setContent {
+            AddTaskDialog(
+                availableProjects = emptyList(),
+                availableTags = emptyList(),
+                onDismiss = {},
+                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("OpenEditorAfterCreateSwitch").performClick()
+        composeTestRule.onNodeWithTag("OpenEditorAfterCreateSwitch").assertIsOn()
+    }
+
+    @Test
     fun testInitialProjectPrefill() {
         val initialProject = "Work"
 
@@ -29,7 +60,7 @@ class AddTaskDialogTest {
                 availableTags = emptyList(),
                 initialProject = initialProject,
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
             )
         }
 
@@ -48,7 +79,7 @@ class AddTaskDialogTest {
                 availableTags = listOf("urgent", "work", "home"),
                 initialTags = initialTags,
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
             )
         }
 
@@ -68,7 +99,7 @@ class AddTaskDialogTest {
                 availableProjects = listOf("Home", "Work.Client"),
                 availableTags = emptyList(),
                 onDismiss = {},
-                onConfirm = { _, project, _, _, _, _, _, _, _ -> submittedProject = project },
+                onConfirm = { _, project, _, _, _, _, _, _, _, _ -> submittedProject = project },
             )
         }
 
@@ -99,7 +130,7 @@ class AddTaskDialogTest {
                 availableProjects = emptyList(),
                 availableTags = listOf("home", "urgent"),
                 onDismiss = {},
-                onConfirm = { _, _, tags, _, _, _, _, _, _ -> submittedTags = tags },
+                onConfirm = { _, _, tags, _, _, _, _, _, _, _ -> submittedTags = tags },
             )
         }
 
@@ -125,7 +156,7 @@ class AddTaskDialogTest {
                 availableTags = emptyList(),
                 initialProject = "Legacy",
                 onDismiss = {},
-                onConfirm = { _, project, _, _, _, _, _, _, _ -> submittedProject = project },
+                onConfirm = { _, project, _, _, _, _, _, _, _, _ -> submittedProject = project },
             )
         }
 

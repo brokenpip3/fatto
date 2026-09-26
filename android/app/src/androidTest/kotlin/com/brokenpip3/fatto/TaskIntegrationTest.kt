@@ -1,12 +1,14 @@
 package com.brokenpip3.fatto
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -57,6 +59,47 @@ class TaskIntegrationTest {
         composeTestRule.waitUntilDoesNotExist(hasText("New Task"), 10000)
 
         composeTestRule.waitUntilAtLeastOneExists(hasText(description) and hasAnyAncestor(hasTestTag("TaskList")), 15000)
+    }
+
+    @Test
+    fun taskCreatedSnackbarEditOpensTheNewTask() {
+        val description = "Edit from snackbar ${System.currentTimeMillis()}"
+        composeTestRule.onNodeWithContentDescription("Add Task").performClick()
+        composeTestRule.onNodeWithText("Description").performTextInput(description)
+        composeTestRule.onNodeWithText("Create").performClick()
+
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Task created"), 15000)
+        composeTestRule.onNodeWithText("Edit").performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
+        composeTestRule.onNodeWithContentDescription("TaskDescriptionInput", useUnmergedTree = true)
+            .assertTextContains(description)
+    }
+
+    @Test
+    fun openEditorToggleOpensTheNewTaskWithoutSnackbar() {
+        val description = "Open editor after create ${System.currentTimeMillis()}"
+        composeTestRule.onNodeWithContentDescription("Add Task").performClick()
+        composeTestRule.onNodeWithTag("OpenEditorAfterCreateSwitch").performClick()
+        composeTestRule.onNodeWithText("Description").performTextInput(description)
+        composeTestRule.onNodeWithText("Create").performClick()
+
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
+        composeTestRule.onNodeWithContentDescription("TaskDescriptionInput", useUnmergedTree = true)
+            .assertTextContains(description)
+        composeTestRule.onNodeWithText("Task created").assertDoesNotExist()
+    }
+
+    @Test
+    fun failedTaskCreationShowsErrorWithoutOpeningEditor() {
+        composeTestRule.onNodeWithContentDescription("Add Task").performClick()
+        composeTestRule.onNodeWithText("Description").performTextInput("Task with invalid tag")
+        composeTestRule.onNodeWithText("Add Tag").performTextInput("bad tag")
+        composeTestRule.onNodeWithContentDescription("AddTagButton", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithText("Create").performClick()
+
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Failed to add task:", substring = true), 15000)
+        composeTestRule.onNodeWithTag("TaskDetailBottomSheet").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Task created").assertDoesNotExist()
     }
 
     @Test

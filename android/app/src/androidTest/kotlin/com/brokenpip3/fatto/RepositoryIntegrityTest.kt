@@ -69,6 +69,17 @@ class RepositoryIntegrityTest {
         }
 
     @Test
+    fun testAddTaskReturnsCreatedTask() =
+        runBlocking {
+            repository.init()
+            val created = repository.addTask("Returned task", null, emptyList(), null, null, null)
+
+            assertEquals("Returned task", created.description)
+            assertTrue(created.uuid.isNotBlank())
+            assertEquals(created.uuid, repository.tasks.value.single().uuid)
+        }
+
+    @Test
     fun testLargeDataVolume() =
         runBlocking {
             repository.init()
@@ -87,6 +98,7 @@ class RepositoryIntegrityTest {
             repository.init()
             // Rust side should throw when parsing this date
             repository.addTask("Bad date task", null, emptyList(), null, "not-a-date", null)
+            Unit
         }
 
     @Test(expected = Exception::class)
@@ -95,6 +107,7 @@ class RepositoryIntegrityTest {
             repository.init()
             // Tags with spaces are invalid in TaskChampion
             repository.addTask("Bad tag task", null, listOf("tag with space"), null, null, null)
+            Unit
         }
 
     @Test

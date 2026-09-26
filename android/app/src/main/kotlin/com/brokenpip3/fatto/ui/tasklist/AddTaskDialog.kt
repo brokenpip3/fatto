@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -22,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -33,9 +35,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -55,13 +59,14 @@ fun AddTaskDialog(
     initialTags: List<String> = emptyList(),
     initialDescription: String = "",
     onDismiss: () -> Unit,
-    onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>) -> Unit,
+    onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>, Boolean) -> Unit,
     firstDayOfWeek: Int = Calendar.MONDAY,
 ) {
     var description by remember(initialDescription) { mutableStateOf(initialDescription) }
     var project by remember { mutableStateOf(initialProject ?: "") }
     var tags by remember { mutableStateOf(initialTags) }
     var priority by remember { mutableStateOf<String?>(null) }
+    var openEditorAfterCreate by remember { mutableStateOf(false) }
     var newTag by remember { mutableStateOf("") }
 
     var waitDate by remember { mutableStateOf<String?>(null) }
@@ -101,6 +106,7 @@ fun AddTaskDialog(
         waitDate = null
         dueDate = null
         scheduledDate = null
+        openEditorAfterCreate = false
         onDismiss()
     }
 
@@ -247,6 +253,22 @@ fun AddTaskDialog(
                         onClick = { activePicker = DatePickerType.WAIT },
                     )
                 }
+
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("OpenEditorAfterCreateSwitch")
+                            .toggleable(
+                                value = openEditorAfterCreate,
+                                role = Role.Switch,
+                                onValueChange = { openEditorAfterCreate = it },
+                            ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Open editor after creating", modifier = Modifier.weight(1f))
+                    Switch(checked = openEditorAfterCreate, onCheckedChange = null)
+                }
             }
         },
         confirmButton = {
@@ -254,7 +276,18 @@ fun AddTaskDialog(
                 onClick = {
                     if (description.isNotBlank()) {
                         val proj = if (project.isNotBlank()) project.trim() else null
-                        onConfirm(description, proj, tags, waitDate, dueDate, scheduledDate, null, priority, emptyList())
+                        onConfirm(
+                            description,
+                            proj,
+                            tags,
+                            waitDate,
+                            dueDate,
+                            scheduledDate,
+                            null,
+                            priority,
+                            emptyList(),
+                            openEditorAfterCreate,
+                        )
                         description = ""
                         project = ""
                         tags = emptyList()
@@ -262,6 +295,7 @@ fun AddTaskDialog(
                         waitDate = null
                         dueDate = null
                         scheduledDate = null
+                        openEditorAfterCreate = false
                     }
                 },
                 shape = RoundedCornerShape(8.dp),
