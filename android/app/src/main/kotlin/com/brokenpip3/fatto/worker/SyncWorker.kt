@@ -4,7 +4,9 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
+import com.brokenpip3.fatto.data.SyncDiagnosticsFormatter
 import com.brokenpip3.fatto.data.Syncer
 import com.brokenpip3.fatto.widget.WidgetRefreshReceiver
 import uniffi.taskchampion_android.ReplicaWrapper
@@ -31,8 +33,25 @@ class SyncWorker(
 
             Result.success()
         } catch (e: Exception) {
-            Log.e("SyncWorker", "Background sync failed", e)
+            Log.e("SyncWorker", "Background sync failed: ${safeSyncError(settingsRepository, e)}")
             Result.retry()
         }
+    }
+
+    private fun safeSyncError(
+        settingsRepository: SettingsRepository,
+        error: Exception,
+    ): String {
+        val serverCredentials = settingsRepository.getCredentials()
+        val s3Credentials = settingsRepository.getS3Credentials()
+        val sensitiveValues =
+            setOfNotNull(
+                serverCredentials?.clientId,
+                serverCredentials?.secret,
+                s3Credentials?.accessKeyId,
+                s3Credentials?.secretAccessKey,
+                s3Credentials?.secret,
+            )
+        return SyncDiagnosticsFormatter.safeError(error, sensitiveValues)
     }
 }

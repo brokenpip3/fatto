@@ -1,5 +1,8 @@
 package com.brokenpip3.fatto.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +57,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,7 +66,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
@@ -74,6 +81,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.SyncDiagnosticEvent
+import com.brokenpip3.fatto.data.SyncDiagnosticsFormatter
+import com.brokenpip3.fatto.data.SyncS3Field
+import com.brokenpip3.fatto.data.SyncServerField
 import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImportPreview
@@ -85,7 +96,10 @@ import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterState
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.vm.SettingsViewModel
+import com.brokenpip3.fatto.vm.SyncTestState
 import kotlinx.coroutines.launch
+import java.text.DateFormat
+import java.util.Date
 
 private enum class SettingsTab(
     val label: String,
@@ -110,6 +124,10 @@ private data class SyncSettingsSectionState(
     val s3AccessKeyId: String,
     val s3SecretAccessKey: String,
     val s3SecretVisible: Boolean,
+    val validationErrors: Map<SyncServerField, String>,
+    val s3ValidationErrors: Map<SyncS3Field, String>,
+    val syncTestState: SyncTestState,
+    val diagnosticEvents: List<SyncDiagnosticEvent>,
 )
 
 private data class SyncSettingsSectionActions(
@@ -124,7 +142,8 @@ private data class SyncSettingsSectionActions(
     val onS3AccessKeyIdChange: (String) -> Unit,
     val onS3SecretAccessKeyChange: (String) -> Unit,
     val onS3SecretVisibleChange: (Boolean) -> Unit,
-    val onSave: () -> Unit,
+    val onSaveAndTest: () -> Unit,
+    val onViewDiagnostics: () -> Unit,
     val onClear: () -> Unit,
 )
 
@@ -200,6 +219,10 @@ fun SettingsScreen(
     availableTags: Set<String>,
 ) {
     val syncType by viewModel.syncType.collectAsState()
+    val validationErrors by viewModel.validationErrors.collectAsState()
+    val s3ValidationErrors by viewModel.s3ValidationErrors.collectAsState()
+    val syncTestState by viewModel.syncTestState.collectAsState()
+    val diagnosticEvents by viewModel.diagnosticEvents.collectAsState()
     val syncUrl by viewModel.syncUrl.collectAsState()
     val clientId by viewModel.clientId.collectAsState()
     val encryptionSecret by viewModel.encryptionSecret.collectAsState()
@@ -244,9 +267,11 @@ fun SettingsScreen(
     var s3SecretVisible by remember { mutableStateOf(false) }
     var editingContext by remember { mutableStateOf<TaskContext?>(null) }
     var showDefaultProjectPicker by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
 
     fun launchSnackbar(message: String) {
         scope.launch {
@@ -254,10 +279,20 @@ fun SettingsScreen(
         }
     }
 
-    val onSaveSyncSettings: () -> Unit = {
-        val saved = viewModel.save()
+    val onSaveAndTest: () -> Unit = {
         focusManager.clearFocus()
-        launchSnackbar(if (saved) "Settings saved" else "Fill in all required sync fields")
+        scope.launch {
+            val succeeded = viewModel.saveAndTest()
+            val message =
+                when {
+                    succeeded -> "Sync successful"
+                    viewModel.validationErrors.value.isNotEmpty() -> "Fix the highlighted Sync Server fields"
+                    viewModel.s3ValidationErrors.value.isNotEmpty() -> "Fix the highlighted S3 fields"
+                    viewModel.syncTestState.value is SyncTestState.SaveFailed -> "Could not save sync settings"
+                    else -> "Settings saved, but sync failed"
+                }
+            launchSnackbar(message)
+        }
     }
     val onClearSyncSettings: () -> Unit = {
         viewModel.clear()
@@ -331,6 +366,10 @@ fun SettingsScreen(
                                     s3AccessKeyId = s3AccessKeyId,
                                     s3SecretAccessKey = s3SecretAccessKey,
                                     s3SecretVisible = s3SecretVisible,
+                                    validationErrors = validationErrors,
+                                    s3ValidationErrors = s3ValidationErrors,
+                                    syncTestState = syncTestState,
+                                    diagnosticEvents = diagnosticEvents,
                                 ),
                             actions =
                                 SyncSettingsSectionActions(
@@ -345,7 +384,8 @@ fun SettingsScreen(
                                     onS3AccessKeyIdChange = viewModel::onS3AccessKeyIdChange,
                                     onS3SecretAccessKeyChange = viewModel::onS3SecretAccessKeyChange,
                                     onS3SecretVisibleChange = { s3SecretVisible = it },
-                                    onSave = onSaveSyncSettings,
+                                    onSaveAndTest = onSaveAndTest,
+                                    onViewDiagnostics = { showDiagnostics = true },
                                     onClear = onClearSyncSettings,
                                 ),
                         )
@@ -445,6 +485,30 @@ fun SettingsScreen(
                 }
             }
 
+            if (showDiagnostics) {
+                SyncDiagnosticsDialog(
+                    events = diagnosticEvents,
+                    onDismiss = { showDiagnostics = false },
+                    onCopy = {
+                        val text = SyncDiagnosticsFormatter.formatEvents(diagnosticEvents)
+                        context.getSystemService(ClipboardManager::class.java)
+                            ?.setPrimaryClip(ClipData.newPlainText("Sync diagnostics", text))
+                        showDiagnostics = false
+                        launchSnackbar("Diagnostics copied")
+                    },
+                    onShare = {
+                        val text = SyncDiagnosticsFormatter.formatEvents(diagnosticEvents)
+                        val shareIntent =
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, text)
+                            }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share sync diagnostics"))
+                    },
+                    onClear = viewModel::clearDiagnostics,
+                )
+            }
+
             editingContext?.let { context ->
                 TaskFilterBuilderSheet(
                     initialState = TaskFilterState.fromContext(context),
@@ -537,6 +601,20 @@ private fun SyncSettingsSection(
     state: SyncSettingsSectionState,
     actions: SyncSettingsSectionActions,
 ) {
+    val urlFocusRequester = remember { FocusRequester() }
+    val clientIdFocusRequester = remember { FocusRequester() }
+    val secretFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(state.syncType, state.validationErrors) {
+        if (state.syncType == SyncType.SERVER) {
+            when (state.validationErrors.keys.minByOrNull { it.ordinal }) {
+                SyncServerField.URL -> urlFocusRequester.requestFocus()
+                SyncServerField.CLIENT_ID -> clientIdFocusRequester.requestFocus()
+                SyncServerField.ENCRYPTION_SECRET -> secretFocusRequester.requestFocus()
+                null -> Unit
+            }
+        }
+    }
+
     SettingsSection(scrollState = scrollState) {
         Text(
             text = "Sync Configuration",
@@ -551,54 +629,43 @@ private fun SyncSettingsSection(
         ) {
             Row(
                 modifier =
-                    Modifier
-                        .selectable(
-                            selected = state.syncType == SyncType.SERVER,
-                            onClick = { actions.onSyncTypeChange(SyncType.SERVER) },
-                            role = Role.RadioButton,
-                        ),
+                    Modifier.selectable(
+                        selected = state.syncType == SyncType.SERVER,
+                        onClick = { actions.onSyncTypeChange(SyncType.SERVER) },
+                        role = Role.RadioButton,
+                    ),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                RadioButton(
-                    selected = state.syncType == SyncType.SERVER,
-                    onClick = null,
-                )
-                Text(
-                    text = "Sync server",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
+                RadioButton(selected = state.syncType == SyncType.SERVER, onClick = null)
+                Text("Sync server", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
             }
-
             Row(
                 modifier =
-                    Modifier
-                        .selectable(
-                            selected = state.syncType == SyncType.S3,
-                            onClick = { actions.onSyncTypeChange(SyncType.S3) },
-                            role = Role.RadioButton,
-                        ),
+                    Modifier.selectable(
+                        selected = state.syncType == SyncType.S3,
+                        onClick = { actions.onSyncTypeChange(SyncType.S3) },
+                        role = Role.RadioButton,
+                    ),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                RadioButton(
-                    selected = state.syncType == SyncType.S3,
-                    onClick = null,
-                )
-                Text(
-                    text = "S3 storage",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
+                RadioButton(selected = state.syncType == SyncType.S3, onClick = null)
+                Text("S3 storage", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
             }
         }
 
         if (state.syncType == SyncType.SERVER) {
+            SyncConnectionStatus(
+                state = state.syncTestState,
+                diagnosticEvents = state.diagnosticEvents,
+            )
             TextField(
                 value = state.syncUrl,
                 onValueChange = actions.onSyncUrlChange,
                 label = { Text("Sync Server URL") },
-                placeholder = { Text("http://example.com:8080") },
-                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("https://sync.example.com") },
+                isError = state.validationErrors[SyncServerField.URL] != null,
+                supportingText = state.validationErrors[SyncServerField.URL]?.let { error -> { Text(error) } },
+                modifier = Modifier.fillMaxWidth().focusRequester(urlFocusRequester).testTag("SyncServerUrlInput"),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 colors =
                     TextFieldDefaults.colors(
@@ -606,13 +673,14 @@ private fun SyncSettingsSection(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
             )
-
             TextField(
                 value = state.clientId,
                 onValueChange = actions.onClientIdChange,
                 label = { Text("Client ID (UUID)") },
                 placeholder = { Text("00000000-0000-0000-0000-000000000000") },
-                modifier = Modifier.fillMaxWidth(),
+                isError = state.validationErrors[SyncServerField.CLIENT_ID] != null,
+                supportingText = state.validationErrors[SyncServerField.CLIENT_ID]?.let { error -> { Text(error) } },
+                modifier = Modifier.fillMaxWidth().focusRequester(clientIdFocusRequester).testTag("SyncServerClientIdInput"),
                 colors =
                     TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -625,6 +693,8 @@ private fun SyncSettingsSection(
                 onValueChange = actions.onS3BucketChange,
                 label = { Text("Bucket") },
                 placeholder = { Text("my-tasks-bucket") },
+                isError = state.s3ValidationErrors[SyncS3Field.BUCKET] != null,
+                supportingText = state.s3ValidationErrors[SyncS3Field.BUCKET]?.let { error -> { Text(error) } },
                 modifier = Modifier.fillMaxWidth(),
                 colors =
                     TextFieldDefaults.colors(
@@ -632,12 +702,13 @@ private fun SyncSettingsSection(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
             )
-
             TextField(
                 value = state.s3EndpointUrl,
                 onValueChange = actions.onS3EndpointUrlChange,
                 label = { Text("Endpoint URL (optional)") },
                 placeholder = { Text("https://minio.example.com") },
+                isError = state.s3ValidationErrors[SyncS3Field.ENDPOINT_URL] != null,
+                supportingText = state.s3ValidationErrors[SyncS3Field.ENDPOINT_URL]?.let { error -> { Text(error) } },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 colors =
@@ -646,12 +717,13 @@ private fun SyncSettingsSection(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
             )
-
             TextField(
                 value = state.s3Region,
                 onValueChange = actions.onS3RegionChange,
                 label = { Text("Region (optional)") },
                 placeholder = { Text("us-east-1") },
+                isError = state.s3ValidationErrors[SyncS3Field.REGION] != null,
+                supportingText = state.s3ValidationErrors[SyncS3Field.REGION]?.let { error -> { Text(error) } },
                 modifier = Modifier.fillMaxWidth(),
                 colors =
                     TextFieldDefaults.colors(
@@ -659,11 +731,12 @@ private fun SyncSettingsSection(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
             )
-
             TextField(
                 value = state.s3AccessKeyId,
                 onValueChange = actions.onS3AccessKeyIdChange,
                 label = { Text("Access Key ID") },
+                isError = state.s3ValidationErrors[SyncS3Field.ACCESS_KEY_ID] != null,
+                supportingText = state.s3ValidationErrors[SyncS3Field.ACCESS_KEY_ID]?.let { error -> { Text(error) } },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors =
@@ -672,11 +745,12 @@ private fun SyncSettingsSection(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
             )
-
             TextField(
                 value = state.s3SecretAccessKey,
                 onValueChange = actions.onS3SecretAccessKeyChange,
                 label = { Text("Secret Access Key") },
+                isError = state.s3ValidationErrors[SyncS3Field.SECRET_ACCESS_KEY] != null,
+                supportingText = state.s3ValidationErrors[SyncS3Field.SECRET_ACCESS_KEY]?.let { error -> { Text(error) } },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = if (state.s3SecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -700,7 +774,23 @@ private fun SyncSettingsSection(
             value = state.encryptionSecret,
             onValueChange = actions.onSecretChange,
             label = { Text("Encryption Secret") },
-            modifier = Modifier.fillMaxWidth(),
+            isError =
+                if (state.syncType == SyncType.SERVER) {
+                    state.validationErrors[SyncServerField.ENCRYPTION_SECRET] != null
+                } else {
+                    state.s3ValidationErrors[SyncS3Field.ENCRYPTION_SECRET] != null
+                },
+            supportingText =
+                if (state.syncType == SyncType.SERVER) {
+                    state.validationErrors[SyncServerField.ENCRYPTION_SECRET]?.let { error -> { Text(error) } }
+                } else {
+                    state.s3ValidationErrors[SyncS3Field.ENCRYPTION_SECRET]?.let { error -> { Text(error) } }
+                },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .focusRequester(secretFocusRequester)
+                    .then(if (state.syncType == SyncType.SERVER) Modifier.testTag("SyncServerSecretInput") else Modifier),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = if (state.secretVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
@@ -723,8 +813,9 @@ private fun SyncSettingsSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Button(
-                onClick = actions.onSave,
-                modifier = Modifier.weight(1f),
+                onClick = actions.onSaveAndTest,
+                enabled = state.syncTestState !is SyncTestState.Testing,
+                modifier = Modifier.weight(1f).testTag("SaveAndTestButton"),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                 colors =
                     ButtonDefaults.buttonColors(
@@ -732,20 +823,21 @@ private fun SyncSettingsSection(
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
             ) {
-                Text("Save")
+                Text(if (state.syncTestState is SyncTestState.Testing) "Testing…" else "Save & Test")
             }
-
             OutlinedButton(
                 onClick = actions.onClear,
                 modifier = Modifier.weight(1f),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                colors =
-                    ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary,
-                    ),
-            ) {
-                Text("Clear")
-            }
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+            ) { Text("Clear") }
+        }
+
+        TextButton(
+            onClick = actions.onViewDiagnostics,
+            modifier = Modifier.fillMaxWidth().testTag("ViewDiagnosticsButton"),
+        ) {
+            Text("View diagnostics (${state.diagnosticEvents.size})")
         }
 
         Card(
@@ -756,7 +848,12 @@ private fun SyncSettingsSection(
                 ),
         ) {
             Text(
-                text = "Note: Changes will be used for the next sync.",
+                text =
+                    if (state.syncType == SyncType.SERVER) {
+                        "Save & Test stores these settings and runs a real sync using this replica. Task data may be exchanged."
+                    } else {
+                        "Save & Test stores these settings and runs a real sync using this replica. Task data may be exchanged."
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.padding(12.dp),
@@ -764,6 +861,58 @@ private fun SyncSettingsSection(
         }
     }
 }
+
+@Composable
+private fun SyncConnectionStatus(
+    state: SyncTestState,
+    diagnosticEvents: List<SyncDiagnosticEvent>,
+) {
+    val statusTitle =
+        when (state) {
+            SyncTestState.NotTested -> "Not tested"
+            SyncTestState.NeedsRetest -> "Needs retest"
+            SyncTestState.Testing -> "Testing"
+            is SyncTestState.Succeeded -> "Sync successful"
+            is SyncTestState.Failed -> "Sync failed"
+            is SyncTestState.SaveFailed -> "Settings could not be saved"
+        }
+    val attemptTimestamp =
+        when (state) {
+            is SyncTestState.Succeeded -> state.timestampEpochMillis
+            is SyncTestState.Failed -> state.timestampEpochMillis
+            is SyncTestState.SaveFailed -> state.timestampEpochMillis
+            else -> diagnosticEvents.lastOrNull { it.stage == "sync_test" }?.timestampEpochMillis
+        }
+    val statusSummary =
+        when (state) {
+            is SyncTestState.Failed -> state.safeSummary
+            is SyncTestState.SaveFailed -> state.safeSummary
+            is SyncTestState.Succeeded -> "Last test completed in ${state.elapsedMillis}ms"
+            else -> null
+        }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(statusTitle, modifier = Modifier.testTag("SyncConnectionStatusText"), style = MaterialTheme.typography.titleSmall)
+            attemptTimestamp?.let {
+                Text("Last attempt: ${formatSyncTimestamp(it)}", style = MaterialTheme.typography.bodySmall)
+            }
+            statusSummary?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            if (state is SyncTestState.Testing) {
+                Text("Testing the saved connection…", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+private fun formatSyncTimestamp(timestampEpochMillis: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timestampEpochMillis))
 
 @Composable
 private fun ContextSettingsSection(

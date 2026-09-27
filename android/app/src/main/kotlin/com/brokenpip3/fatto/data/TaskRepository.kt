@@ -274,7 +274,7 @@ class TaskRepository(
                     loadTasks()
                     notifyWidgetRefresh()
                 } catch (e: Exception) {
-                    Log.e("TaskRepository", "Manual sync failed", e)
+                    Log.e("TaskRepository", "Manual sync failed: ${safeSyncError(e)}")
                     throw e
                 }
             } ?: run {
@@ -291,8 +291,22 @@ class TaskRepository(
                 Syncer.sync(r, settingsRepository)
                 loadTasks()
             } catch (e: Exception) {
-                Log.e("TaskRepository", "Reactive sync failed", e)
+                Log.e("TaskRepository", "Reactive sync failed: ${safeSyncError(e)}")
             }
         }
+    }
+
+    fun safeSyncError(error: Throwable): String {
+        val serverCredentials = settingsRepository.getCredentials()
+        val s3Credentials = settingsRepository.getS3Credentials()
+        val sensitiveValues =
+            setOfNotNull(
+                serverCredentials?.clientId,
+                serverCredentials?.secret,
+                s3Credentials?.accessKeyId,
+                s3Credentials?.secretAccessKey,
+                s3Credentials?.secret,
+            )
+        return SyncDiagnosticsFormatter.safeError(error, sensitiveValues)
     }
 }

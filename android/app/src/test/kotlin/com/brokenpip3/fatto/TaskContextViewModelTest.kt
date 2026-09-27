@@ -63,6 +63,20 @@ class TaskContextViewModelTest {
     }
 
     @Test
+    fun `sync failure emits sanitized repository error`() =
+        runTest {
+            coEvery { repository.sync() } throws IllegalStateException("private sync secret")
+            every { repository.safeSyncError(any()) } returns "[redacted]"
+            val viewModel = TaskViewModel(repository)
+            val event = async { viewModel.uiEvent.first() }
+
+            viewModel.sync()
+            advanceUntilIdle()
+
+            assertEquals("Sync failed: [redacted]", event.await())
+        }
+
+    @Test
     fun `active context filters active tasks`() =
         runTest {
             val context = TaskContext(id = "work", name = "Work", expressionText = "project:Work +office")

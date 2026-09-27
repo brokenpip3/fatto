@@ -629,7 +629,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 repository.sync()
                 _uiEvent.emit("Sync successful")
             } catch (e: Exception) {
-                _uiEvent.emit("Sync failed: ${e.message}")
+                _uiEvent.emit("Sync failed: ${repository.safeSyncError(e)}")
             } finally {
                 _isSyncing.value = false
                 _syncStatusMessage.value = null
