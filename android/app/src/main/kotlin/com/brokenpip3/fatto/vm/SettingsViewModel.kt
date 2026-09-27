@@ -2,18 +2,55 @@ package com.brokenpip3.fatto.vm
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.brokenpip3.fatto.BuildConfig
 import com.brokenpip3.fatto.data.SettingsRepository
+import com.brokenpip3.fatto.data.SyncCredentials
+import com.brokenpip3.fatto.data.SyncDiagnosticEvent
+import com.brokenpip3.fatto.data.SyncDiagnosticsFormatter
+import com.brokenpip3.fatto.data.SyncDiagnosticsRepository
+import com.brokenpip3.fatto.data.SyncS3Field
+import com.brokenpip3.fatto.data.SyncS3Validator
+import com.brokenpip3.fatto.data.SyncServerField
+import com.brokenpip3.fatto.data.SyncServerValidator
 import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImportPreview
 import com.brokenpip3.fatto.data.TaskrcImporter
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.ui.theme.ThemeMode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+sealed interface SyncTestState {
+    data object NotTested : SyncTestState
+
+    data object Testing : SyncTestState
+
+    data class Succeeded(val timestampEpochMillis: Long, val elapsedMillis: Long) : SyncTestState
+
+    data class Failed(val timestampEpochMillis: Long, val safeSummary: String) : SyncTestState
+
+    data class SaveFailed(val timestampEpochMillis: Long, val safeSummary: String) : SyncTestState
+
+    data object NeedsRetest : SyncTestState
+}
+
 @Suppress("TooManyFunctions")
-class SettingsViewModel(private val repository: SettingsRepository) : ViewModel() {
+class SettingsViewModel(
+    private val repository: SettingsRepository,
+    private val syncAction: suspend () -> Unit = {},
+    private val diagnosticsRepository: SyncDiagnosticsRepository? = null,
+) : ViewModel() {
+    private val _validationErrors = MutableStateFlow<Map<SyncServerField, String>>(emptyMap())
+    val validationErrors = _validationErrors.asStateFlow()
+    private val _s3ValidationErrors = MutableStateFlow<Map<SyncS3Field, String>>(emptyMap())
+    val s3ValidationErrors = _s3ValidationErrors.asStateFlow()
+
+    private val _syncTestState = MutableStateFlow<SyncTestState>(SyncTestState.NotTested)
+    val syncTestState = _syncTestState.asStateFlow()
+    val diagnosticEvents = diagnosticsRepository?.events ?: MutableStateFlow(emptyList())
+    private var syncTestInProgress = false
     private val _syncType = MutableStateFlow(SyncType.SERVER)
     val syncType = _syncType.asStateFlow()
 
@@ -169,6 +206,7 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _swipeStartToEndAction.value = repository.getSwipeStartToEndAction()
         _swipeEndToStartAction.value = repository.getSwipeEndToStartAction()
         _themeMode.value = repository.getThemeMode()
+        _syncTestState.value = restoredSyncTestState()
     }
 
     fun onSyncTypeChange(value: SyncType) {
@@ -179,39 +217,56 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
                 SyncType.SERVER -> serverEncryptionSecret
                 SyncType.S3 -> s3EncryptionSecret
             }
+        _syncTestState.value = restoredSyncTestState()
     }
 
     fun onUrlChange(value: String) {
         _syncUrl.value = value
+        clearValidationError(SyncServerField.URL)
+        markSyncSettingsEdited()
     }
 
     fun onS3BucketChange(value: String) {
         _s3Bucket.value = value
+        clearS3ValidationError(SyncS3Field.BUCKET)
+        markSyncSettingsEdited()
     }
 
     fun onS3RegionChange(value: String) {
         _s3Region.value = value
+        clearS3ValidationError(SyncS3Field.REGION)
+        markSyncSettingsEdited()
     }
 
     fun onS3EndpointUrlChange(value: String) {
         _s3EndpointUrl.value = value
+        clearS3ValidationError(SyncS3Field.ENDPOINT_URL)
+        markSyncSettingsEdited()
     }
 
     fun onS3AccessKeyIdChange(value: String) {
         _s3AccessKeyId.value = value
+        clearS3ValidationError(SyncS3Field.ACCESS_KEY_ID)
+        markSyncSettingsEdited()
     }
 
     fun onS3SecretAccessKeyChange(value: String) {
         _s3SecretAccessKey.value = value
+        clearS3ValidationError(SyncS3Field.SECRET_ACCESS_KEY)
+        markSyncSettingsEdited()
     }
 
     fun onClientIdChange(value: String) {
         _clientId.value = value
+        clearValidationError(SyncServerField.CLIENT_ID)
+        markSyncSettingsEdited()
     }
 
     fun onSecretChange(value: String) {
         _encryptionSecret.value = value
+        clearValidationError(SyncServerField.ENCRYPTION_SECRET)
         cacheVisibleSecretForCurrentBackend()
+        markSyncSettingsEdited()
     }
 
     private fun cacheVisibleSecretForCurrentBackend() {
@@ -394,65 +449,250 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _taskrcImportPreview.value = preview
     }
 
-    /**
-     * Persist the sync configuration. The active backend (sync type) is only
-     * persisted together with a complete set of credentials, so an incomplete
-     * form can never switch the app to a backend that has no usable credentials.
-     *
-     * @return true if the settings were saved, false if required fields are missing.
-     */
-    fun save(): Boolean {
-        val type = _syncType.value
-        val secret = _encryptionSecret.value.trim()
+    /** Save the current Sync Server settings, then run a real sync with the active replica. */
+    @Suppress("ReturnCount")
+    suspend fun saveAndTest(): Boolean {
+        if (syncTestInProgress) return false
+        syncTestInProgress = true
+        try {
+            val backend = _syncType.value
+            val prepared =
+                when (backend) {
+                    SyncType.SERVER -> saveServerCredentials()
+                    SyncType.S3 -> prepareS3Settings()
+                }
+            if (!prepared) return false
 
-        val saved =
-            when (type) {
-                SyncType.S3 -> saveS3Credentials(secret)
-                SyncType.SERVER -> saveServerCredentials(secret)
+            _syncTestState.value = SyncTestState.Testing
+            val startedAt = System.nanoTime()
+            recordDiagnostic("sync_test", "started", "Sync test started")
+            return try {
+                syncAction()
+                val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L
+                val timestamp = System.currentTimeMillis()
+                recordDiagnostic("sync_test", "success", "Sync completed successfully", elapsedMillis)
+                _syncTestState.value = SyncTestState.Succeeded(timestamp, elapsedMillis)
+                true
+            } catch (e: CancellationException) {
+                val timestamp = System.currentTimeMillis()
+                recordDiagnostic("sync_test", "cancelled", "Sync test was cancelled")
+                _syncTestState.value = SyncTestState.Failed(timestamp, "Sync test was cancelled")
+                throw e
+            } catch (e: Exception) {
+                val safeSummary =
+                    SyncDiagnosticsFormatter.safeError(
+                        error = e,
+                        sensitiveValues = sensitiveValuesForCurrentBackend(),
+                    )
+                val timestamp = System.currentTimeMillis()
+                recordDiagnostic("sync_test", "failed", safeSummary)
+                _syncTestState.value = SyncTestState.Failed(timestamp, safeSummary)
+                false
             }
-        if (saved) {
-            repository.setSyncType(type)
+        } finally {
+            syncTestInProgress = false
         }
-        return saved
     }
 
-    private fun saveS3Credentials(secret: String): Boolean {
+    @Suppress("ReturnCount")
+    private fun prepareS3Settings(): Boolean {
+        val errors =
+            SyncS3Validator.validate(
+                bucket = _s3Bucket.value,
+                region = _s3Region.value,
+                endpointUrl = _s3EndpointUrl.value,
+                accessKeyId = _s3AccessKeyId.value,
+                secretAccessKey = _s3SecretAccessKey.value,
+                encryptionSecret = _encryptionSecret.value,
+            )
+        _s3ValidationErrors.value = errors
+        if (errors.isNotEmpty()) {
+            recordDiagnostic("validation", "failed", "S3 settings validation failed")
+            return false
+        }
+        recordDiagnostic("validation", "success", "S3 settings validated")
+
         val bucket = _s3Bucket.value.trim()
+        val region = _s3Region.value.trim().ifEmpty { null }
+        val endpointUrl = _s3EndpointUrl.value.trim().ifEmpty { null }
         val accessKeyId = _s3AccessKeyId.value.trim()
         val secretAccessKey = _s3SecretAccessKey.value.trim()
-        if (bucket.isEmpty() || accessKeyId.isEmpty() || secretAccessKey.isEmpty() || secret.isEmpty()) {
-            Log.d("SettingsViewModel", "Not saving: incomplete S3 credentials")
+        val secret = _encryptionSecret.value.trim()
+        if (!repository.saveS3Credentials(bucket, region, endpointUrl, accessKeyId, secretAccessKey, secret)) {
+            recordDiagnostic("s3_config", "save_failed", "Unable to save S3 settings")
+            _syncTestState.value = SyncTestState.SaveFailed(System.currentTimeMillis(), "Unable to save S3 settings")
             return false
         }
-        Log.d("SettingsViewModel", "Saving S3 settings to repository")
-        repository.saveS3Credentials(
-            bucket = bucket,
-            region = _s3Region.value.trim().ifEmpty { null },
-            endpointUrl = _s3EndpointUrl.value.trim().ifEmpty { null },
-            accessKeyId = accessKeyId,
-            secretAccessKey = secretAccessKey,
-            secret = secret,
-        )
+        if (!repository.setSyncType(SyncType.S3)) {
+            recordDiagnostic("s3_config", "save_failed", "Unable to save active sync backend")
+            _syncTestState.value = SyncTestState.SaveFailed(System.currentTimeMillis(), "Unable to save S3 settings")
+            return false
+        }
+        _s3Bucket.value = bucket
+        _s3Region.value = region.orEmpty()
+        _s3EndpointUrl.value = endpointUrl.orEmpty()
+        _s3AccessKeyId.value = accessKeyId
+        _s3SecretAccessKey.value = secretAccessKey
+        _encryptionSecret.value = secret
+        s3EncryptionSecret = secret
+        _syncType.value = SyncType.S3
+        recordDiagnostic("s3_config", "saved", "S3 settings saved")
         return true
     }
 
-    private fun saveServerCredentials(secret: String): Boolean {
+    @Suppress("ReturnCount")
+    private fun saveServerCredentials(): Boolean {
+        val errors = SyncServerValidator.validate(_syncUrl.value, _clientId.value, _encryptionSecret.value)
+        _validationErrors.value = errors
+        if (errors.isNotEmpty()) {
+            recordDiagnostic("validation", "failed", "Sync Server settings validation failed")
+            return false
+        }
+        recordDiagnostic("validation", "success", "Sync Server settings validated")
+
         val url = _syncUrl.value.trim()
         val clientId = _clientId.value.trim()
-        if (url.isEmpty() || clientId.isEmpty() || secret.isEmpty()) {
-            Log.d("SettingsViewModel", "Not saving: incomplete server credentials")
+        val secret = _encryptionSecret.value.trim()
+        val previousCredentials = repository.getCredentials()
+        val configurationUnchanged =
+            repository.getSyncType() == SyncType.SERVER &&
+                previousCredentials == SyncCredentials(url, clientId, secret)
+        if (!repository.saveCredentials(url, clientId, secret)) {
+            recordDiagnostic("server_config", "save_failed", "Unable to save Sync Server credentials")
+            _syncTestState.value = SyncTestState.SaveFailed(System.currentTimeMillis(), "Unable to save Sync Server settings")
             return false
         }
-        Log.d("SettingsViewModel", "Saving server settings to repository")
-        repository.saveCredentials(
-            url = url,
-            clientId = clientId,
-            secret = secret,
-        )
+        if (!repository.setSyncType(SyncType.SERVER)) {
+            recordDiagnostic("server_config", "save_failed", "Unable to save active sync backend")
+            _syncTestState.value = SyncTestState.SaveFailed(System.currentTimeMillis(), "Unable to save Sync Server settings")
+            return false
+        }
+
+        _syncUrl.value = url
+        _clientId.value = clientId
+        _encryptionSecret.value = secret
+        serverEncryptionSecret = secret
+        _syncType.value = SyncType.SERVER
+        if (_syncTestState.value is SyncTestState.SaveFailed) {
+            _syncTestState.value = if (hasPriorSyncAttempt()) SyncTestState.NeedsRetest else SyncTestState.NotTested
+        }
+        val saveOutcome = if (configurationUnchanged) "saved_unchanged" else "saved"
+        recordDiagnostic("server_config", saveOutcome, "Sync Server settings saved")
         return true
     }
 
+    private fun markSyncSettingsEdited() {
+        if (!syncTestInProgress && _syncTestState.value !is SyncTestState.NotTested) {
+            _syncTestState.value = SyncTestState.NeedsRetest
+        }
+    }
+
+    private fun clearValidationError(field: SyncServerField) {
+        if (field in _validationErrors.value) {
+            _validationErrors.value = _validationErrors.value - field
+        }
+    }
+
+    private fun clearS3ValidationError(field: SyncS3Field) {
+        if (field in _s3ValidationErrors.value) {
+            _s3ValidationErrors.value = _s3ValidationErrors.value - field
+        }
+    }
+
+    fun clearDiagnostics() {
+        diagnosticsRepository?.clear()
+    }
+
+    private fun sensitiveValuesForCurrentBackend(): Set<String> =
+        when (_syncType.value) {
+            SyncType.SERVER -> setOf(_syncUrl.value, _clientId.value, _encryptionSecret.value)
+            SyncType.S3 ->
+                setOf(
+                    _s3Bucket.value,
+                    _s3EndpointUrl.value,
+                    _s3AccessKeyId.value,
+                    _s3SecretAccessKey.value,
+                    _encryptionSecret.value,
+                )
+        }
+
+    private fun recordDiagnostic(
+        stage: String,
+        outcome: String,
+        summary: String,
+        elapsedMillis: Long? = null,
+    ) {
+        val event =
+            SyncDiagnosticEvent(
+                timestampEpochMillis = System.currentTimeMillis(),
+                stage = stage,
+                outcome = outcome,
+                summary = summary,
+                serverOrigin =
+                    when (_syncType.value) {
+                        SyncType.SERVER -> SyncDiagnosticsFormatter.endpointOrigin(_syncUrl.value)
+                        SyncType.S3 -> _s3EndpointUrl.value.takeIf { it.isNotBlank() }?.let(SyncDiagnosticsFormatter::endpointOrigin)
+                    },
+                elapsedMillis = elapsedMillis,
+                appVersion = BuildConfig.VERSION_NAME,
+                backend = _syncType.value,
+            )
+        diagnosticsRepository?.append(SyncDiagnosticsFormatter.sanitizeEvent(event))
+    }
+
+    private fun restoredSyncTestState(): SyncTestState = restoreSyncTestState(diagnosticsRepository?.events?.value.orEmpty())
+
+    @Suppress("ReturnCount")
+    private fun restoreSyncTestState(events: List<SyncDiagnosticEvent>): SyncTestState {
+        val latestIndex =
+            events.indexOfLast { event ->
+                event.backend == _syncType.value &&
+                    (
+                        (event.stage == "sync_test" && event.outcome in SYNC_ATTEMPT_OUTCOMES) ||
+                            (event.stage in CONFIG_STAGES && event.outcome in SERVER_CONFIG_OUTCOMES)
+                    )
+            }
+        if (latestIndex < 0) return SyncTestState.NotTested
+        val latest = events[latestIndex]
+        if (latest.stage in CONFIG_STAGES) {
+            return when (latest.outcome) {
+                "cleared" -> SyncTestState.NotTested
+                "save_failed" -> SyncTestState.SaveFailed(latest.timestampEpochMillis, latest.summary)
+                "saved" ->
+                    if (
+                        events.take(latestIndex).any {
+                            it.backend == _syncType.value &&
+                                it.stage == "sync_test" &&
+                                it.outcome in SYNC_ATTEMPT_OUTCOMES
+                        }
+                    ) {
+                        SyncTestState.NeedsRetest
+                    } else {
+                        SyncTestState.NotTested
+                    }
+                "saved_unchanged" -> restoreSyncTestState(events.take(latestIndex))
+                else -> SyncTestState.NotTested
+            }
+        }
+        return stateFromSyncEvent(latest)
+    }
+
+    private fun stateFromSyncEvent(event: SyncDiagnosticEvent): SyncTestState =
+        when (event.outcome) {
+            "success" -> SyncTestState.Succeeded(event.timestampEpochMillis, event.elapsedMillis ?: 0L)
+            "failed", "cancelled" -> SyncTestState.Failed(event.timestampEpochMillis, event.summary)
+            else -> SyncTestState.Failed(event.timestampEpochMillis, "Previous sync test did not complete")
+        }
+
+    private fun hasPriorSyncAttempt(): Boolean =
+        diagnosticsRepository?.events?.value?.any {
+            it.backend == _syncType.value &&
+                it.stage == "sync_test" &&
+                it.outcome in SYNC_ATTEMPT_OUTCOMES
+        } == true
+
     fun clear() {
+        if (syncTestInProgress) return
         Log.d("SettingsViewModel", "Clearing settings")
         repository.clearCredentials()
         _syncType.value = SyncType.SERVER
@@ -466,6 +706,10 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         _s3EndpointUrl.value = ""
         _s3AccessKeyId.value = ""
         _s3SecretAccessKey.value = ""
+        _validationErrors.value = emptyMap()
+        _s3ValidationErrors.value = emptyMap()
+        _syncTestState.value = SyncTestState.NotTested
+        recordDiagnostic("server_config", "cleared", "Sync Server settings cleared")
         _showCompleted.value = true
         repository.setShowCompleted(true)
         _confirmActions.value = true
@@ -476,5 +720,11 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
         repository.setShowPriorityBadge(false)
         _showUrgencyBar.value = false
         repository.setShowUrgencyBar(false)
+    }
+
+    private companion object {
+        val SYNC_ATTEMPT_OUTCOMES = setOf("started", "success", "failed", "cancelled")
+        val SERVER_CONFIG_OUTCOMES = setOf("saved", "saved_unchanged", "save_failed", "cleared")
+        val CONFIG_STAGES = setOf("server_config", "s3_config")
     }
 }

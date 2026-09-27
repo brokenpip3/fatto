@@ -3,6 +3,10 @@ package com.brokenpip3.fatto
 import com.brokenpip3.fatto.data.S3Credentials
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SyncCredentials
+import com.brokenpip3.fatto.data.SyncDiagnosticEvent
+import com.brokenpip3.fatto.data.SyncDiagnosticsFormatter
+import com.brokenpip3.fatto.data.SyncDiagnosticsRepository
+import com.brokenpip3.fatto.data.SyncServerField
 import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImportPreview
@@ -10,8 +14,14 @@ import com.brokenpip3.fatto.data.TaskrcImportResultType
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.vm.SettingsViewModel
+import com.brokenpip3.fatto.vm.SyncTestState
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -21,6 +31,145 @@ import org.junit.Test
 import java.util.Calendar
 
 class SettingsViewModelTest {
+    @Test
+    fun `save and test rejects invalid server credentials before persisting or syncing`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            var syncCalls = 0
+            val viewModel =
+                SettingsViewModel(
+                    repository,
+                    syncAction = { syncCalls++ },
+                    diagnosticsRepository = FakeSyncDiagnosticsRepository(),
+                )
+            viewModel.onUrlChange("https://sync.example.com")
+            viewModel.onClientIdChange("not-a-uuid")
+            viewModel.onSecretChange("encryption-secret")
+
+            assertFalse(viewModel.saveAndTest())
+            assertNull(repository.getCredentials())
+            assertEquals(0, syncCalls)
+            assertTrue(viewModel.validationErrors.value.containsKey(SyncServerField.CLIENT_ID))
+        }
+
+    @Test
+    fun `save and test stops when server credentials cannot be persisted`() =
+        runTest {
+            val repository = FakeSettingsRepository().apply { credentialSaveSucceeds = false }
+            var syncCalls = 0
+            val viewModel =
+                SettingsViewModel(
+                    repository,
+                    syncAction = { syncCalls++ },
+                    diagnosticsRepository = FakeSyncDiagnosticsRepository(),
+                )
+            viewModel.onUrlChange("https://sync.example.com")
+            viewModel.onClientIdChange("768d9f09-accd-406d-8685-7b977b83d5c6")
+            viewModel.onSecretChange("encryption-secret")
+
+            assertFalse(viewModel.saveAndTest())
+            assertEquals(0, syncCalls)
+            assertNull(repository.getCredentials())
+        }
+
+    @Test
+    fun `save and test stops when active backend cannot be persisted`() =
+        runTest {
+            val repository = FakeSettingsRepository().apply { syncTypeSaveSucceeds = false }
+            var syncCalls = 0
+            val viewModel =
+                SettingsViewModel(
+                    repository,
+                    syncAction = { syncCalls++ },
+                    diagnosticsRepository = FakeSyncDiagnosticsRepository(),
+                )
+            viewModel.onUrlChange("https://sync.example.com")
+            viewModel.onClientIdChange("768d9f09-accd-406d-8685-7b977b83d5c6")
+            viewModel.onSecretChange("encryption-secret")
+
+            assertFalse(viewModel.saveAndTest())
+            assertEquals(0, syncCalls)
+            assertTrue(repository.getCredentials() != null)
+            assertEquals(SyncType.SERVER, repository.getSyncType())
+        }
+
+    @Test
+    fun `save and test persists server credentials before successful sync`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            var synced = false
+            val viewModel =
+                SettingsViewModel(
+                    repository,
+                    syncAction = { synced = repository.hasCredentials() },
+                    diagnosticsRepository = FakeSyncDiagnosticsRepository(),
+                )
+            viewModel.onUrlChange(" https://sync.example.com ")
+            viewModel.onClientIdChange("768d9f09-accd-406d-8685-7b977b83d5c6")
+            viewModel.onSecretChange("encryption-secret")
+
+            assertTrue(viewModel.saveAndTest())
+            assertTrue(synced)
+            assertEquals("https://sync.example.com", repository.getCredentials()?.url)
+            assertEquals(SyncType.SERVER, repository.getSyncType())
+            assertTrue(viewModel.syncTestState.value is SyncTestState.Succeeded)
+        }
+
+    @Test
+    fun `save and test retains settings and sanitizes diagnostic on sync failure`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            val diagnostics = FakeSyncDiagnosticsRepository()
+            val secret = "encryption-secret"
+            val viewModel =
+                SettingsViewModel(
+                    repository,
+                    syncAction = { throw IllegalStateException("failed https://sync.example.com/path?token=$secret secret=$secret") },
+                    diagnosticsRepository = diagnostics,
+                )
+            viewModel.onUrlChange("https://sync.example.com")
+            viewModel.onClientIdChange("768d9f09-accd-406d-8685-7b977b83d5c6")
+            viewModel.onSecretChange(secret)
+
+            assertFalse(viewModel.saveAndTest())
+            assertEquals(secret, repository.getCredentials()?.secret)
+            assertTrue(viewModel.syncTestState.value is SyncTestState.Failed)
+            val export = SyncDiagnosticsFormatter.formatEvents(diagnostics.events.value)
+            assertFalse(export.contains(secret))
+            assertFalse(export.contains("/path"))
+            assertFalse(export.contains("?token"))
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `save and test ignores duplicate submission while sync is running`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            val finish = CompletableDeferred<Unit>()
+            var syncCalls = 0
+            val viewModel =
+                SettingsViewModel(
+                    repository,
+                    syncAction = {
+                        syncCalls++
+                        finish.await()
+                    },
+                    diagnosticsRepository = FakeSyncDiagnosticsRepository(),
+                )
+            viewModel.onUrlChange("https://sync.example.com")
+            viewModel.onClientIdChange("768d9f09-accd-406d-8685-7b977b83d5c6")
+            viewModel.onSecretChange("encryption-secret")
+
+            val firstAttempt = backgroundScope.launch { viewModel.saveAndTest() }
+            runCurrent()
+            assertEquals(1, syncCalls)
+            assertFalse(viewModel.saveAndTest())
+            finish.complete(Unit)
+            firstAttempt.join()
+
+            assertEquals(1, syncCalls)
+        }
+
     @Test
     fun `preview taskrc import does not mutate repository`() {
         val repository = FakeSettingsRepository()
@@ -185,84 +334,75 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `save with incomplete s3 fields does not switch backend`() {
-        val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+    fun `save s3 with incomplete fields does not switch backend`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            val viewModel = SettingsViewModel(repository)
 
-        viewModel.onSyncTypeChange(SyncType.S3)
-        viewModel.onS3BucketChange("my-bucket")
-        // access key, secret access key and encryption secret left empty
+            viewModel.onSyncTypeChange(SyncType.S3)
+            viewModel.onS3BucketChange("my-bucket")
+            // access key, secret access key and encryption secret left empty
 
-        assertFalse(viewModel.save())
-        assertEquals(SyncType.SERVER, repository.getSyncType())
-        assertNull(repository.getS3Credentials())
-    }
+            assertFalse(viewModel.saveAndTest())
+            assertEquals(SyncType.SERVER, repository.getSyncType())
+            assertNull(repository.getS3Credentials())
+        }
 
     @Test
-    fun `save with complete s3 fields persists credentials and backend`() {
-        val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+    fun `save s3 with complete fields persists credentials and backend`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            val viewModel = SettingsViewModel(repository)
 
-        viewModel.onSyncTypeChange(SyncType.S3)
-        viewModel.onS3BucketChange("my-bucket")
-        viewModel.onS3AccessKeyIdChange("access-key")
-        viewModel.onS3SecretAccessKeyChange("secret-key")
-        viewModel.onSecretChange("encryption-secret")
+            viewModel.onSyncTypeChange(SyncType.S3)
+            viewModel.onS3BucketChange("my-bucket")
+            viewModel.onS3AccessKeyIdChange("access-key")
+            viewModel.onS3SecretAccessKeyChange("secret-key")
+            viewModel.onSecretChange("encryption-secret")
 
-        assertTrue(viewModel.save())
-        assertEquals(SyncType.S3, repository.getSyncType())
-        assertEquals(
-            S3Credentials(
+            assertTrue(viewModel.saveAndTest())
+            assertEquals(SyncType.S3, repository.getSyncType())
+            assertEquals(
+                S3Credentials(
+                    bucket = "my-bucket",
+                    region = null,
+                    endpointUrl = null,
+                    accessKeyId = "access-key",
+                    secretAccessKey = "secret-key",
+                    secret = "encryption-secret",
+                ),
+                repository.getS3Credentials(),
+            )
+        }
+
+    @Test
+    fun `switching sync backend shows that backend encryption secret`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            repository.saveCredentials(
+                url = "http://example.com:8080",
+                clientId = "client-id",
+                secret = "server-secret",
+            )
+            repository.saveS3Credentials(
                 bucket = "my-bucket",
                 region = null,
                 endpointUrl = null,
                 accessKeyId = "access-key",
                 secretAccessKey = "secret-key",
-                secret = "encryption-secret",
-            ),
-            repository.getS3Credentials(),
-        )
-    }
+                secret = "s3-secret",
+            )
+            repository.setSyncType(SyncType.SERVER)
+            val viewModel = SettingsViewModel(repository)
 
-    @Test
-    fun `save with incomplete server fields does not persist`() {
-        val repository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(repository)
+            assertEquals("server-secret", viewModel.encryptionSecret.value)
 
-        viewModel.onUrlChange("http://example.com:8080")
-        // client id and encryption secret left empty
+            viewModel.onSyncTypeChange(SyncType.S3)
+            assertEquals("s3-secret", viewModel.encryptionSecret.value)
 
-        assertFalse(viewModel.save())
-        assertNull(repository.getCredentials())
-    }
-
-    @Test
-    fun `switching sync backend shows that backend encryption secret`() {
-        val repository = FakeSettingsRepository()
-        repository.saveCredentials(
-            url = "http://example.com:8080",
-            clientId = "client-id",
-            secret = "server-secret",
-        )
-        repository.saveS3Credentials(
-            bucket = "my-bucket",
-            region = null,
-            endpointUrl = null,
-            accessKeyId = "access-key",
-            secretAccessKey = "secret-key",
-            secret = "s3-secret",
-        )
-        repository.setSyncType(SyncType.SERVER)
-        val viewModel = SettingsViewModel(repository)
-
-        assertEquals("server-secret", viewModel.encryptionSecret.value)
-
-        viewModel.onSyncTypeChange(SyncType.S3)
-        assertEquals("s3-secret", viewModel.encryptionSecret.value)
-
-        assertTrue(viewModel.save())
-        assertEquals("s3-secret", repository.getS3Credentials()?.secret)
-    }
+            assertTrue(viewModel.saveAndTest())
+            assertEquals("s3-secret", repository.getS3Credentials()?.secret)
+        }
 
     @Test
     fun `auto waiting defaults off and can be enabled`() {
@@ -294,6 +434,19 @@ class SettingsViewModelTest {
 
         assertEquals(TaskSwipeAction.NONE, repository.getSwipeStartToEndAction())
         assertEquals(TaskSwipeAction.DELETE, repository.getSwipeEndToStartAction())
+    }
+
+    private class FakeSyncDiagnosticsRepository : SyncDiagnosticsRepository {
+        private val _events = MutableStateFlow(emptyList<SyncDiagnosticEvent>())
+        override val events: StateFlow<List<SyncDiagnosticEvent>> = _events
+
+        override fun append(event: SyncDiagnosticEvent) {
+            _events.value = SyncDiagnosticsFormatter.appendBounded(_events.value, event)
+        }
+
+        override fun clear() {
+            _events.value = emptyList()
+        }
     }
 
     private class FakeSettingsRepository : SettingsRepository {
@@ -369,12 +522,17 @@ class SettingsViewModelTest {
 
         private var syncType: SyncType = SyncType.SERVER
         private var credentials: SyncCredentials? = null
+        var credentialSaveSucceeds = true
+        var s3CredentialSaveSucceeds = true
+        var syncTypeSaveSucceeds = true
         private var s3Credentials: S3Credentials? = null
 
         override fun getSyncType(): SyncType = syncType
 
-        override fun setSyncType(type: SyncType) {
+        override fun setSyncType(type: SyncType): Boolean {
+            if (!syncTypeSaveSucceeds) return false
             syncType = type
+            return true
         }
 
         override fun getCredentials(): SyncCredentials? = credentials
@@ -383,8 +541,10 @@ class SettingsViewModelTest {
             url: String,
             clientId: String,
             secret: String,
-        ) {
+        ): Boolean {
+            if (!credentialSaveSucceeds) return false
             credentials = SyncCredentials(url, clientId, secret)
+            return true
         }
 
         override fun getS3Credentials(): S3Credentials? = s3Credentials
@@ -396,8 +556,10 @@ class SettingsViewModelTest {
             accessKeyId: String,
             secretAccessKey: String,
             secret: String,
-        ) {
+        ): Boolean {
+            if (!s3CredentialSaveSucceeds) return false
             s3Credentials = S3Credentials(bucket, region, endpointUrl, accessKeyId, secretAccessKey, secret)
+            return true
         }
 
         override fun clearCredentials() {

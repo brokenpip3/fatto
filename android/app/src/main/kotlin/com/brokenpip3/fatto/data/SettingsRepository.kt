@@ -97,7 +97,7 @@ interface SettingsRepository {
 
     fun getSyncType(): SyncType
 
-    fun setSyncType(type: SyncType)
+    fun setSyncType(type: SyncType): Boolean
 
     fun getCredentials(): SyncCredentials?
 
@@ -105,7 +105,7 @@ interface SettingsRepository {
         url: String,
         clientId: String,
         secret: String,
-    )
+    ): Boolean
 
     fun getS3Credentials(): S3Credentials?
 
@@ -116,7 +116,7 @@ interface SettingsRepository {
         accessKeyId: String,
         secretAccessKey: String,
         secret: String,
-    )
+    ): Boolean
 
     fun clearCredentials()
 
@@ -367,8 +367,14 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         return SyncType.fromValue(sharedPreferences?.getString("sync_type", null))
     }
 
-    override fun setSyncType(type: SyncType) {
-        sharedPreferences?.edit()?.putString("sync_type", type.value)?.apply()
+    override fun setSyncType(type: SyncType): Boolean {
+        val prefs = sharedPreferences ?: return false
+        return try {
+            prefs.edit().putString("sync_type", type.value).commit()
+        } catch (e: Exception) {
+            Log.e("SettingsRepository", "Failed to save sync type", e)
+            false
+        }
     }
 
     override fun getCredentials(): SyncCredentials? {
@@ -417,38 +423,34 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         accessKeyId: String,
         secretAccessKey: String,
         secret: String,
-    ) {
-        val prefs = sharedPreferences
-        if (prefs == null) {
-            Log.e("SettingsRepository", "Cannot save: SharedPreferences is null")
-            return
-        }
+    ): Boolean {
+        val prefs = sharedPreferences ?: return false
         Log.d("SettingsRepository", "Saving S3 credentials")
-        try {
-            val success =
-                prefs.edit()
-                    .putString("s3_bucket", bucket)
-                    .putString("s3_region", region ?: "")
-                    .putString("s3_endpoint_url", endpointUrl ?: "")
-                    .putString("s3_access_key_id", accessKeyId)
-                    .putString("s3_secret_access_key", secretAccessKey)
-                    .putString("s3_encryption_secret", secret)
-                    .commit()
-            Log.d("SettingsRepository", "Save success: $success")
-        } catch (e: Exception) {
-            Log.e("SettingsRepository", "Failed to save S3 credentials", e)
+        return runCatching {
+            prefs.edit()
+                .putString("s3_bucket", bucket)
+                .putString("s3_region", region ?: "")
+                .putString("s3_endpoint_url", endpointUrl ?: "")
+                .putString("s3_access_key_id", accessKeyId)
+                .putString("s3_secret_access_key", secretAccessKey)
+                .putString("s3_encryption_secret", secret)
+                .commit()
+        }.getOrElse {
+            Log.e("SettingsRepository", "Failed to save S3 credentials", it)
+            false
         }
     }
 
+    @Suppress("ReturnCount")
     override fun saveCredentials(
         url: String,
         clientId: String,
         secret: String,
-    ) {
+    ): Boolean {
         val prefs = sharedPreferences
         if (prefs == null) {
             Log.e("SettingsRepository", "Cannot save: SharedPreferences is null")
-            return
+            return false
         }
         Log.d("SettingsRepository", "Saving credentials")
         try {
@@ -459,8 +461,10 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
                     .putString("encryption_secret", secret)
                     .commit()
             Log.d("SettingsRepository", "Save success: $success")
+            return success
         } catch (e: Exception) {
             Log.e("SettingsRepository", "Failed to save credentials", e)
+            return false
         }
     }
 

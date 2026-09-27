@@ -49,6 +49,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.ShareIntentParser
+import com.brokenpip3.fatto.data.SyncDiagnosticsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.notification.NotificationNavigation
@@ -88,7 +89,13 @@ class MainActivity : ComponentActivity() {
         val taskRepository = TaskRepository(applicationContext, settingsRepository)
 
         val taskViewModel = TaskViewModel(taskRepository)
-        val settingsViewModel = SettingsViewModel(settingsRepository)
+        val diagnosticsRepository = SyncDiagnosticsRepositoryImpl(applicationContext)
+        val settingsViewModel =
+            SettingsViewModel(
+                repository = settingsRepository,
+                syncAction = { taskRepository.sync() },
+                diagnosticsRepository = diagnosticsRepository,
+            )
         notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
         pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
 
