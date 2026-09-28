@@ -7,109 +7,6 @@ permissions:
   contents: write
 
 jobs:
-  build-rust-nix:
-    runs-on: ubuntu-latest
-    if: startsWith(github.event.release.tag_name, 'v')
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Maximize Runner Space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo rm -rf /usr/local/share/boost /usr/local/share/powershell
-
-      - uses: NixOS/nix-installer-action@62c1943b776c509394b550f3f983adc14e9212d6
-        with:
-          extra-conf: |
-            experimental-features = nix-command flakes
-
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 5368709120
-
-      - name: Build Rust Artifacts via Nix
-        run: nix build .#taskchampion-android --no-update-lock-file
-
-      - name: Upload Rust Artifacts (nix)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: rust-artifacts-nix
-          path: |
-            result/jniLibs
-            result/uniffi
-
-  build-kotlin-nix:
-    needs: build-rust-nix
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Maximize Runner Space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo rm -rf /usr/local/share/boost /usr/local/share/powershell
-
-      - uses: NixOS/nix-installer-action@62c1943b776c509394b550f3f983adc14e9212d6
-        with:
-          extra-conf: |
-            experimental-features = nix-command flakes
-
-      - uses: nix-community/cache-nix-action@d8cff2f74b9341e0d90fbf3c0c0212a161ceaef6 # v6
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 5368709120
-
-      - name: Download Rust Artifacts (nix)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        with:
-          name: rust-artifacts-nix
-          path: android/app/src/main
-
-      - name: Cache Gradle
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: v2-${{ runner.os }}-gradle-nix-${{ hashFiles('flake.nix', 'flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: v2-${{ runner.os }}-gradle-nix-
-
-      - name: Build Beta APK (nix)
-        if: endsWith(github.event.release.tag_name, '-beta')
-        run: |
-          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
-          nix develop .#fatto-ci-kotlin --no-update-lock-file --command just build-beta-apk
-        env:
-          FATTO_KEYSTORE_BASE64: ${{ secrets.FATTO_KEYSTORE_BASE64 }}
-          FATTO_KEYSTORE_PASSWORD: ${{ secrets.FATTO_KEYSTORE_PASSWORD }}
-          FATTO_KEY_ALIAS: ${{ secrets.FATTO_KEY_ALIAS }}
-
-      - name: Build Stable APK (nix)
-        if: "!endsWith(github.event.release.tag_name, '-beta')"
-        run: |
-          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
-          nix develop .#fatto-ci-kotlin --no-update-lock-file --command just build-release-apk
-        env:
-          FATTO_KEYSTORE_BASE64: ${{ secrets.FATTO_KEYSTORE_BASE64 }}
-          FATTO_KEYSTORE_PASSWORD: ${{ secrets.FATTO_KEYSTORE_PASSWORD }}
-          FATTO_KEY_ALIAS: ${{ secrets.FATTO_KEY_ALIAS }}
-
-      - name: Upload APK Artifact (nix)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: release-apks-nix
-          path: dist/*.apk
-
-      - name: Attach APK to Release (nix)
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
-        with:
-          files: dist/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-rust-fdroid:
     runs-on: ubuntu-latest
     if: startsWith(github.event.release.tag_name, 'v')
@@ -173,10 +70,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Setup JDK 17
+      - name: Setup JDK 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Android SDK
