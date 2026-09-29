@@ -7,12 +7,14 @@ import com.brokenpip3.fatto.data.TaskRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import uniffi.taskchampion_android.TaskStatus
 import java.io.File
+import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
 class RepositoryIntegrityTest {
@@ -66,6 +68,66 @@ class RepositoryIntegrityTest {
             repository.deleteTask(task.uuid)
             tasks = repository.tasks.value
             assertEquals(TaskStatus.DELETED, tasks[0].status)
+        }
+
+    @Test
+    fun testCompletingActiveTaskClearsStartWhenHookEnabled() =
+        runBlocking {
+            repository.init()
+            settingsRepository.setAutoStopActiveOnComplete(true)
+            val activeTask =
+                repository.addTask(
+                    "Active completion hook",
+                    null,
+                    emptyList(),
+                    null,
+                    null,
+                    null,
+                    start = Instant.now().minusSeconds(60).toString(),
+                )
+
+            repository.completeTask(activeTask.uuid, sync = false)
+
+            val completedTask = repository.tasks.value.single()
+            assertEquals(TaskStatus.COMPLETED, completedTask.status)
+            assertNull(completedTask.start)
+        }
+
+    @Test
+    fun testCompletingActiveTaskRetainsStartWhenHookDisabled() =
+        runBlocking {
+            repository.init()
+            settingsRepository.setAutoStopActiveOnComplete(false)
+            val activeTask =
+                repository.addTask(
+                    "Active completion hook disabled",
+                    null,
+                    emptyList(),
+                    null,
+                    null,
+                    null,
+                    start = Instant.now().minusSeconds(60).toString(),
+                )
+
+            repository.completeTask(activeTask.uuid, sync = false)
+
+            val completedTask = repository.tasks.value.single()
+            assertEquals(TaskStatus.COMPLETED, completedTask.status)
+            assertEquals(activeTask.start, completedTask.start)
+        }
+
+    @Test
+    fun testCompletingInactiveTaskWithHookEnabledRemainsCompleted() =
+        runBlocking {
+            repository.init()
+            settingsRepository.setAutoStopActiveOnComplete(true)
+            val task = repository.addTask("Inactive completion", null, emptyList(), null, null, null)
+
+            repository.completeTask(task.uuid, sync = false)
+
+            val completedTask = repository.tasks.value.single()
+            assertEquals(TaskStatus.COMPLETED, completedTask.status)
+            assertNull(completedTask.start)
         }
 
     @Test

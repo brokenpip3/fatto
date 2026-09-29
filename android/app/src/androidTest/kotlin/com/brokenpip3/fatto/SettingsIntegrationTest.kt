@@ -19,6 +19,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import com.brokenpip3.fatto.data.S3Credentials
@@ -29,6 +31,7 @@ import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.TaskrcImporter
 import com.brokenpip3.fatto.ui.theme.NordicNight
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -74,6 +77,67 @@ class SettingsIntegrationTest {
             .assertHasClickAction()
     }
 
+    @Suppress("DEPRECATION")
+    @Test
+    fun testHookPreferenceDefaultsAreIndependent() {
+        val context = composeTestRule.activity.applicationContext
+        val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        val preferences =
+            EncryptedSharedPreferences.create(
+                context,
+                "sync_settings",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        val hadAutoWaiting = preferences.contains("auto_waiting")
+        val oldAutoWaiting = preferences.getBoolean("auto_waiting", false)
+        val hadStopActive = preferences.contains("auto_stop_active_on_complete")
+        val oldStopActive = preferences.getBoolean("auto_stop_active_on_complete", true)
+
+        try {
+            preferences.edit().remove("auto_waiting").remove("auto_stop_active_on_complete").commit()
+            val defaults = SettingsRepositoryImpl(context)
+            assertFalse(defaults.getAutoWaiting())
+            assertTrue(defaults.getAutoStopActiveOnComplete())
+        } finally {
+            val editor = preferences.edit()
+            if (hadAutoWaiting) editor.putBoolean("auto_waiting", oldAutoWaiting) else editor.remove("auto_waiting")
+            if (hadStopActive) {
+                editor.putBoolean("auto_stop_active_on_complete", oldStopActive)
+            } else {
+                editor.remove("auto_stop_active_on_complete")
+            }
+            editor.commit()
+        }
+    }
+
+    @Test
+    fun testHookSettingsPersistAcrossRepositoryInstances() {
+        val context = composeTestRule.activity.applicationContext
+        val repository = SettingsRepositoryImpl(context)
+        val previousAutoWaiting = repository.getAutoWaiting()
+        val previousStopActive = repository.getAutoStopActiveOnComplete()
+
+        try {
+            repository.setAutoWaiting(false)
+            repository.setAutoStopActiveOnComplete(false)
+
+            val reloaded = SettingsRepositoryImpl(context)
+            assertEquals(false, reloaded.getAutoWaiting())
+            assertEquals(false, reloaded.getAutoStopActiveOnComplete())
+
+            reloaded.setAutoWaiting(true)
+            reloaded.setAutoStopActiveOnComplete(true)
+            val reloadedEnabled = SettingsRepositoryImpl(context)
+            assertEquals(true, reloadedEnabled.getAutoWaiting())
+            assertEquals(true, reloadedEnabled.getAutoStopActiveOnComplete())
+        } finally {
+            repository.setAutoWaiting(previousAutoWaiting)
+            repository.setAutoStopActiveOnComplete(previousStopActive)
+        }
+    }
+
     @Test
     fun testSettingsTabsRevealSections() {
         composeTestRule.onNodeWithText("Settings").performClick()
@@ -94,6 +158,18 @@ class SettingsIntegrationTest {
 
         composeTestRule.onNodeWithTag("SettingsTabAbout").performScrollTo().performClick()
         composeTestRule.onNodeWithText("Fatto").assertIsDisplayed()
+    }
+
+    @Test
+    fun testHooksTabContainsBothHooksAndAutoWaitIsAbsentFromDisplay() {
+        composeTestRule.onNodeWithText("Settings").performClick()
+
+        composeTestRule.onNodeWithTag("SettingsTabHooks").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Auto wait due/scheduled tasks").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Stop active task before completing").performScrollTo().assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Auto wait due/scheduled tasks").assertDoesNotExist()
     }
 
     @Test

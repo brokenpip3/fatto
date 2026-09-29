@@ -138,21 +138,7 @@ class TaskRepository(
         withContext(Dispatchers.IO) {
             val r = replica ?: throw Exception("Replica not initialized")
             try {
-                val props =
-                    TaskUpdateProps(
-                        uuid = task.uuid,
-                        description = task.description,
-                        status = task.status,
-                        project = task.project,
-                        tags = task.tags,
-                        due = task.due,
-                        wait = task.wait,
-                        scheduled = task.scheduled,
-                        start = task.start,
-                        priority = task.priority,
-                        dependencies = task.dependencies,
-                    )
-                r.updateTask(props)
+                r.updateTask(task.toUpdateProps())
                 loadTasks()
                 notifyWidgetRefresh()
                 triggerSync()
@@ -185,7 +171,17 @@ class TaskRepository(
     ) = withContext(Dispatchers.IO) {
         val r = replica ?: throw Exception("Replica not initialized")
         try {
-            r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
+            val taskToComplete =
+                if (settingsRepository.autoStopActiveOnComplete.value) {
+                    r.getTask(uuid)?.toModel()
+                } else {
+                    null
+                }
+            if (taskToComplete?.start != null) {
+                r.updateTask(taskToComplete.copy(status = TaskStatus.COMPLETED, start = null).toUpdateProps())
+            } else {
+                r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
+            }
             loadTasks()
             notifyWidgetRefresh()
             if (sync) {
@@ -196,6 +192,21 @@ class TaskRepository(
             throw e
         }
     }
+
+    private fun Task.toUpdateProps() =
+        TaskUpdateProps(
+            uuid = uuid,
+            description = description,
+            status = status,
+            project = project,
+            tags = tags,
+            due = due,
+            wait = wait,
+            scheduled = scheduled,
+            start = start,
+            priority = priority,
+            dependencies = dependencies,
+        )
 
     suspend fun restoreTask(uuid: String) =
         withContext(Dispatchers.IO) {

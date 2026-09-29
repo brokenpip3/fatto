@@ -32,6 +32,25 @@ import java.util.Calendar
 
 class SettingsViewModelTest {
     @Test
+    fun `hook settings use their individual defaults and clear restores them`() =
+        runTest {
+            val repository = FakeSettingsRepository()
+            val viewModel = SettingsViewModel(repository)
+
+            assertFalse(viewModel.autoWaiting.value)
+            assertTrue(viewModel.autoStopActiveOnComplete.value)
+
+            viewModel.onAutoWaitingChange(true)
+            viewModel.onAutoStopActiveOnCompleteChange(false)
+            viewModel.clear()
+
+            assertFalse(viewModel.autoWaiting.value)
+            assertTrue(viewModel.autoStopActiveOnComplete.value)
+            assertFalse(repository.autoWaiting.value)
+            assertTrue(repository.autoStopActiveOnComplete.value)
+        }
+
+    @Test
     fun `save and test rejects invalid server credentials before persisting or syncing`() =
         runTest {
             val repository = FakeSettingsRepository()
@@ -466,6 +485,7 @@ class SettingsViewModelTest {
         override val hideBlockedTasksWaiting = MutableStateFlow(false)
         override val showWaitingTasks = MutableStateFlow(true)
         override val autoWaiting = MutableStateFlow(false)
+        override val autoStopActiveOnComplete = MutableStateFlow(true)
         override val sortOrder = MutableStateFlow("DATE_CREATED")
         override val sortDirection = MutableStateFlow("")
         override val showPriorityBadge = MutableStateFlow(false)
@@ -506,6 +526,12 @@ class SettingsViewModelTest {
 
         override fun setAutoWaiting(value: Boolean) {
             autoWaiting.value = value
+        }
+
+        override fun getAutoStopActiveOnComplete(): Boolean = autoStopActiveOnComplete.value
+
+        override fun setAutoStopActiveOnComplete(enabled: Boolean) {
+            autoStopActiveOnComplete.value = enabled
         }
 
         override fun getSortOrder(): String = sortOrder.value
