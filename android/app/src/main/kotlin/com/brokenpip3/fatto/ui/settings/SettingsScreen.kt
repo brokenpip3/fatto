@@ -3,6 +3,8 @@ package com.brokenpip3.fatto.ui.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -81,6 +84,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.BuildConfig
+import com.brokenpip3.fatto.data.SettingsBackupDocument
 import com.brokenpip3.fatto.data.SyncDiagnosticEvent
 import com.brokenpip3.fatto.data.SyncDiagnosticsFormatter
 import com.brokenpip3.fatto.data.SyncS3Field
@@ -98,6 +103,8 @@ import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import com.brokenpip3.fatto.vm.SyncTestState
 import kotlinx.coroutines.launch
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.text.DateFormat
 import java.util.Date
 
@@ -108,6 +115,7 @@ private enum class SettingsTab(
     SYNC("Sync", "SettingsTabSync"),
     TASKRC("Taskrc", "SettingsTabTaskrc"),
     DISPLAY("Display", "SettingsTabDisplay"),
+    BACKUP("Backup", "SettingsTabBackup"),
     HOOKS("Hooks", "SettingsTabHooks"),
     NOTIFICATIONS("Notifications", "SettingsTabNotifications"),
     ABOUT("About", "SettingsTabAbout"),
@@ -263,12 +271,16 @@ fun SettingsScreen(
     val displayScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val hooksScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val notificationsScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val backupScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val aboutScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var secretVisible by remember { mutableStateOf(false) }
     var s3SecretVisible by remember { mutableStateOf(false) }
     var editingContext by remember { mutableStateOf<TaskContext?>(null) }
     var showDefaultProjectPicker by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
+    var showExportWarning by remember { mutableStateOf(false) }
+    var pendingExportJson by remember { mutableStateOf<String?>(null) }
+    var pendingImportDocument by remember { mutableStateOf<SettingsBackupDocument?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -279,6 +291,38 @@ fun SettingsScreen(
             snackbarHostState.showSnackbar(message)
         }
     }
+
+    val exportDocumentLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            val json = pendingExportJson
+            pendingExportJson = null
+            if (uri == null || json == null) return@rememberLauncherForActivityResult
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(json.toByteArray(Charsets.UTF_8))
+                } ?: error("Could not open export URI")
+            }.onSuccess {
+                launchSnackbar("Settings exported")
+            }.onFailure {
+                launchSnackbar("Could not write settings export")
+            }
+        }
+
+    val importDocumentLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).readText()
+                } ?: error("Could not open import URI")
+            }.mapCatching { json ->
+                viewModel.validateSettingsImportJson(json).getOrThrow()
+            }.onSuccess { document ->
+                pendingImportDocument = document
+            }.onFailure { throwable ->
+                launchSnackbar(throwable.message ?: "Invalid settings backup file")
+            }
+        }
 
     val onSaveAndTest: () -> Unit = {
         focusManager.clearFocus()
@@ -491,6 +535,13 @@ fun SettingsScreen(
                                 ),
                         )
 
+                    SettingsTab.BACKUP ->
+                        BackupSettingsSection(
+                            scrollState = backupScrollState,
+                            onExport = { showExportWarning = true },
+                            onImport = { importDocumentLauncher.launch(arrayOf("application/json", "text/json", "text/*")) },
+                        )
+
                     SettingsTab.ABOUT ->
                         AboutSettingsSection(
                             scrollState = aboutScrollState,
@@ -519,6 +570,70 @@ fun SettingsScreen(
                         context.startActivity(Intent.createChooser(shareIntent, "Share sync diagnostics"))
                     },
                     onClear = viewModel::clearDiagnostics,
+                )
+            }
+
+            if (showExportWarning) {
+                AlertDialog(
+                    onDismissRequest = { showExportWarning = false },
+                    title = { Text("Export unencrypted settings?") },
+                    text = {
+                        Text(
+                            "The exported JSON is unencrypted and may include TSS/S3 credentials " +
+                                "and encryption secrets in plain text. Store and share it carefully.",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showExportWarning = false
+                                viewModel.buildSettingsExportJson()
+                                    .onSuccess { json ->
+                                        pendingExportJson = json
+                                        exportDocumentLauncher.launch("fatto-settings-v${BuildConfig.VERSION_CODE}.json")
+                                    }.onFailure {
+                                        launchSnackbar("Could not write settings export")
+                                    }
+                            },
+                        ) {
+                            Text("Export anyway")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showExportWarning = false }) {
+                            Text("Cancel")
+                        }
+                    },
+                )
+            }
+
+            pendingImportDocument?.let { document ->
+                AlertDialog(
+                    onDismissRequest = { pendingImportDocument = null },
+                    title = { Text("Import settings?") },
+                    text = {
+                        Text(
+                            "This file may contain plain text credentials and will overwrite current settings, " +
+                                "including sync configuration.",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                pendingImportDocument = null
+                                viewModel.applySettingsImport(document)
+                                    .onSuccess { launchSnackbar("Settings imported") }
+                                    .onFailure { launchSnackbar("Invalid settings backup file") }
+                            },
+                        ) {
+                            Text("Import")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { pendingImportDocument = null }) {
+                            Text("Cancel")
+                        }
+                    },
                 )
             }
 
@@ -1440,6 +1555,56 @@ private fun NotificationSettingsSection(
                 onCheckedChange = actions.onIncludeOverdueChange,
                 label = "Include overdue tasks",
             )
+        }
+    }
+}
+
+@Composable
+private fun BackupSettingsSection(
+    scrollState: ScrollState,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+) {
+    SettingsSection(scrollState = scrollState) {
+        Text(
+            text = "Settings backup",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Card(
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text =
+                    "Exports are unencrypted JSON. TSS and S3 credentials, including encryption secrets, " +
+                        "are saved in plain text. Imported settings can overwrite your current sync configuration.",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = onExport,
+                modifier = Modifier.weight(1f).testTag("ExportSettingsButton"),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+            ) {
+                Text("Export settings")
+            }
+            OutlinedButton(
+                onClick = onImport,
+                modifier = Modifier.weight(1f).testTag("ImportSettingsButton"),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+            ) {
+                Text("Import settings")
+            }
         }
     }
 }
