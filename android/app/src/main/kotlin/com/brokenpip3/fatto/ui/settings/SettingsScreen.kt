@@ -108,6 +108,7 @@ private enum class SettingsTab(
     SYNC("Sync", "SettingsTabSync"),
     TASKRC("Taskrc", "SettingsTabTaskrc"),
     DISPLAY("Display", "SettingsTabDisplay"),
+    HOOKS("Hooks", "SettingsTabHooks"),
     NOTIFICATIONS("Notifications", "SettingsTabNotifications"),
     ABOUT("About", "SettingsTabAbout"),
 }
@@ -172,7 +173,6 @@ private data class DisplaySettingsSectionState(
     val showInternalTags: Boolean,
     val showEmptyProjects: Boolean,
     val showWaitingTasks: Boolean,
-    val autoWaiting: Boolean,
     val showPriorityBadge: Boolean,
     val showUrgencyBar: Boolean,
     val hideBlockedTasksWaiting: Boolean,
@@ -186,7 +186,6 @@ private data class DisplaySettingsSectionActions(
     val onShowInternalTagsChange: (Boolean) -> Unit,
     val onShowEmptyProjectsChange: (Boolean) -> Unit,
     val onShowWaitingTasksChange: (Boolean) -> Unit,
-    val onAutoWaitingChange: (Boolean) -> Unit,
     val onShowPriorityBadgeChange: (Boolean) -> Unit,
     val onShowUrgencyBarChange: (Boolean) -> Unit,
     val onHideBlockedTasksWaitingChange: (Boolean) -> Unit,
@@ -247,6 +246,7 @@ fun SettingsScreen(
     val hideBlockedTasksWaiting by viewModel.hideBlockedTasksWaiting.collectAsState()
     val showWaitingTasks by viewModel.showWaitingTasks.collectAsState()
     val autoWaiting by viewModel.autoWaiting.collectAsState()
+    val autoStopActiveOnComplete by viewModel.autoStopActiveOnComplete.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
     val swipeStartToEndAction by viewModel.swipeStartToEndAction.collectAsState()
@@ -261,6 +261,7 @@ fun SettingsScreen(
     val syncScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val taskrcScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val displayScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val hooksScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val notificationsScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val aboutScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var secretVisible by remember { mutableStateOf(false) }
@@ -431,7 +432,6 @@ fun SettingsScreen(
                                     showInternalTags = showInternalTags,
                                     showEmptyProjects = showEmptyProjects,
                                     showWaitingTasks = showWaitingTasks,
-                                    autoWaiting = autoWaiting,
                                     showPriorityBadge = showPriorityBadge,
                                     showUrgencyBar = showUrgencyBar,
                                     hideBlockedTasksWaiting = hideBlockedTasksWaiting,
@@ -445,7 +445,6 @@ fun SettingsScreen(
                                     onShowInternalTagsChange = viewModel::onShowInternalTagsChange,
                                     onShowEmptyProjectsChange = viewModel::onShowEmptyProjectsChange,
                                     onShowWaitingTasksChange = viewModel::onShowWaitingTasksChange,
-                                    onAutoWaitingChange = viewModel::onAutoWaitingChange,
                                     onShowPriorityBadgeChange = viewModel::onShowPriorityBadgeChange,
                                     onShowUrgencyBarChange = viewModel::onShowUrgencyBarChange,
                                     onHideBlockedTasksWaitingChange = viewModel::onHideBlockedTasksWaitingChange,
@@ -456,6 +455,20 @@ fun SettingsScreen(
                             onThemeModeChange = viewModel::onThemeModeChange,
                             onConfirmActionsChange = viewModel::onConfirmActionsChange,
                         )
+
+                    SettingsTab.HOOKS ->
+                        SettingsSection(scrollState = hooksScrollState) {
+                            SettingsCheckboxRow(
+                                checked = autoWaiting,
+                                onCheckedChange = viewModel::onAutoWaitingChange,
+                                label = "Auto wait due/scheduled tasks",
+                            )
+                            SettingsCheckboxRow(
+                                checked = autoStopActiveOnComplete,
+                                onCheckedChange = viewModel::onAutoStopActiveOnCompleteChange,
+                                label = "Stop active task before completing",
+                            )
+                        }
 
                     SettingsTab.NOTIFICATIONS ->
                         NotificationSettingsSection(
@@ -1138,12 +1151,6 @@ private fun DisplaySettingsSection(
             checked = state.showWaitingTasks,
             onCheckedChange = actions.onShowWaitingTasksChange,
             label = "Show waiting tasks",
-        )
-
-        SettingsCheckboxRow(
-            checked = state.autoWaiting,
-            onCheckedChange = actions.onAutoWaitingChange,
-            label = "Auto wait due/scheduled tasks",
         )
 
         SettingsCheckboxRow(

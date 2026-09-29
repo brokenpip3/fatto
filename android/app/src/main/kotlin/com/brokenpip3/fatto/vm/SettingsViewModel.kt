@@ -125,8 +125,9 @@ class SettingsViewModel(
     private val _showWaitingTasks = MutableStateFlow(true)
     val showWaitingTasks = _showWaitingTasks.asStateFlow()
 
-    private val _autoWaiting = MutableStateFlow(false)
-    val autoWaiting = _autoWaiting.asStateFlow()
+    private val hookSettings = HookSettingsState(repository)
+    val autoWaiting = hookSettings.autoWaiting
+    val autoStopActiveOnComplete = hookSettings.autoStopActiveOnComplete
 
     private val _showPriorityBadge = MutableStateFlow(false)
     val showPriorityBadge = _showPriorityBadge.asStateFlow()
@@ -200,7 +201,6 @@ class SettingsViewModel(
         _confirmActions.value = repository.getConfirmActions()
         _hideBlockedTasksWaiting.value = repository.getHideBlockedTasksWaiting()
         _showWaitingTasks.value = repository.getShowWaitingTasks()
-        _autoWaiting.value = repository.getAutoWaiting()
         _showPriorityBadge.value = repository.getShowPriorityBadge()
         _showUrgencyBar.value = repository.getShowUrgencyBar()
         _swipeStartToEndAction.value = repository.getSwipeStartToEndAction()
@@ -357,8 +357,11 @@ class SettingsViewModel(
     }
 
     fun onAutoWaitingChange(value: Boolean) {
-        _autoWaiting.value = value
-        repository.setAutoWaiting(value)
+        hookSettings.onAutoWaitingChange(value)
+    }
+
+    fun onAutoStopActiveOnCompleteChange(enabled: Boolean) {
+        hookSettings.onAutoStopActiveOnCompleteChange(enabled)
     }
 
     fun onShowPriorityBadgeChange(value: Boolean) {
@@ -714,8 +717,7 @@ class SettingsViewModel(
         repository.setShowCompleted(true)
         _confirmActions.value = true
         repository.setConfirmActions(true)
-        _autoWaiting.value = false
-        repository.setAutoWaiting(false)
+        hookSettings.resetToDefaults()
         _showPriorityBadge.value = false
         repository.setShowPriorityBadge(false)
         _showUrgencyBar.value = false
