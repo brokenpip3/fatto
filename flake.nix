@@ -2,7 +2,7 @@
   description = "Fatto (TaskWarrior Android Client)";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-26.05";
     flake-utils.url = "github:numtide/flake-utils?ref=11707dc2f618dd54ca8739b309ec4fc024de578b";
     rust-overlay = {
       url = "github:oxalica/rust-overlay?ref=4d6fee71fea68418a48992409b47f1183d0dd111";
@@ -130,7 +130,7 @@
                 ]
                 ++ pkgs.lib.optional includeRust rustToolchain
                 ++ pkgs.lib.optional includeRust pkgs.cargo-ndk
-                ++ pkgs.lib.optional includeJdk jdk17
+                ++ pkgs.lib.optional includeJdk jdk21
                 ++ pkgs.lib.optional includeSdk sdk
                 ++ extraInputs;
 
@@ -141,12 +141,12 @@
                   libpulseaudio
                   stdenv.cc.cc.lib
                   vulkan-loader
-                  xorg.libX11
-                  xorg.libXext
-                  xorg.libXcursor
-                  xorg.libXi
-                  xorg.libXrender
-                  xorg.libXtst
+                  libX11
+                  libXext
+                  libXcursor
+                  libXi
+                  libXrender
+                  libXtst
                 ]
               );
 
@@ -158,12 +158,12 @@
                     libpulseaudio
                     stdenv.cc.cc.lib
                     vulkan-loader
-                    xorg.libX11
-                    xorg.libXext
-                    xorg.libXcursor
-                    xorg.libXi
-                    xorg.libXrender
-                    xorg.libXtst
+                    libX11
+                    libXext
+                    libXcursor
+                    libXi
+                    libXrender
+                    libXtst
                   ]
                 )
               );
@@ -177,7 +177,7 @@
                  ''}
               '';
             }
-            // pkgs.lib.optionalAttrs includeJdk { JAVA_HOME = pkgs.jdk17.home; }
+            // pkgs.lib.optionalAttrs includeJdk { JAVA_HOME = pkgs.jdk21.home; }
             // pkgs.lib.optionalAttrs includeSdk {
               ANDROID_HOME = "${sdk}/libexec/android-sdk";
               ANDROID_SDK_ROOT = "${sdk}/libexec/android-sdk";
