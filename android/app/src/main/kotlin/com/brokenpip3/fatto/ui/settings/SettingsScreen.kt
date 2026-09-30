@@ -115,9 +115,9 @@ private enum class SettingsTab(
     SYNC("Sync", "SettingsTabSync"),
     TASKRC("Taskrc", "SettingsTabTaskrc"),
     DISPLAY("Display", "SettingsTabDisplay"),
-    BACKUP("Backup", "SettingsTabBackup"),
-    HOOKS("Hooks", "SettingsTabHooks"),
     NOTIFICATIONS("Notifications", "SettingsTabNotifications"),
+    HOOKS("Hooks", "SettingsTabHooks"),
+    BACKUP("Backup", "SettingsTabBackup"),
     ABOUT("About", "SettingsTabAbout"),
 }
 
