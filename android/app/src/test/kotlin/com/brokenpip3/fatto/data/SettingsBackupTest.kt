@@ -19,7 +19,7 @@ class SettingsBackupTest {
         val json = service.exportJson().getOrThrow()
         val document = JSONObject(json)
 
-        assertEquals(1, document.getInt("formatVersion"))
+        assertEquals(2, document.getInt("formatVersion"))
         assertEquals(23, document.getInt("versionCode"))
         assertEquals("1.2.3", document.getString("versionName"))
         assertEquals("2026-09-29T12:00:00Z", document.getString("exportedAt"))
@@ -35,6 +35,8 @@ class SettingsBackupTest {
                 setShowCompleted(false)
                 setShowInternalTags(true)
                 setTagsPerLine(2)
+                setSortOrder("DUE_DATE")
+                setSortDirection("DESCENDING")
                 setSwipeStartToEndAction(TaskSwipeAction.COMPLETE)
                 setSwipeEndToStartAction(TaskSwipeAction.DELETE)
                 setThemeMode(ThemeMode.DARK)
@@ -55,6 +57,8 @@ class SettingsBackupTest {
         assertFalse(target.getShowCompleted())
         assertTrue(target.getShowInternalTags())
         assertEquals(2, target.getTagsPerLine())
+        assertEquals("DUE_DATE", target.getSortOrder())
+        assertEquals("DESCENDING", target.getSortDirection())
         assertEquals(TaskSwipeAction.COMPLETE, target.getSwipeStartToEndAction())
         assertEquals(TaskSwipeAction.DELETE, target.getSwipeEndToStartAction())
         assertEquals(ThemeMode.DARK, target.getThemeMode())
@@ -78,7 +82,7 @@ class SettingsBackupTest {
     fun `decode rejects unsupported format version`() {
         val json =
             backupService().exportJson().getOrThrow()
-                .replace("\"formatVersion\":1", "\"formatVersion\":2")
+                .replace("\"formatVersion\":2", "\"formatVersion\":3")
 
         val result = backupService().parseImport(json)
 
@@ -92,6 +96,61 @@ class SettingsBackupTest {
 
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is SettingsBackupError.InvalidJson)
+    }
+
+    @Test
+    fun `decode rejects missing settings field`() {
+        val json = backupService().exportJson().getOrThrow()
+        val root = JSONObject(json)
+        root.getJSONObject("settings").remove("showCompleted")
+
+        val result = backupService().parseImport(root.toString())
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is SettingsBackupError.InvalidJson)
+    }
+
+    @Test
+    fun `decode rejects unknown enum values`() {
+        val json = backupService().exportJson().getOrThrow()
+        val root = JSONObject(json)
+        root.getJSONObject("settings").put("syncType", "unknown")
+
+        val result = backupService().parseImport(root.toString())
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is SettingsBackupError.InvalidJson)
+    }
+
+    @Test
+    fun `import without credentials clears existing credentials`() {
+        val repository =
+            FakeSettingsRepository().apply {
+                saveCredentials("https://old.example.com", "old-client", "old-secret")
+                saveS3Credentials("old-bucket", null, null, "old-access", "old-key", "old-secret")
+            }
+        val backup = backupService(FakeSettingsRepository()).exportJson().getOrThrow()
+        val document = backupService(repository).parseImport(backup).getOrThrow()
+
+        backupService(repository).applyImport(document).getOrThrow()
+
+        assertEquals(null, repository.getCredentials())
+        assertEquals(null, repository.getS3Credentials())
+    }
+
+    @Test
+    fun `import reports sync settings persistence failure`() {
+        val repository = FakeSettingsRepository().apply { syncSettingsSaveSucceeds = false }
+        val source = FakeSettingsRepository().apply { setShowCompleted(false) }
+        val document =
+            backupService(source).exportJson().getOrThrow().let {
+                backupService(repository).parseImport(it).getOrThrow()
+            }
+
+        val result = backupService(repository).applyImport(document)
+
+        assertTrue(result.isFailure)
+        assertTrue(repository.getShowCompleted())
     }
 
     private fun backupService(
@@ -141,6 +200,7 @@ class SettingsBackupTest {
         private var syncType = SyncType.SERVER
         private var credentials: SyncCredentials? = null
         private var s3Credentials: S3Credentials? = null
+        var syncSettingsSaveSucceeds = true
 
         override fun getFirstDayOfWeek(): Int = firstDayOfWeek.value
 
@@ -209,6 +269,18 @@ class SettingsBackupTest {
         }
 
         override fun getS3Credentials(): S3Credentials? = s3Credentials
+
+        override fun replaceSyncSettings(
+            type: SyncType,
+            serverCredentials: SyncCredentials?,
+            s3Credentials: S3Credentials?,
+        ): Boolean {
+            if (!syncSettingsSaveSucceeds) return false
+            syncType = type
+            credentials = serverCredentials
+            this.s3Credentials = s3Credentials
+            return true
+        }
 
         override fun saveS3Credentials(
             bucket: String,

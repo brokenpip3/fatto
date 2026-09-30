@@ -621,6 +621,17 @@ class SettingsViewModelTest {
 
         override fun getS3Credentials(): S3Credentials? = s3Credentials
 
+        override fun replaceSyncSettings(
+            type: SyncType,
+            serverCredentials: SyncCredentials?,
+            s3Credentials: S3Credentials?,
+        ): Boolean {
+            syncType = type
+            credentials = serverCredentials
+            this.s3Credentials = s3Credentials
+            return true
+        }
+
         override fun saveS3Credentials(
             bucket: String,
             region: String?,

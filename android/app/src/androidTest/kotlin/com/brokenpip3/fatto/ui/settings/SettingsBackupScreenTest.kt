@@ -7,9 +7,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.brokenpip3.fatto.data.S3Credentials
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
+import com.brokenpip3.fatto.data.SyncCredentials
+import com.brokenpip3.fatto.data.SyncType
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -32,6 +37,23 @@ class SettingsBackupScreenTest {
     @After
     fun tearDown() {
         settingsRepository.clearCredentials()
+    }
+
+    @Test
+    fun replacingSyncSettingsPersistsOnlyCredentialsFromTheBackup() {
+        val serverCredentials = SyncCredentials("https://sync.example.com", "client-id", "server-secret")
+        val s3Credentials = S3Credentials("bucket", null, null, "access-key", "access-secret", "s3-secret")
+
+        assertTrue(settingsRepository.replaceSyncSettings(SyncType.S3, serverCredentials, s3Credentials))
+        val saved = SettingsRepositoryImpl(context)
+        assertEquals(serverCredentials, saved.getCredentials())
+        assertEquals(s3Credentials, saved.getS3Credentials())
+        assertTrue(saved.replaceSyncSettings(SyncType.SERVER, null, null))
+
+        val cleared = SettingsRepositoryImpl(context)
+        assertEquals(null, cleared.getCredentials())
+        assertEquals(null, cleared.getS3Credentials())
+        assertEquals(SyncType.SERVER, cleared.getSyncType())
     }
 
     @Test

@@ -6,7 +6,9 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-private const val SETTINGS_BACKUP_FORMAT_VERSION = 1
+private const val SETTINGS_BACKUP_FORMAT_VERSION = 2
+private val SORT_ORDERS = setOf("DATE_CREATED", "DUE_DATE", "PRIORITY", "URGENCY", "ALPHABETICAL", "SCHEDULED_DATE")
+private val SORT_DIRECTIONS = setOf("", "ASCENDING", "DESCENDING")
 
 data class SettingsBackupDocument(
     val formatVersion: Int,
@@ -26,6 +28,8 @@ data class SettingsBackupSettings(
     val defaultProjectEnabled: Boolean,
     val defaultProject: String?,
     val tagsPerLine: Int,
+    val sortOrder: String,
+    val sortDirection: String,
     val dailyNotificationsEnabled: Boolean,
     val notificationHour: Int,
     val includeDueToday: Boolean,
@@ -82,19 +86,19 @@ class SettingsBackupCodec(
     fun decode(json: String): Result<SettingsBackupDocument> =
         runCatching {
             val root = JSONObject(json)
-            val formatVersion = root.getInt("formatVersion")
+            val formatVersion = root.requiredInt("formatVersion")
             if (formatVersion != SETTINGS_BACKUP_FORMAT_VERSION) {
                 throw SettingsBackupError.UnsupportedFormat(formatVersion)
             }
-            val versionCode = root.getInt("versionCode")
+            val versionCode = root.requiredInt("versionCode")
             if (versionCode > currentVersionCode) {
                 throw SettingsBackupError.NewerVersion(versionCode, currentVersionCode)
             }
             SettingsBackupDocument(
                 formatVersion = formatVersion,
                 versionCode = versionCode,
-                versionName = root.optString("versionName", ""),
-                exportedAt = root.optString("exportedAt", ""),
+                versionName = root.requiredString("versionName"),
+                exportedAt = root.requiredString("exportedAt"),
                 settings = decodeSettings(root.getJSONObject("settings")),
             )
         }.recoverCatching { throwable ->
@@ -116,6 +120,8 @@ class SettingsBackupCodec(
             .put("defaultProjectEnabled", settings.defaultProjectEnabled)
             .putNullable("defaultProject", settings.defaultProject)
             .put("tagsPerLine", settings.tagsPerLine)
+            .put("sortOrder", settings.sortOrder)
+            .put("sortDirection", settings.sortDirection)
             .put("dailyNotificationsEnabled", settings.dailyNotificationsEnabled)
             .put("notificationHour", settings.notificationHour)
             .put("includeDueToday", settings.includeDueToday)
@@ -137,33 +143,49 @@ class SettingsBackupCodec(
 
     private fun decodeSettings(json: JSONObject): SettingsBackupSettings =
         SettingsBackupSettings(
-            syncType = SyncType.fromValue(json.optString("syncType", null)),
-            serverCredentials = json.optJSONObject("serverCredentials")?.let(::decodeServerCredentials),
-            s3Credentials = json.optJSONObject("s3Credentials")?.let(::decodeS3Credentials),
-            showCompleted = json.optBoolean("showCompleted", true),
-            showInternalTags = json.optBoolean("showInternalTags", false),
-            showEmptyProjects = json.optBoolean("showEmptyProjects", false),
-            defaultProjectEnabled = json.optBoolean("defaultProjectEnabled", false),
-            defaultProject = json.optNullableString("defaultProject"),
-            tagsPerLine = json.optInt("tagsPerLine", 4),
-            dailyNotificationsEnabled = json.optBoolean("dailyNotificationsEnabled", false),
-            notificationHour = json.optInt("notificationHour", 9),
-            includeDueToday = json.optBoolean("includeDueToday", true),
-            includeScheduledToday = json.optBoolean("includeScheduledToday", true),
-            includeOverdue = json.optBoolean("includeOverdue", false),
-            firstDayOfWeek = json.optInt("firstDayOfWeek", java.util.Calendar.MONDAY),
-            confirmActions = json.optBoolean("confirmActions", true),
-            hideBlockedTasksWaiting = json.optBoolean("hideBlockedTasksWaiting", false),
-            showWaitingTasks = json.optBoolean("showWaitingTasks", true),
-            autoWaiting = json.optBoolean("autoWaiting", false),
-            autoStopActiveOnComplete = json.optBoolean("autoStopActiveOnComplete", true),
-            showPriorityBadge = json.optBoolean("showPriorityBadge", false),
-            showUrgencyBar = json.optBoolean("showUrgencyBar", false),
-            swipeStartToEndAction = TaskSwipeAction.fromPersistedValue(json.optString("swipeStartToEndAction", null)),
-            swipeEndToStartAction = TaskSwipeAction.fromPersistedValue(json.optString("swipeEndToStartAction", null)),
-            themeMode = ThemeMode.fromStoredValue(json.optString("themeMode", null)),
-            taskContexts = decodeTaskContexts(json.optJSONArray("taskContexts")),
-            activeTaskContextId = json.optNullableString("activeTaskContextId"),
+            syncType =
+                SyncType.entries.firstOrNull { it.value == json.requiredString("syncType") }
+                    ?: throw JSONException("Invalid syncType"),
+            serverCredentials = json.requiredNullableObject("serverCredentials")?.let(::decodeServerCredentials),
+            s3Credentials = json.requiredNullableObject("s3Credentials")?.let(::decodeS3Credentials),
+            showCompleted = json.requiredBoolean("showCompleted"),
+            showInternalTags = json.requiredBoolean("showInternalTags"),
+            showEmptyProjects = json.requiredBoolean("showEmptyProjects"),
+            defaultProjectEnabled = json.requiredBoolean("defaultProjectEnabled"),
+            defaultProject = json.requiredNullableString("defaultProject"),
+            tagsPerLine = json.requiredInt("tagsPerLine"),
+            sortOrder =
+                json.requiredString("sortOrder").also { value ->
+                    if (value !in SORT_ORDERS) throw JSONException("Invalid sortOrder")
+                },
+            sortDirection =
+                json.requiredString("sortDirection").also { value ->
+                    if (value !in SORT_DIRECTIONS) throw JSONException("Invalid sortDirection")
+                },
+            dailyNotificationsEnabled = json.requiredBoolean("dailyNotificationsEnabled"),
+            notificationHour = json.requiredInt("notificationHour"),
+            includeDueToday = json.requiredBoolean("includeDueToday"),
+            includeScheduledToday = json.requiredBoolean("includeScheduledToday"),
+            includeOverdue = json.requiredBoolean("includeOverdue"),
+            firstDayOfWeek = json.requiredInt("firstDayOfWeek"),
+            confirmActions = json.requiredBoolean("confirmActions"),
+            hideBlockedTasksWaiting = json.requiredBoolean("hideBlockedTasksWaiting"),
+            showWaitingTasks = json.requiredBoolean("showWaitingTasks"),
+            autoWaiting = json.requiredBoolean("autoWaiting"),
+            autoStopActiveOnComplete = json.requiredBoolean("autoStopActiveOnComplete"),
+            showPriorityBadge = json.requiredBoolean("showPriorityBadge"),
+            showUrgencyBar = json.requiredBoolean("showUrgencyBar"),
+            swipeStartToEndAction =
+                TaskSwipeAction.entries.firstOrNull { it.persistedValue == json.requiredString("swipeStartToEndAction") }
+                    ?: throw JSONException("Invalid swipeStartToEndAction"),
+            swipeEndToStartAction =
+                TaskSwipeAction.entries.firstOrNull { it.persistedValue == json.requiredString("swipeEndToStartAction") }
+                    ?: throw JSONException("Invalid swipeEndToStartAction"),
+            themeMode =
+                ThemeMode.entries.firstOrNull { it.storedValue == json.requiredString("themeMode") }
+                    ?: throw JSONException("Invalid themeMode"),
+            taskContexts = decodeTaskContexts(json.getJSONArray("taskContexts")),
+            activeTaskContextId = json.requiredNullableString("activeTaskContextId"),
         )
 
     private fun encodeServerCredentials(credentials: SyncCredentials): JSONObject =
@@ -174,9 +196,9 @@ class SettingsBackupCodec(
 
     private fun decodeServerCredentials(json: JSONObject): SyncCredentials =
         SyncCredentials(
-            url = json.getString("url"),
-            clientId = json.getString("clientId"),
-            secret = json.getString("secret"),
+            url = json.requiredString("url"),
+            clientId = json.requiredString("clientId"),
+            secret = json.requiredString("secret"),
         )
 
     private fun encodeS3Credentials(credentials: S3Credentials): JSONObject =
@@ -190,12 +212,12 @@ class SettingsBackupCodec(
 
     private fun decodeS3Credentials(json: JSONObject): S3Credentials =
         S3Credentials(
-            bucket = json.getString("bucket"),
-            region = json.optNullableString("region"),
-            endpointUrl = json.optNullableString("endpointUrl"),
-            accessKeyId = json.getString("accessKeyId"),
-            secretAccessKey = json.getString("secretAccessKey"),
-            secret = json.getString("secret"),
+            bucket = json.requiredString("bucket"),
+            region = json.requiredNullableString("region"),
+            endpointUrl = json.requiredNullableString("endpointUrl"),
+            accessKeyId = json.requiredString("accessKeyId"),
+            secretAccessKey = json.requiredString("secretAccessKey"),
+            secret = json.requiredString("secret"),
         )
 
     private fun encodeTaskContext(context: TaskContext): JSONObject =
@@ -211,9 +233,9 @@ class SettingsBackupCodec(
                 val item = array.getJSONObject(index)
                 add(
                     TaskContext(
-                        id = item.getString("id"),
-                        name = item.getString("name"),
-                        expressionText = item.optString("expressionText", ""),
+                        id = item.requiredString("id"),
+                        name = item.requiredString("name"),
+                        expressionText = item.requiredString("expressionText"),
                     ),
                 )
             }
@@ -235,24 +257,21 @@ class SettingsBackupService(
     fun applyImport(document: SettingsBackupDocument): Result<Unit> =
         runCatching {
             val settings = document.settings
-            repository.setSyncType(settings.syncType)
-            settings.serverCredentials?.let { repository.saveCredentials(it.url, it.clientId, it.secret) }
-            settings.s3Credentials?.let {
-                repository.saveS3Credentials(
-                    bucket = it.bucket,
-                    region = it.region,
-                    endpointUrl = it.endpointUrl,
-                    accessKeyId = it.accessKeyId,
-                    secretAccessKey = it.secretAccessKey,
-                    secret = it.secret,
-                )
-            }
+            check(
+                repository.replaceSyncSettings(
+                    type = settings.syncType,
+                    serverCredentials = settings.serverCredentials,
+                    s3Credentials = settings.s3Credentials,
+                ),
+            ) { "Could not save sync settings" }
             repository.setShowCompleted(settings.showCompleted)
             repository.setShowInternalTags(settings.showInternalTags)
             repository.setShowEmptyProjects(settings.showEmptyProjects)
             repository.setDefaultProject(settings.defaultProject)
             repository.setDefaultProjectEnabled(settings.defaultProjectEnabled)
             repository.setTagsPerLine(settings.tagsPerLine)
+            repository.setSortOrder(settings.sortOrder)
+            repository.setSortDirection(settings.sortDirection)
             repository.setDailyNotificationsEnabled(settings.dailyNotificationsEnabled)
             repository.setNotificationHour(settings.notificationHour)
             repository.setIncludeDueToday(settings.includeDueToday)
@@ -284,6 +303,8 @@ class SettingsBackupService(
             defaultProjectEnabled = getDefaultProjectEnabled(),
             defaultProject = getDefaultProject(),
             tagsPerLine = getTagsPerLine(),
+            sortOrder = getSortOrder(),
+            sortDirection = getSortDirection(),
             dailyNotificationsEnabled = getDailyNotificationsEnabled(),
             notificationHour = getNotificationHour(),
             includeDueToday = getIncludeDueToday(),
@@ -310,5 +331,20 @@ private fun JSONObject.putNullable(
     value: String?,
 ): JSONObject = put(name, value ?: JSONObject.NULL)
 
-private fun JSONObject.optNullableString(name: String): String? =
-    if (has(name) && !isNull(name)) optString(name).takeIf { it.isNotBlank() } else null
+private fun JSONObject.requiredString(name: String): String = (get(name) as? String) ?: throw JSONException("Invalid $name")
+
+private fun JSONObject.requiredNullableString(name: String): String? = if (has(name) && isNull(name)) null else requiredString(name)
+
+private fun JSONObject.requiredBoolean(name: String): Boolean = (get(name) as? Boolean) ?: throw JSONException("Invalid $name")
+
+private fun JSONObject.requiredInt(name: String): Int {
+    val number = get(name) as? Number ?: throw JSONException("Invalid $name")
+    val value = number.toDouble()
+    if (!value.isFinite() || value % 1.0 != 0.0 || value < Int.MIN_VALUE || value > Int.MAX_VALUE) {
+        throw JSONException("Invalid $name")
+    }
+    return value.toInt()
+}
+
+private fun JSONObject.requiredNullableObject(name: String): JSONObject? =
+    if (has(name) && isNull(name)) null else get(name) as? JSONObject ?: throw JSONException("Invalid $name")
