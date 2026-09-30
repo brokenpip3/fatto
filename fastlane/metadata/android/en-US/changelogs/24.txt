@@ -1,0 +1,5 @@
+- password keyboard for sensitive fields
+- edit tasks after creation, with edit suggestions
+- storage validation and sync diagnostics
+- hooks with auto-stop active tasks on completion
+- import/export settings backups

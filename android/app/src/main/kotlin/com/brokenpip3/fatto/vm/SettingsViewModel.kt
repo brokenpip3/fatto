@@ -3,6 +3,9 @@ package com.brokenpip3.fatto.vm
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.brokenpip3.fatto.BuildConfig
+import com.brokenpip3.fatto.data.SettingsBackupCodec
+import com.brokenpip3.fatto.data.SettingsBackupDocument
+import com.brokenpip3.fatto.data.SettingsBackupService
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SyncCredentials
 import com.brokenpip3.fatto.data.SyncDiagnosticEvent
@@ -21,6 +24,7 @@ import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.time.Instant
 
 sealed interface SyncTestState {
     data object NotTested : SyncTestState
@@ -36,12 +40,24 @@ sealed interface SyncTestState {
     data object NeedsRetest : SyncTestState
 }
 
-@Suppress("TooManyFunctions")
+@Suppress("LargeClass", "TooManyFunctions")
 class SettingsViewModel(
     private val repository: SettingsRepository,
     private val syncAction: suspend () -> Unit = {},
     private val diagnosticsRepository: SyncDiagnosticsRepository? = null,
+    settingsBackupService: SettingsBackupService? = null,
 ) : ViewModel() {
+    private val settingsBackupService =
+        settingsBackupService
+            ?: SettingsBackupService(
+                repository = repository,
+                codec =
+                    SettingsBackupCodec(
+                        currentVersionCode = BuildConfig.VERSION_CODE,
+                        currentVersionName = BuildConfig.VERSION_NAME,
+                        clock = { Instant.now().toString() },
+                    ),
+            )
     private val _validationErrors = MutableStateFlow<Map<SyncServerField, String>>(emptyMap())
     val validationErrors = _validationErrors.asStateFlow()
     private val _s3ValidationErrors = MutableStateFlow<Map<SyncS3Field, String>>(emptyMap())
@@ -156,6 +172,13 @@ class SettingsViewModel(
     init {
         load()
     }
+
+    fun buildSettingsExportJson(): Result<String> = settingsBackupService.exportJson()
+
+    fun validateSettingsImportJson(json: String): Result<SettingsBackupDocument> = settingsBackupService.parseImport(json)
+
+    fun applySettingsImport(document: SettingsBackupDocument): Result<Unit> =
+        settingsBackupService.applyImport(document).onSuccess { load() }
 
     private fun load() {
         _syncType.value = repository.getSyncType()

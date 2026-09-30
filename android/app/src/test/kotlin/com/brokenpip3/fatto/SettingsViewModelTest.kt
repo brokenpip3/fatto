@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -31,6 +32,51 @@ import org.junit.Test
 import java.util.Calendar
 
 class SettingsViewModelTest {
+    @Test
+    fun `settings export json contains current version code`() {
+        val viewModel = SettingsViewModel(FakeSettingsRepository())
+
+        val json = viewModel.buildSettingsExportJson().getOrThrow()
+
+        assertEquals(BuildConfig.VERSION_CODE, JSONObject(json).getInt("versionCode"))
+    }
+
+    @Test
+    fun `settings import rejects newer version without mutating repository`() {
+        val repository = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+        val json =
+            viewModel.buildSettingsExportJson().getOrThrow()
+                .replace("\"versionCode\":${BuildConfig.VERSION_CODE}", "\"versionCode\":${BuildConfig.VERSION_CODE + 1}")
+
+        val result = viewModel.validateSettingsImportJson(json)
+
+        assertTrue(result.isFailure)
+        assertTrue(repository.getShowCompleted())
+    }
+
+    @Test
+    fun `settings import applies valid document and refreshes visible state`() {
+        val source =
+            FakeSettingsRepository().apply {
+                setSyncType(SyncType.S3)
+                saveS3Credentials("bucket", null, null, "access", "secret-access", "s3-secret")
+                setShowCompleted(false)
+                setThemeMode(ThemeMode.DARK)
+            }
+        val json = SettingsViewModel(source).buildSettingsExportJson().getOrThrow()
+        val target = FakeSettingsRepository()
+        val viewModel = SettingsViewModel(target)
+        val document = viewModel.validateSettingsImportJson(json).getOrThrow()
+
+        viewModel.applySettingsImport(document).getOrThrow()
+
+        assertFalse(viewModel.showCompleted.value)
+        assertEquals(ThemeMode.DARK, viewModel.themeMode.value)
+        assertEquals(SyncType.S3, viewModel.syncType.value)
+        assertEquals("bucket", viewModel.s3Bucket.value)
+    }
+
     @Test
     fun `hook settings use their individual defaults and clear restores them`() =
         runTest {
@@ -574,6 +620,17 @@ class SettingsViewModelTest {
         }
 
         override fun getS3Credentials(): S3Credentials? = s3Credentials
+
+        override fun replaceSyncSettings(
+            type: SyncType,
+            serverCredentials: SyncCredentials?,
+            s3Credentials: S3Credentials?,
+        ): Boolean {
+            syncType = type
+            credentials = serverCredentials
+            this.s3Credentials = s3Credentials
+            return true
+        }
 
         override fun saveS3Credentials(
             bucket: String,

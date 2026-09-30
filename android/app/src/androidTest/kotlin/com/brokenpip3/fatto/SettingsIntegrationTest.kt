@@ -161,6 +161,25 @@ class SettingsIntegrationTest {
     }
 
     @Test
+    fun settingsTabsOrderNotificationsHooksBackupAndAbout() {
+        composeTestRule.onNodeWithText("Settings").performClick()
+
+        val tabPositions =
+            listOf("SettingsTabNotifications", "SettingsTabHooks", "SettingsTabBackup", "SettingsTabAbout")
+                .map { tag ->
+                    composeTestRule
+                        .onNodeWithTag(tag)
+                        .fetchSemanticsNode()
+                        .layoutInfo
+                        .coordinates
+                        .positionInRoot()
+                        .x
+                }
+
+        assertTrue(tabPositions.zipWithNext().all { (left, right) -> left < right })
+    }
+
+    @Test
     fun testHooksTabContainsBothHooksAndAutoWaitIsAbsentFromDisplay() {
         composeTestRule.onNodeWithText("Settings").performClick()
 

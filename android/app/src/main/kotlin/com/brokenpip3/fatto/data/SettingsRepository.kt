@@ -114,6 +114,12 @@ interface SettingsRepository {
 
     fun getS3Credentials(): S3Credentials?
 
+    fun replaceSyncSettings(
+        type: SyncType,
+        serverCredentials: SyncCredentials?,
+        s3Credentials: S3Credentials?,
+    ): Boolean
+
     fun saveS3Credentials(
         bucket: String,
         region: String?,
@@ -406,6 +412,47 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
             SyncCredentials(url, clientId, secret)
         } else {
             null
+        }
+    }
+
+    override fun replaceSyncSettings(
+        type: SyncType,
+        serverCredentials: SyncCredentials?,
+        s3Credentials: S3Credentials?,
+    ): Boolean {
+        val prefs = sharedPreferences ?: return false
+        return runCatching {
+            val editor =
+                prefs.edit()
+                    .putString("sync_type", type.value)
+                    .remove("sync_url")
+                    .remove("client_id")
+                    .remove("encryption_secret")
+                    .remove("s3_bucket")
+                    .remove("s3_region")
+                    .remove("s3_endpoint_url")
+                    .remove("s3_access_key_id")
+                    .remove("s3_secret_access_key")
+                    .remove("s3_encryption_secret")
+            serverCredentials?.let {
+                editor
+                    .putString("sync_url", it.url)
+                    .putString("client_id", it.clientId)
+                    .putString("encryption_secret", it.secret)
+            }
+            s3Credentials?.let {
+                editor
+                    .putString("s3_bucket", it.bucket)
+                    .putString("s3_region", it.region ?: "")
+                    .putString("s3_endpoint_url", it.endpointUrl ?: "")
+                    .putString("s3_access_key_id", it.accessKeyId)
+                    .putString("s3_secret_access_key", it.secretAccessKey)
+                    .putString("s3_encryption_secret", it.secret)
+            }
+            editor.commit()
+        }.getOrElse {
+            Log.e("SettingsRepository", "Failed to replace sync settings")
+            false
         }
     }
 
