@@ -31,4 +31,47 @@ class ShareIntentParserTest {
     fun multilineTextIsPreserved() {
         assertEquals("line one\nline two", ShareIntentParser.descriptionFrom("line one\nline two"))
     }
+
+    @Test
+    fun projectIsTrimmedAndBlankIsNull() {
+        assertEquals("home", ShareIntentParser.projectFrom("  home  "))
+        assertNull(ShareIntentParser.projectFrom("   "))
+        assertNull(ShareIntentParser.projectFrom(null))
+    }
+
+    @Test
+    fun tagsAreSplitTrimmedAndDeduplicated() {
+        assertEquals(
+            listOf("dom", "sklep"),
+            ShareIntentParser.tagsFrom(" dom, sklep , dom, "),
+        )
+    }
+
+    @Test
+    fun emptyTagsYieldAnEmptyList() {
+        assertEquals(emptyList<String>(), ShareIntentParser.tagsFrom(null))
+        assertEquals(emptyList<String>(), ShareIntentParser.tagsFrom(" , ,"))
+    }
+
+    @Test
+    fun dueAcceptsATimestamp() {
+        assertEquals("2026-10-05T22:00:00Z", ShareIntentParser.dueFrom("2026-10-05T22:00:00Z"))
+    }
+
+    @Test
+    fun dueNormalizesAnOffsetToUtc() {
+        assertEquals("2026-10-05T20:00:00Z", ShareIntentParser.dueFrom("2026-10-05T22:00:00+02:00"))
+    }
+
+    @Test
+    fun dueAcceptsABareDateAsMidnightUtc() {
+        assertEquals("2026-10-05T00:00:00Z", ShareIntentParser.dueFrom("2026-10-05"))
+    }
+
+    @Test
+    fun unusableDueIsNullRatherThanAnError() {
+        assertNull(ShareIntentParser.dueFrom("tomorrow"))
+        assertNull(ShareIntentParser.dueFrom(""))
+        assertNull(ShareIntentParser.dueFrom(null))
+    }
 }

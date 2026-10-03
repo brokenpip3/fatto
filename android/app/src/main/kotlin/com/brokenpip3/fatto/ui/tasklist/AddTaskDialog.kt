@@ -58,6 +58,7 @@ fun AddTaskDialog(
     initialProject: String? = null,
     initialTags: List<String> = emptyList(),
     initialDescription: String = "",
+    initialDue: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>, Boolean) -> Unit,
     firstDayOfWeek: Int = Calendar.MONDAY,
@@ -70,7 +71,7 @@ fun AddTaskDialog(
     var newTag by remember { mutableStateOf("") }
 
     var waitDate by remember { mutableStateOf<String?>(null) }
-    var dueDate by remember { mutableStateOf<String?>(null) }
+    var dueDate by remember(initialDue) { mutableStateOf(initialDue) }
     var scheduledDate by remember { mutableStateOf<String?>(null) }
 
     var activePicker by remember { mutableStateOf<DatePickerType?>(null) }
