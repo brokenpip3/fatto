@@ -1,6 +1,8 @@
 package com.brokenpip3.fatto.data
 
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 /** What an `ACTION_SEND` share carried, beyond the plain text every sender provides. */
@@ -40,15 +42,20 @@ object ShareIntentParser {
 
     /**
      * The due date as the New Task dialog stores it: an ISO-8601 timestamp.
-     * A bare date (`2026-10-05`) is read as midnight UTC, which keeps the same
-     * day under the floating-date display ([DateTimeUtils.parseToLocalDate] only
-     * reads the first ten characters). Anything unparseable is dropped: an
-     * unusable extra opens the dialog without it rather than failing the share.
+     * A naive datetime (`2026-10-05T22:00:00`) is read in the device's own
+     * zone — "22:00 tonight" is a local promise, and the floating-date display
+     * ([DateTimeUtils.parseToLocalDate] only reads the first ten characters)
+     * keeps showing the day it was written for. A bare date (`2026-10-05`) is
+     * read as midnight UTC. Anything unparseable is dropped: an unusable extra
+     * opens the dialog without it rather than failing the share.
      */
     fun dueFrom(extraDue: String?): String? {
         val raw = extraDue?.trim()?.takeIf { it.isNotBlank() } ?: return null
         val instant =
             DateTimeUtils.parseToInstant(raw)
+                ?: runCatching {
+                    LocalDateTime.parse(raw).atZone(ZoneId.systemDefault()).toInstant()
+                }.getOrNull()
                 ?: runCatching {
                     LocalDate.parse(raw).atStartOfDay(ZoneOffset.UTC).toInstant()
                 }.getOrNull()
