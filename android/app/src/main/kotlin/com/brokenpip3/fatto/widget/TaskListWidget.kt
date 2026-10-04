@@ -185,7 +185,7 @@ private fun EmptyState(message: String) {
 private fun TaskRow(task: Task) {
     // Compact rows preserve the existing 3/5/8-task policy; dense widget sizes may fall below 48dp targets.
     val colors = GlanceTheme.colors
-    val dueText = DateTimeUtils.formatLocalDate(task.due).orEmpty()
+    val dueText = DateTimeUtils.formatLocalDateTime(task.due).orEmpty()
     val overdue = DateTimeUtils.isOverdue(task.due)
 
     Row(

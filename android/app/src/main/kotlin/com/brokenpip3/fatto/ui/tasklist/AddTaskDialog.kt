@@ -1,6 +1,5 @@
 package com.brokenpip3.fatto.ui.tasklist
 
-import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +16,6 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,9 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,7 +32,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -53,10 +47,7 @@ import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import uniffi.taskchampion_android.TaskAddProps
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.util.Calendar
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,7 +80,6 @@ fun AddTaskDialog(
     var activePicker by remember { mutableStateOf<DatePickerType?>(null) }
     var showProjectPicker by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState()
 
     val filteredProjects =
         remember(project) {
@@ -364,49 +354,34 @@ fun AddTaskDialog(
         )
     }
 
-    if (activePicker != null && !saving) {
-        DatePickerDialog(
-            onDismissRequest = { activePicker = null },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        val instant = Instant.ofEpochMilli(millis)
-                        val formatted = DateTimeFormatter.ISO_INSTANT.format(instant)
-                        when (activePicker) {
-                            DatePickerType.DUE -> dueDate = formatted
-                            DatePickerType.WAIT -> waitDate = formatted
-                            DatePickerType.SCHEDULED -> scheduledDate = formatted
-                            null -> {}
-                        }
-                    }
-                    activePicker = null
-                }) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    when (activePicker) {
-                        DatePickerType.DUE -> dueDate = null
-                        DatePickerType.WAIT -> waitDate = null
-                        DatePickerType.SCHEDULED -> scheduledDate = null
-                        null -> {}
-                    }
-                    activePicker = null
-                }) {
-                    Text("Clear")
-                }
-            },
-        ) {
-            val currentConfig = LocalConfiguration.current
-            val config = Configuration(currentConfig)
-            val targetLocale = if (firstDayOfWeek == Calendar.SUNDAY) Locale.US else Locale.UK
-            config.setLocale(targetLocale)
-
-            CompositionLocalProvider(LocalConfiguration provides config) {
-                DatePicker(state = datePickerState)
+    activePicker?.takeUnless { saving }?.let { picker ->
+        val current =
+            when (picker) {
+                DatePickerType.DUE -> dueDate
+                DatePickerType.WAIT -> waitDate
+                DatePickerType.SCHEDULED -> scheduledDate
             }
-        }
+        DateTimePickerDialog(
+            current = current,
+            firstDayOfWeek = firstDayOfWeek,
+            onConfirm = { value ->
+                when (picker) {
+                    DatePickerType.DUE -> dueDate = value
+                    DatePickerType.WAIT -> waitDate = value
+                    DatePickerType.SCHEDULED -> scheduledDate = value
+                }
+                activePicker = null
+            },
+            onClear = {
+                when (picker) {
+                    DatePickerType.DUE -> dueDate = null
+                    DatePickerType.WAIT -> waitDate = null
+                    DatePickerType.SCHEDULED -> scheduledDate = null
+                }
+                activePicker = null
+            },
+            onDismiss = { activePicker = null },
+        )
     }
 }
 

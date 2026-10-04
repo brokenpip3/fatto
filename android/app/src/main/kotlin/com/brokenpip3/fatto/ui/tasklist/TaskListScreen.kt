@@ -1074,7 +1074,7 @@ fun TaskItem(
 
                                 task.due?.let {
                                     Text(
-                                        text = "Due: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
+                                        text = "Due: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDateTime(it)}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.error,
                                     )
@@ -1082,7 +1082,7 @@ fun TaskItem(
 
                                 task.scheduled?.let {
                                     Text(
-                                        text = "Sch: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
+                                        text = "Sch: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDateTime(it)}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                     )

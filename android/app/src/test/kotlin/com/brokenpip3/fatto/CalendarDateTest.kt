@@ -5,6 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 
 class CalendarDateTest {
     @Test
@@ -97,5 +99,62 @@ class CalendarDateTest {
     @Test
     fun formatLocalDateReturnsNullForNull() {
         assertNull(DateTimeUtils.formatLocalDate(null))
+    }
+
+    private val berlin = ZoneId.of("Europe/Berlin")
+    private val newYork = ZoneId.of("America/New_York")
+
+    @Test
+    fun toStoredTimestampWithoutTimeIsFloatingMidnightUtc() {
+        assertEquals(
+            "2026-04-28T00:00:00Z",
+            DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), null, berlin),
+        )
+    }
+
+    @Test
+    fun toStoredTimestampWithTimeUsesZone() {
+        assertEquals(
+            "2026-04-28T07:30:00Z",
+            DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), LocalTime.of(9, 30), berlin),
+        )
+    }
+
+    @Test
+    fun hasTimeIsFalseForFloatingAndLocalMidnight() {
+        assertEquals(false, DateTimeUtils.hasTime("2026-04-28T00:00:00+00:00", berlin))
+        assertEquals(false, DateTimeUtils.hasTime("2026-04-27T22:00:00Z", berlin))
+        assertEquals(false, DateTimeUtils.hasTime(null, berlin))
+    }
+
+    @Test
+    fun hasTimeIsTrueForPickedTime() {
+        assertEquals(true, DateTimeUtils.hasTime("2026-04-28T07:30:00Z", berlin))
+    }
+
+    @Test
+    fun timedValueResolvesDateAndTimeInZone() {
+        assertEquals(LocalDate.of(2026, 4, 29), DateTimeUtils.parseToLocalDate("2026-04-28T22:30:00Z", berlin))
+        assertEquals(LocalTime.of(0, 30), DateTimeUtils.parseToLocalTime("2026-04-28T22:30:00Z", berlin))
+        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate("2026-04-28T22:30:00Z", newYork))
+    }
+
+    @Test
+    fun taskwarriorLocalMidnightResolvesToLocalDate() {
+        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate("2026-04-27T22:00:00Z", berlin))
+        assertNull(DateTimeUtils.parseToLocalTime("2026-04-27T22:00:00Z", berlin))
+    }
+
+    @Test
+    fun formatLocalDateTimeAppendsTimeOnlyWhenSet() {
+        assertEquals("2026-04-28", DateTimeUtils.formatLocalDateTime("2026-04-28T00:00:00Z", berlin))
+        assertEquals("2026-04-28 09:30", DateTimeUtils.formatLocalDateTime("2026-04-28T07:30:00Z", berlin))
+    }
+
+    @Test
+    fun pickedTimeRoundTrips() {
+        val stored = DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), LocalTime.of(23, 15), newYork)
+        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, newYork))
+        assertEquals(LocalTime.of(23, 15), DateTimeUtils.parseToLocalTime(stored, newYork))
     }
 }
