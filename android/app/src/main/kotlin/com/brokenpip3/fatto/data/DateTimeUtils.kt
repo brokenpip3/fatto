@@ -70,8 +70,11 @@ object DateTimeUtils {
         return parseToInstant(dateStr)?.atZone(zone)?.toLocalTime()?.withSecond(0)?.withNano(0)
     }
 
-    fun formatLocalDate(dateStr: String?): String? {
-        return parseToLocalDate(dateStr)?.toString()
+    fun formatLocalDate(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? {
+        return parseToLocalDate(dateStr, zone)?.toString()
     }
 
     /** "yyyy-MM-dd", with " HH:mm" appended when the value has a time of day. */
