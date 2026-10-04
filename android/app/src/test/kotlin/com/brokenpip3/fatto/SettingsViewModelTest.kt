@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto
 
 import com.brokenpip3.fatto.data.S3Credentials
+import com.brokenpip3.fatto.data.JournalTimeDefaults
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SyncCredentials
 import com.brokenpip3.fatto.data.SyncDiagnosticEvent
@@ -685,6 +686,28 @@ class SettingsViewModelTest {
 
         override fun setDefaultProject(project: String?) {
             defaultProject.value = project?.trim()?.takeIf { it.isNotEmpty() }
+        }
+
+        var journalTimeEnabled = false
+        var journalStartAnnotation = JournalTimeDefaults.START_ANNOTATION
+        var journalStopAnnotation = JournalTimeDefaults.STOP_ANNOTATION
+
+        override fun getJournalTimeEnabled(): Boolean = journalTimeEnabled
+
+        override fun setJournalTimeEnabled(enabled: Boolean) {
+            journalTimeEnabled = enabled
+        }
+
+        override fun getJournalStartAnnotation(): String = journalStartAnnotation
+
+        override fun setJournalStartAnnotation(text: String) {
+            journalStartAnnotation = text
+        }
+
+        override fun getJournalStopAnnotation(): String = journalStopAnnotation
+
+        override fun setJournalStopAnnotation(text: String) {
+            journalStopAnnotation = text
         }
 
         override fun getTagsPerLine(): Int = tagsPerLine.value

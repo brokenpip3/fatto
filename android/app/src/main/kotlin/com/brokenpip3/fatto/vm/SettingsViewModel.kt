@@ -441,6 +441,9 @@ class SettingsViewModel(
                 currentSyncCredentials = repository.getCredentials(),
                 currentS3Credentials = repository.getS3Credentials(),
                 currentSyncType = repository.getSyncType(),
+                currentJournalTimeEnabled = repository.getJournalTimeEnabled(),
+                currentJournalStartAnnotation = repository.getJournalStartAnnotation(),
+                currentJournalStopAnnotation = repository.getJournalStopAnnotation(),
             )
     }
 

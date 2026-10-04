@@ -33,6 +33,9 @@ data class TaskrcImportPreview(
     val syncTypeAfter: SyncType = SyncType.SERVER,
     val defaultProjectEnabledAfter: Boolean = false,
     val defaultProjectAfter: String? = null,
+    val journalTimeEnabledAfter: Boolean = false,
+    val journalStartAnnotationAfter: String = JournalTimeDefaults.START_ANNOTATION,
+    val journalStopAnnotationAfter: String = JournalTimeDefaults.STOP_ANNOTATION,
 ) {
     val hasErrors: Boolean = actions.any { it.type == TaskrcImportResultType.ERROR }
 }
@@ -51,6 +54,9 @@ object TaskrcImporter {
         currentSyncCredentials: SyncCredentials? = null,
         currentS3Credentials: S3Credentials? = null,
         currentSyncType: SyncType = SyncType.SERVER,
+        currentJournalTimeEnabled: Boolean = false,
+        currentJournalStartAnnotation: String = JournalTimeDefaults.START_ANNOTATION,
+        currentJournalStopAnnotation: String = JournalTimeDefaults.STOP_ANNOTATION,
     ): TaskrcImportPreview {
         val actions = mutableListOf<TaskrcImportAction>()
         val contextsByName = existingContexts.associateBy { it.name }.toMutableMap()
@@ -59,6 +65,9 @@ object TaskrcImporter {
         var firstDayOfWeek = currentFirstDayOfWeek
         var defaultProjectEnabled = currentDefaultProjectEnabled
         var defaultProject = currentDefaultProject
+        var journalTimeEnabled = currentJournalTimeEnabled
+        var journalStartAnnotation = currentJournalStartAnnotation
+        var journalStopAnnotation = currentJournalStopAnnotation
 
         // Storage key collection: short name -> (line number, value). Only non-empty values.
         val serverValues = mutableMapOf<String, Pair<Int, String>>()
@@ -114,6 +123,31 @@ object TaskrcImporter {
                             defaultProjectEnabled = true
                         }
                     }
+
+                    entry.key == "journal.time" ->
+                        actions += previewJournalTime(lineNumber, entry.value, journalTimeEnabled) { journalTimeEnabled = it }
+
+                    entry.key == "journal.time.start.annotation" ->
+                        actions +=
+                            previewJournalAnnotation(
+                                lineNumber,
+                                entry.key,
+                                entry.value,
+                                "Start",
+                                JournalTimeDefaults.START_ANNOTATION,
+                                journalStartAnnotation,
+                            ) { journalStartAnnotation = it }
+
+                    entry.key == "journal.time.stop.annotation" ->
+                        actions +=
+                            previewJournalAnnotation(
+                                lineNumber,
+                                entry.key,
+                                entry.value,
+                                "Stop",
+                                JournalTimeDefaults.STOP_ANNOTATION,
+                                journalStopAnnotation,
+                            ) { journalStopAnnotation = it }
 
                     entry.key.startsWith("context.") && entry.key.endsWith(".read") ->
                         actions += previewContextRead(lineNumber, entry.key, entry.value, contextsByName)
@@ -207,6 +241,9 @@ object TaskrcImporter {
             syncTypeAfter = storage.syncTypeAfter,
             defaultProjectEnabledAfter = defaultProjectEnabled,
             defaultProjectAfter = defaultProject,
+            journalTimeEnabledAfter = journalTimeEnabled,
+            journalStartAnnotationAfter = journalStartAnnotation,
+            journalStopAnnotationAfter = journalStopAnnotation,
         )
     }
 
@@ -454,6 +491,55 @@ object TaskrcImporter {
                     key = line.substringBefore("=").trim(),
                     value = line.substringAfter("=").trim(),
                 )
+        }
+    }
+
+    private val TRUE_VALUES = setOf("true", "1", "y", "yes", "on")
+    private val FALSE_VALUES = setOf("false", "0", "n", "no", "off")
+
+    private fun previewJournalTime(
+        lineNumber: Int,
+        value: String,
+        currentValue: Boolean,
+        update: (Boolean) -> Unit,
+    ): TaskrcImportAction {
+        val parsed =
+            when (value.lowercase(Locale.ROOT)) {
+                in TRUE_VALUES -> true
+                in FALSE_VALUES -> false
+                else -> null
+            }
+        return when {
+            parsed == null ->
+                TaskrcImportAction(TaskrcImportResultType.ERROR, lineNumber, "journal.time", "Unsupported journal.time value '$value'")
+            parsed == currentValue -> {
+                val state = if (parsed) "enabled" else "disabled"
+                TaskrcImportAction(TaskrcImportResultType.UNCHANGED, lineNumber, "journal.time", "Start/stop journaling already $state")
+            }
+            else -> {
+                update(parsed)
+                val state = if (parsed) "enabled" else "disabled"
+                TaskrcImportAction(TaskrcImportResultType.UPDATED, lineNumber, "journal.time", "Start/stop journaling $state")
+            }
+        }
+    }
+
+    private fun previewJournalAnnotation(
+        lineNumber: Int,
+        key: String,
+        rawValue: String,
+        label: String,
+        default: String,
+        currentValue: String,
+        update: (String) -> Unit,
+    ): TaskrcImportAction {
+        // Taskwarrior falls back to its default text when the annotation is blank.
+        val value = rawValue.ifEmpty { default }
+        return if (value == currentValue) {
+            TaskrcImportAction(TaskrcImportResultType.UNCHANGED, lineNumber, key, "$label annotation unchanged at '$value'")
+        } else {
+            update(value)
+            TaskrcImportAction(TaskrcImportResultType.UPDATED, lineNumber, key, "$label annotation set to '$value'")
         }
     }
 
