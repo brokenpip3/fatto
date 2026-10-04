@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -311,9 +312,18 @@ fun DateTimePickerDialog(
     val currentDate = remember(current) { DateTimeUtils.parseToLocalDate(current) }
     val currentTime = remember(current) { DateTimeUtils.parseToLocalTime(current) }
 
+    // The picker throws on an initial selection outside its year range, and synced
+    // tasks can carry dates beyond the default 1900-2100.
+    val yearRange =
+        remember(currentDate) {
+            val default = DatePickerDefaults.YearRange
+            val year = currentDate?.year ?: default.first
+            minOf(default.first, year)..maxOf(default.last, year)
+        }
     val datePickerState =
         rememberDatePickerState(
             initialSelectedDateMillis = currentDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+            yearRange = yearRange,
         )
     val timePickerState =
         rememberTimePickerState(
