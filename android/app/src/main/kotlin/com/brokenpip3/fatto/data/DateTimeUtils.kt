@@ -33,15 +33,18 @@ object DateTimeUtils {
 
     /**
      * True when the value carries a time of day. Like Taskwarrior (and taskwarrior-tui),
-     * a date is just an instant: `due:2026-04-28` is stored as local midnight, so local
-     * midnight means "no time set" and anything else is shown with its time.
+     * a date is just an instant: `due:2026-04-28` is stored as the start of that local
+     * day, so that instant means "no time set" and anything else is shown with its time.
+     * Comparing with the start-of-day instant (not 00:00) also covers zones where a DST
+     * transition skips midnight.
      */
     fun hasTime(
         dateStr: String?,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Boolean {
         val instant = parseToInstant(dateStr) ?: return false
-        return instant.atZone(zone).toLocalTime() != LocalTime.MIDNIGHT
+        val startOfDay = instant.atZone(zone).toLocalDate().atStartOfDay(zone).toInstant()
+        return instant != startOfDay
     }
 
     /**
@@ -61,7 +64,7 @@ object DateTimeUtils {
         }
     }
 
-    /** Local time of day, or null when the value is at local midnight. */
+    /** Local time of day, or null when the value is the start of its local day. */
     fun parseToLocalTime(
         dateStr: String?,
         zone: ZoneId = ZoneId.systemDefault(),
@@ -104,6 +107,26 @@ object DateTimeUtils {
                 date.atTime(time).atZone(zone).toInstant()
             }
         return instant.toString()
+    }
+
+    /**
+     * The value to save when the picker is confirmed. If the selected date and time match
+     * what [current] already shows, [current] is kept as is: rebuilding it from local
+     * fields could pick the other offset in a DST overlap and move it by an hour.
+     */
+    fun confirmedTimestamp(
+        current: String?,
+        date: LocalDate,
+        time: LocalTime?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        if (current != null &&
+            parseToLocalDate(current, zone) == date &&
+            parseToLocalTime(current, zone) == time
+        ) {
+            return current
+        }
+        return toStoredTimestamp(date, time, zone)
     }
 
     fun isToday(dateStr: String?): Boolean {

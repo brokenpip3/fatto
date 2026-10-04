@@ -333,7 +333,7 @@ fun DateTimePickerDialog(
                 } else {
                     val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     val time = if (withTime) LocalTime.of(timePickerState.hour, timePickerState.minute) else null
-                    onConfirm(DateTimeUtils.toStoredTimestamp(date, time))
+                    onConfirm(DateTimeUtils.confirmedTimestamp(current, date, time))
                 }
             }) {
                 Text("OK")
