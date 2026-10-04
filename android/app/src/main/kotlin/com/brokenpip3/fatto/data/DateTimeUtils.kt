@@ -5,7 +5,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 object DateTimeUtils {
@@ -32,51 +31,37 @@ object DateTimeUtils {
         }
     }
 
-    private fun isUtcMidnight(instant: Instant): Boolean = instant.atZone(ZoneOffset.UTC).toLocalTime() == LocalTime.MIDNIGHT
-
-    private fun isLocalMidnight(
-        instant: Instant,
-        zone: ZoneId,
-    ): Boolean = instant.atZone(zone).toLocalTime() == LocalTime.MIDNIGHT
-
     /**
-     * True when the value carries a meaningful time of day. Midnight UTC is the app's
-     * "floating" date-only form and midnight local is what Taskwarrior stores for a
-     * date-only value, so both count as date-only.
+     * True when the value carries a time of day. Like Taskwarrior (and taskwarrior-tui),
+     * a date is just an instant: `due:2026-04-28` is stored as local midnight, so local
+     * midnight means "no time set" and anything else is shown with its time.
      */
     fun hasTime(
         dateStr: String?,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Boolean {
         val instant = parseToInstant(dateStr) ?: return false
-        return !isUtcMidnight(instant) && !isLocalMidnight(instant, zone)
+        return instant.atZone(zone).toLocalTime() != LocalTime.MIDNIGHT
     }
 
     /**
-     * Extracts the calendar date from an ISO-8601 string.
-     * Date-only values written by this app are "floating" (midnight UTC) - if it says
-     * April 28 in UTC, it's April 28 for the user, regardless of their local timezone
-     * offset. Any other instant (a picked time, or Taskwarrior's local midnight) is
-     * resolved in [zone].
+     * Calendar date of the instant in [zone], as Taskwarrior resolves it. A bare
+     * "yyyy-MM-dd" (no time or offset) is taken as that calendar date.
      */
     fun parseToLocalDate(
         dateStr: String?,
         zone: ZoneId = ZoneId.systemDefault(),
     ): LocalDate? {
         if (dateStr.isNullOrBlank()) return null
-        val instant = parseToInstant(dateStr)
-        if (instant != null && !isUtcMidnight(instant)) {
-            return instant.atZone(zone).toLocalDate()
-        }
+        parseToInstant(dateStr)?.let { return it.atZone(zone).toLocalDate() }
         return try {
-            // Simply take the first 10 characters (YYYY-MM-DD)
-            LocalDate.parse(dateStr.take(10))
+            LocalDate.parse(dateStr.trim())
         } catch (e: Exception) {
             null
         }
     }
 
-    /** Local time of day, or null for date-only values. */
+    /** Local time of day, or null when the value is at local midnight. */
     fun parseToLocalTime(
         dateStr: String?,
         zone: ZoneId = ZoneId.systemDefault(),
@@ -100,9 +85,9 @@ object DateTimeUtils {
     }
 
     /**
-     * Builds the RFC-3339 string stored for a picked date and optional time.
-     * Without a time the date stays floating (midnight UTC); with one it is an
-     * instant in [zone], like Taskwarrior's own `due:2026-04-28T09:00`.
+     * Builds the RFC-3339 string stored for a picked date and optional time, matching
+     * Taskwarrior: without a time it is local midnight (`due:2026-04-28`), with one it
+     * is that time in [zone] (`due:2026-04-28T09:00`).
      */
     fun toStoredTimestamp(
         date: LocalDate,
@@ -111,7 +96,7 @@ object DateTimeUtils {
     ): String {
         val instant =
             if (time == null) {
-                date.atStartOfDay(ZoneOffset.UTC).toInstant()
+                date.atStartOfDay(zone).toInstant()
             } else {
                 date.atTime(time).atZone(zone).toInstant()
             }

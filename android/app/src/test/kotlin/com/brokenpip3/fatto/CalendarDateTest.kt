@@ -9,11 +9,13 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 class CalendarDateTest {
+    private val utc = ZoneId.of("UTC")
+
     @Test
     fun parseUtcZ() {
         assertEquals(
             LocalDate.of(2026, 4, 28),
-            DateTimeUtils.parseToLocalDate("2026-04-28T00:00:00Z"),
+            DateTimeUtils.parseToLocalDate("2026-04-28T00:00:00Z", utc),
         )
     }
 
@@ -21,7 +23,7 @@ class CalendarDateTest {
     fun parseUtcWithOffset() {
         assertEquals(
             LocalDate.of(2026, 4, 28),
-            DateTimeUtils.parseToLocalDate("2026-04-28T00:00:00+00:00"),
+            DateTimeUtils.parseToLocalDate("2026-04-28T00:00:00+00:00", utc),
         )
     }
 
@@ -29,7 +31,7 @@ class CalendarDateTest {
     fun parsePositiveOffset() {
         assertEquals(
             LocalDate.of(2026, 4, 28),
-            DateTimeUtils.parseToLocalDate("2026-04-28T02:00:00+02:00"),
+            DateTimeUtils.parseToLocalDate("2026-04-28T02:00:00+02:00", utc),
         )
     }
 
@@ -37,7 +39,7 @@ class CalendarDateTest {
     fun parseOffByOneScenario() {
         assertEquals(
             LocalDate.of(2026, 4, 27),
-            DateTimeUtils.parseToLocalDate("2026-04-27T22:00:00Z"),
+            DateTimeUtils.parseToLocalDate("2026-04-27T22:00:00Z", utc),
         )
     }
 
@@ -92,7 +94,7 @@ class CalendarDateTest {
     fun formatLocalDateReturnsYyyyMmDd() {
         assertEquals(
             "2026-04-28",
-            DateTimeUtils.formatLocalDate("2026-04-28T00:00:00Z"),
+            DateTimeUtils.formatLocalDate("2026-04-28T00:00:00Z", utc),
         )
     }
 
@@ -105,10 +107,15 @@ class CalendarDateTest {
     private val newYork = ZoneId.of("America/New_York")
 
     @Test
-    fun toStoredTimestampWithoutTimeIsFloatingMidnightUtc() {
+    fun toStoredTimestampWithoutTimeIsLocalMidnight() {
+        // Taskwarrior: due:2026-04-28 is local midnight.
         assertEquals(
-            "2026-04-28T00:00:00Z",
+            "2026-04-27T22:00:00Z",
             DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), null, berlin),
+        )
+        assertEquals(
+            "2026-04-28T04:00:00Z",
+            DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), null, newYork),
         )
     }
 
@@ -121,15 +128,12 @@ class CalendarDateTest {
     }
 
     @Test
-    fun hasTimeIsFalseForFloatingAndLocalMidnight() {
-        assertEquals(false, DateTimeUtils.hasTime("2026-04-28T00:00:00+00:00", berlin))
+    fun hasTimeIsFalseOnlyAtLocalMidnight() {
         assertEquals(false, DateTimeUtils.hasTime("2026-04-27T22:00:00Z", berlin))
         assertEquals(false, DateTimeUtils.hasTime(null, berlin))
-    }
-
-    @Test
-    fun hasTimeIsTrueForPickedTime() {
         assertEquals(true, DateTimeUtils.hasTime("2026-04-28T07:30:00Z", berlin))
+        // UTC midnight is just an instant, not a date-only marker.
+        assertEquals(true, DateTimeUtils.hasTime("2026-04-28T00:00:00Z", berlin))
     }
 
     @Test
@@ -147,8 +151,17 @@ class CalendarDateTest {
 
     @Test
     fun formatLocalDateTimeAppendsTimeOnlyWhenSet() {
-        assertEquals("2026-04-28", DateTimeUtils.formatLocalDateTime("2026-04-28T00:00:00Z", berlin))
+        assertEquals("2026-04-28", DateTimeUtils.formatLocalDateTime("2026-04-27T22:00:00Z", berlin))
         assertEquals("2026-04-28 09:30", DateTimeUtils.formatLocalDateTime("2026-04-28T07:30:00Z", berlin))
+    }
+
+    @Test
+    fun dateOnlyRoundTripsInAnyZone() {
+        for (zone in listOf(berlin, newYork, utc, ZoneId.of("Asia/Tokyo"))) {
+            val stored = DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), null, zone)
+            assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, zone))
+            assertNull(DateTimeUtils.parseToLocalTime(stored, zone))
+        }
     }
 
     @Test
@@ -156,5 +169,13 @@ class CalendarDateTest {
         val stored = DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), LocalTime.of(23, 15), newYork)
         assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, newYork))
         assertEquals(LocalTime.of(23, 15), DateTimeUtils.parseToLocalTime(stored, newYork))
+    }
+
+    @Test
+    fun timeAtUtcMidnightKeepsItsLocalDateAndTime() {
+        // 20:00 in New York is 00:00Z the next day; it must stay April 28 20:00.
+        val stored = DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), LocalTime.of(20, 0), newYork)
+        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, newYork))
+        assertEquals(LocalTime.of(20, 0), DateTimeUtils.parseToLocalTime(stored, newYork))
     }
 }
