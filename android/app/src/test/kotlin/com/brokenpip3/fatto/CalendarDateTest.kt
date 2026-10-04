@@ -178,4 +178,40 @@ class CalendarDateTest {
         assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, newYork))
         assertEquals(LocalTime.of(20, 0), DateTimeUtils.parseToLocalTime(stored, newYork))
     }
+
+    @Test
+    fun dateOnlyRoundTripsWhenDstSkipsMidnight() {
+        // Santiago springs forward at midnight, so the day starts at 01:00.
+        val santiago = ZoneId.of("America/Santiago")
+        val date = LocalDate.of(2026, 9, 6)
+        val stored = DateTimeUtils.toStoredTimestamp(date, null, santiago)
+        assertEquals(false, DateTimeUtils.hasTime(stored, santiago))
+        assertNull(DateTimeUtils.parseToLocalTime(stored, santiago))
+        assertEquals(date, DateTimeUtils.parseToLocalDate(stored, santiago))
+    }
+
+    @Test
+    fun confirmingUnchangedSelectionKeepsStoredValueInDstOverlap() {
+        // 06:30Z on 2026-11-01 is 01:30 EST, the second 01:30 of the day in New York.
+        val current = "2026-11-01T06:30:00Z"
+        val date = DateTimeUtils.parseToLocalDate(current, newYork)!!
+        val time = DateTimeUtils.parseToLocalTime(current, newYork)
+        assertEquals(LocalTime.of(1, 30), time)
+        assertEquals(current, DateTimeUtils.confirmedTimestamp(current, date, time, newYork))
+        // Rebuilding from local fields alone would pick the earlier offset.
+        assertEquals("2026-11-01T05:30:00Z", DateTimeUtils.toStoredTimestamp(date, time, newYork))
+    }
+
+    @Test
+    fun confirmingChangedSelectionStoresNewValue() {
+        val current = "2026-04-28T07:30:00Z"
+        assertEquals(
+            "2026-04-28T08:00:00Z",
+            DateTimeUtils.confirmedTimestamp(current, LocalDate.of(2026, 4, 28), LocalTime.of(10, 0), berlin),
+        )
+        assertEquals(
+            "2026-04-27T22:00:00Z",
+            DateTimeUtils.confirmedTimestamp(null, LocalDate.of(2026, 4, 28), null, berlin),
+        )
+    }
 }
