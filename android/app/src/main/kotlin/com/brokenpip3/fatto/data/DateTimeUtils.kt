@@ -2,7 +2,10 @@ package com.brokenpip3.fatto.data
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 object DateTimeUtils {
     /**
@@ -29,22 +32,101 @@ object DateTimeUtils {
     }
 
     /**
-     * Extracts the date portion (YYYY-MM-DD) from an ISO-8601 string.
-     * We treat dates as "floating" - if it says April 28 in UTC, it's April 28 for the user,
-     * regardless of their local timezone offset.
+     * True when the value carries a time of day. Like Taskwarrior (and taskwarrior-tui),
+     * a date is just an instant: `due:2026-04-28` is stored as the start of that local
+     * day, so that instant means "no time set" and anything else is shown with its time.
+     * Comparing with the start-of-day instant (not 00:00) also covers zones where a DST
+     * transition skips midnight.
      */
-    fun parseToLocalDate(dateStr: String?): LocalDate? {
-        if (dateStr.isNullOrBlank()) return null
-        return try {
-            // Simply take the first 10 characters (YYYY-MM-DD)
-            LocalDate.parse(dateStr.take(10))
-        } catch (e: Exception) {
-            null
-        }
+    fun hasTime(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
+        val instant = parseToInstant(dateStr) ?: return false
+        val startOfDay = instant.atZone(zone).toLocalDate().atStartOfDay(zone).toInstant()
+        return instant != startOfDay
     }
 
-    fun formatLocalDate(dateStr: String?): String? {
-        return parseToLocalDate(dateStr)?.toString()
+    /**
+     * Calendar date of the instant in [zone], as Taskwarrior resolves it. A bare
+     * "yyyy-MM-dd" (no time or offset) is taken as that calendar date.
+     */
+    fun parseToLocalDate(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): LocalDate? {
+        if (dateStr.isNullOrBlank()) return null
+        return parseToInstant(dateStr)?.atZone(zone)?.toLocalDate()
+            ?: try {
+                LocalDate.parse(dateStr.trim())
+            } catch (e: Exception) {
+                null
+            }
+    }
+
+    /** Local time of day, or null when the value is the start of its local day. */
+    fun parseToLocalTime(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): LocalTime? {
+        if (!hasTime(dateStr, zone)) return null
+        return parseToInstant(dateStr)?.atZone(zone)?.toLocalTime()?.withSecond(0)?.withNano(0)
+    }
+
+    fun formatLocalDate(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? {
+        return parseToLocalDate(dateStr, zone)?.toString()
+    }
+
+    /** "yyyy-MM-dd", with " HH:mm" appended when the value has a time of day. */
+    fun formatLocalDateTime(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? {
+        val date = parseToLocalDate(dateStr, zone) ?: return null
+        val time = parseToLocalTime(dateStr, zone)
+        return if (time == null) date.toString() else "$date ${TIME_FORMAT.format(time)}"
+    }
+
+    /**
+     * Builds the RFC-3339 string stored for a picked date and optional time, matching
+     * Taskwarrior: without a time it is local midnight (`due:2026-04-28`), with one it
+     * is that time in [zone] (`due:2026-04-28T09:00`).
+     */
+    fun toStoredTimestamp(
+        date: LocalDate,
+        time: LocalTime?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        val instant =
+            if (time == null) {
+                date.atStartOfDay(zone).toInstant()
+            } else {
+                date.atTime(time).atZone(zone).toInstant()
+            }
+        return instant.toString()
+    }
+
+    /**
+     * The value to save when the picker is confirmed. If the selected date and time match
+     * what [current] already shows, [current] is kept as is: rebuilding it from local
+     * fields could pick the other offset in a DST overlap and move it by an hour.
+     */
+    fun confirmedTimestamp(
+        current: String?,
+        date: LocalDate,
+        time: LocalTime?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        if (current != null &&
+            parseToLocalDate(current, zone) == date &&
+            parseToLocalTime(current, zone) == time
+        ) {
+            return current
+        }
+        return toStoredTimestamp(date, time, zone)
     }
 
     fun isToday(dateStr: String?): Boolean {
@@ -52,8 +134,12 @@ object DateTimeUtils {
         return date == LocalDate.now()
     }
 
-    fun isOverdue(dateStr: String?): Boolean {
-        val date = parseToLocalDate(dateStr) ?: return false
-        return date.isBefore(LocalDate.now())
-    }
+    fun isOverdue(dateStr: String?): Boolean =
+        if (hasTime(dateStr)) {
+            parseToInstant(dateStr)?.isBefore(Instant.now()) == true
+        } else {
+            parseToLocalDate(dateStr)?.isBefore(LocalDate.now()) == true
+        }
+
+    private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 }

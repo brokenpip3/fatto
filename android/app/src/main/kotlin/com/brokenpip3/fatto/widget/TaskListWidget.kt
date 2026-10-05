@@ -126,7 +126,7 @@ private fun EmptyState(message: String) {
 @androidx.compose.runtime.Composable
 private fun TaskRow(task: Task) {
     val colors = GlanceTheme.colors
-    val dueText = DateTimeUtils.formatLocalDate(task.due).orEmpty()
+    val dueText = DateTimeUtils.formatLocalDateTime(task.due).orEmpty()
     val overdue = DateTimeUtils.isOverdue(task.due)
 
     Row(
