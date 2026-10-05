@@ -56,12 +56,12 @@ object DateTimeUtils {
         zone: ZoneId = ZoneId.systemDefault(),
     ): LocalDate? {
         if (dateStr.isNullOrBlank()) return null
-        parseToInstant(dateStr)?.let { return it.atZone(zone).toLocalDate() }
-        return try {
-            LocalDate.parse(dateStr.trim())
-        } catch (e: Exception) {
-            null
-        }
+        return parseToInstant(dateStr)?.atZone(zone)?.toLocalDate()
+            ?: try {
+                LocalDate.parse(dateStr.trim())
+            } catch (e: Exception) {
+                null
+            }
     }
 
     /** Local time of day, or null when the value is the start of its local day. */
@@ -86,8 +86,8 @@ object DateTimeUtils {
         zone: ZoneId = ZoneId.systemDefault(),
     ): String? {
         val date = parseToLocalDate(dateStr, zone) ?: return null
-        val time = parseToLocalTime(dateStr, zone) ?: return date.toString()
-        return "$date ${TIME_FORMAT.format(time)}"
+        val time = parseToLocalTime(dateStr, zone)
+        return if (time == null) date.toString() else "$date ${TIME_FORMAT.format(time)}"
     }
 
     /**
@@ -134,13 +134,12 @@ object DateTimeUtils {
         return date == LocalDate.now()
     }
 
-    fun isOverdue(dateStr: String?): Boolean {
+    fun isOverdue(dateStr: String?): Boolean =
         if (hasTime(dateStr)) {
-            return parseToInstant(dateStr)?.isBefore(Instant.now()) == true
+            parseToInstant(dateStr)?.isBefore(Instant.now()) == true
+        } else {
+            parseToLocalDate(dateStr)?.isBefore(LocalDate.now()) == true
         }
-        val date = parseToLocalDate(dateStr) ?: return false
-        return date.isBefore(LocalDate.now())
-    }
 
     private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 }
