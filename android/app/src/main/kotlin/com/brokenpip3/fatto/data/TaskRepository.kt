@@ -138,11 +138,7 @@ class TaskRepository(
         withContext(Dispatchers.IO) {
             val r = replica ?: throw Exception("Replica not initialized")
             try {
-                val previousStart = if (settingsRepository.getJournalTimeEnabled()) r.getTask(task.uuid)?.start else null
-                r.updateTask(task.toUpdateProps())
-                if (settingsRepository.getJournalTimeEnabled()) {
-                    journalStartStop(r, task.uuid, wasStarted = previousStart != null, isStarted = task.start != null)
-                }
+                r.updateTaskWithJournal(task.toUpdateProps(), journalStartAnnotation(), journalStopAnnotation())
                 loadTasks()
                 notifyWidgetRefresh()
                 triggerSync()
@@ -182,10 +178,11 @@ class TaskRepository(
                     null
                 }
             if (taskToComplete?.start != null) {
-                r.updateTask(taskToComplete.copy(status = TaskStatus.COMPLETED, start = null).toUpdateProps())
-                if (settingsRepository.getJournalTimeEnabled()) {
-                    journalStartStop(r, uuid, wasStarted = true, isStarted = false)
-                }
+                r.updateTaskWithJournal(
+                    taskToComplete.copy(status = TaskStatus.COMPLETED, start = null).toUpdateProps(),
+                    journalStartAnnotation(),
+                    journalStopAnnotation(),
+                )
             } else {
                 r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
             }
@@ -200,25 +197,13 @@ class TaskRepository(
         }
     }
 
-    // Mirrors taskwarrior's journal.time: annotate when a task is started or stopped.
-    private fun journalStartStop(
-        r: ReplicaWrapper,
-        uuid: String,
-        wasStarted: Boolean,
-        isStarted: Boolean,
-    ) {
-        val annotation =
-            when {
-                !wasStarted && isStarted -> settingsRepository.getJournalStartAnnotation()
-                wasStarted && !isStarted -> settingsRepository.getJournalStopAnnotation()
-                else -> return
-            }
-        try {
-            r.addAnnotation(uuid, annotation)
-        } catch (e: Exception) {
-            Log.e("TaskRepository", "Failed to add journal annotation", e)
-        }
-    }
+    // Mirrors taskwarrior's journal.time: the annotation text to add on start/stop, or null when
+    // journaling is off. The state change and annotation are committed together in the backend.
+    private fun journalStartAnnotation(): String? =
+        if (settingsRepository.getJournalTimeEnabled()) settingsRepository.getJournalStartAnnotation() else null
+
+    private fun journalStopAnnotation(): String? =
+        if (settingsRepository.getJournalTimeEnabled()) settingsRepository.getJournalStopAnnotation() else null
 
     private fun Task.toUpdateProps() =
         TaskUpdateProps(

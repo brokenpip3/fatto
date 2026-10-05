@@ -160,11 +160,13 @@ class SettingsBackupCodec(
             defaultProjectEnabled = json.requiredBoolean("defaultProjectEnabled"),
             defaultProject = json.requiredNullableString("defaultProject"),
             // Added after format v1 shipped, so older backups may not carry these.
-            journalTimeEnabled = json.optBoolean("journalTimeEnabled", false),
+            journalTimeEnabled = if (json.has("journalTimeEnabled")) json.requiredBoolean("journalTimeEnabled") else false,
             journalStartAnnotation =
-                json.optString("journalStartAnnotation", "").ifEmpty { JournalTimeDefaults.START_ANNOTATION },
+                (if (json.has("journalStartAnnotation")) json.requiredString("journalStartAnnotation") else "")
+                    .ifEmpty { JournalTimeDefaults.START_ANNOTATION },
             journalStopAnnotation =
-                json.optString("journalStopAnnotation", "").ifEmpty { JournalTimeDefaults.STOP_ANNOTATION },
+                (if (json.has("journalStopAnnotation")) json.requiredString("journalStopAnnotation") else "")
+                    .ifEmpty { JournalTimeDefaults.STOP_ANNOTATION },
             tagsPerLine = json.requiredInt("tagsPerLine"),
             sortOrder =
                 json.requiredString("sortOrder").also { value ->

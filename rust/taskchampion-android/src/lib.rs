@@ -22,6 +22,25 @@ fn parse_rfc3339(date_str: Option<String>) -> Result<Option<DateTime<Utc>>> {
         .transpose()
 }
 
+/// Adds an annotation stamped "now" to `task`, nudging the timestamp forward until it is unique
+/// (taskchampion keys annotations on whole seconds). Returns the entry time used.
+fn push_annotation(
+    task: &mut Task,
+    description: String,
+    ops: &mut Operations,
+) -> Result<DateTime<Utc>> {
+    let mut entry = Utc::now();
+    let existing_timestamps: Vec<i64> = task
+        .get_annotations()
+        .map(|a| a.entry.timestamp())
+        .collect();
+    while existing_timestamps.contains(&entry.timestamp()) {
+        entry += chrono::Duration::seconds(1);
+    }
+    task.add_annotation(taskchampion::Annotation { entry, description }, ops)?;
+    Ok(entry)
+}
+
 #[derive(thiserror::Error, Debug, uniffi::Error)]
 pub enum TaskError {
     #[error("TaskChampion error: {0}")]
@@ -251,6 +270,18 @@ impl ReplicaWrapper {
     }
 
     pub fn update_task(&self, props: TaskUpdateProps) -> Result<()> {
+        self.update_task_with_journal(props, None, None)
+    }
+
+    /// Like `update_task`, but when the task's start state flips as part of the update, the
+    /// matching annotation (`start_annotation` on start, `stop_annotation` on stop) is added in
+    /// the same committed operation set, so the state change and its journal entry cannot diverge.
+    pub fn update_task_with_journal(
+        &self,
+        props: TaskUpdateProps,
+        start_annotation: Option<String>,
+        stop_annotation: Option<String>,
+    ) -> Result<()> {
         let mut replica = self.inner.lock().unwrap();
         let uuid =
             Uuid::parse_str(&props.uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
@@ -293,7 +324,19 @@ impl ReplicaWrapper {
             task.set_due(parse_rfc3339(props.due)?, &mut ops)?;
             task.set_wait(parse_rfc3339(props.wait)?, &mut ops)?;
             task.set_timestamp("scheduled", parse_rfc3339(props.scheduled)?, &mut ops)?;
-            task.set_timestamp("start", parse_rfc3339(props.start)?, &mut ops)?;
+            let was_started = task.get_timestamp("start").is_some();
+            let new_start = parse_rfc3339(props.start)?;
+            let is_started = new_start.is_some();
+            task.set_timestamp("start", new_start, &mut ops)?;
+
+            let journal = match (was_started, is_started) {
+                (false, true) => start_annotation,
+                (true, false) => stop_annotation,
+                _ => None,
+            };
+            if let Some(description) = journal {
+                push_annotation(&mut task, description, &mut ops)?;
+            }
 
             self.rt.block_on(replica.commit_operations(ops))?;
         }
@@ -306,20 +349,7 @@ impl ReplicaWrapper {
             Uuid::parse_str(&uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
         let mut ops = Operations::new();
         if let Some(mut task) = self.rt.block_on(replica.get_task(uuid))? {
-            let mut entry = chrono::Utc::now();
-            // taskchampion keys on seconds — ensure unique timestamps
-            let existing_timestamps: Vec<i64> = task
-                .get_annotations()
-                .map(|a| a.entry.timestamp())
-                .collect();
-            while existing_timestamps.contains(&entry.timestamp()) {
-                entry += chrono::Duration::seconds(1);
-            }
-            let ann = taskchampion::Annotation {
-                entry,
-                description: description.clone(),
-            };
-            task.add_annotation(ann, &mut ops)?;
+            let entry = push_annotation(&mut task, description.clone(), &mut ops)?;
             self.rt.block_on(replica.commit_operations(ops))?;
             Ok(Annotation {
                 entry: entry.to_rfc3339(),
@@ -765,6 +795,69 @@ mod tests {
             .unwrap();
         let updated_task = wrapper.get_task(task.uuid).unwrap().unwrap();
         assert_eq!(updated_task.start, None);
+    }
+
+    #[test]
+    fn test_update_task_with_journal() {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let task = wrapper
+            .add_task(TaskAddProps {
+                description: "Journaled".into(),
+                project: None,
+                tags: vec![],
+                wait: None,
+                due: None,
+                scheduled: None,
+                start: None,
+                priority: None,
+                dependencies: vec![],
+            })
+            .unwrap();
+        let props = |start: Option<&str>| TaskUpdateProps {
+            uuid: task.uuid.clone(),
+            description: task.description.clone(),
+            status: task.status,
+            project: None,
+            tags: vec![],
+            due: None,
+            wait: None,
+            scheduled: None,
+            start: start.map(String::from),
+            priority: None,
+            dependencies: vec![],
+        };
+        let journal = |w: &ReplicaWrapper, start: Option<&str>| {
+            w.update_task_with_journal(
+                props(start),
+                Some("Started".into()),
+                Some("Stopped".into()),
+            )
+            .unwrap();
+            w.get_task(task.uuid.clone()).unwrap().unwrap()
+        };
+
+        // Start: exactly one "Started" annotation.
+        let t = journal(&wrapper, Some("2026-04-17T12:00:00Z"));
+        assert!(t.start.is_some());
+        assert_eq!(t.annotations.len(), 1);
+        assert_eq!(t.annotations[0].description, "Started");
+
+        // Unchanged start state: no new annotation.
+        let t = journal(&wrapper, Some("2026-04-17T12:30:00Z"));
+        assert_eq!(t.annotations.len(), 1);
+
+        // Stop: exactly one "Stopped" annotation added.
+        let t = journal(&wrapper, None);
+        assert!(t.start.is_none());
+        assert_eq!(t.annotations.len(), 2);
+        assert_eq!(t.annotations[1].description, "Stopped");
+
+        // No annotations configured: transition adds nothing.
+        wrapper
+            .update_task_with_journal(props(Some("2026-04-17T13:00:00Z")), None, None)
+            .unwrap();
+        let t = wrapper.get_task(task.uuid.clone()).unwrap().unwrap();
+        assert_eq!(t.annotations.len(), 2);
     }
 
     #[test]
