@@ -355,26 +355,26 @@ class SettingsBackupTest {
             defaultProject.value = project
         }
 
-        var journalTimeEnabled = false
-        var journalStartAnnotation = JournalTimeDefaults.START_ANNOTATION
-        var journalStopAnnotation = JournalTimeDefaults.STOP_ANNOTATION
+        private var _journalTimeEnabled = false
+        private var _journalStartAnnotation = JournalTimeDefaults.START_ANNOTATION
+        private var _journalStopAnnotation = JournalTimeDefaults.STOP_ANNOTATION
 
-        override fun getJournalTimeEnabled(): Boolean = journalTimeEnabled
+        override fun getJournalTimeEnabled(): Boolean = _journalTimeEnabled
 
         override fun setJournalTimeEnabled(enabled: Boolean) {
-            journalTimeEnabled = enabled
+            _journalTimeEnabled = enabled
         }
 
-        override fun getJournalStartAnnotation(): String = journalStartAnnotation
+        override fun getJournalStartAnnotation(): String = _journalStartAnnotation
 
         override fun setJournalStartAnnotation(text: String) {
-            journalStartAnnotation = text
+            _journalStartAnnotation = text
         }
 
-        override fun getJournalStopAnnotation(): String = journalStopAnnotation
+        override fun getJournalStopAnnotation(): String = _journalStopAnnotation
 
         override fun setJournalStopAnnotation(text: String) {
-            journalStopAnnotation = text
+            _journalStopAnnotation = text
         }
 
         override fun getTagsPerLine(): Int = tagsPerLine.value
