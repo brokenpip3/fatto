@@ -131,6 +131,72 @@ class RepositoryIntegrityTest {
         }
 
     @Test
+    fun testJournalAnnotatesStartAndStopTransitionsOnce() =
+        runBlocking {
+            repository.init()
+            settingsRepository.setJournalTimeEnabled(true)
+            settingsRepository.setJournalStartAnnotation("Journal started")
+            settingsRepository.setJournalStopAnnotation("Journal stopped")
+            val created = repository.addTask("Journaled task", null, emptyList(), null, null, null)
+
+            // Start: exactly one start annotation.
+            val startTime = Instant.now().minusSeconds(60).toString()
+            repository.updateTask(repository.tasks.value.single().copy(start = startTime))
+            var annotations = repository.tasks.value.single().annotations.map { it.description }
+            assertEquals(listOf("Journal started"), annotations)
+
+            // Start state unchanged (still started): no new annotation.
+            repository.updateTask(repository.tasks.value.single().copy(description = "Journaled task edited"))
+            annotations = repository.tasks.value.single().annotations.map { it.description }
+            assertEquals(listOf("Journal started"), annotations)
+
+            // Stop: exactly one stop annotation appended.
+            repository.updateTask(repository.tasks.value.single().copy(start = null))
+            val stopped = repository.tasks.value.single()
+            assertNull(stopped.start)
+            assertEquals(created.uuid, stopped.uuid)
+            assertEquals(listOf("Journal started", "Journal stopped"), stopped.annotations.map { it.description })
+        }
+
+    @Test
+    fun testJournalDisabledAddsNoAnnotations() =
+        runBlocking {
+            repository.init()
+            settingsRepository.setJournalTimeEnabled(false)
+            repository.addTask("Not journaled", null, emptyList(), null, null, null)
+
+            repository.updateTask(repository.tasks.value.single().copy(start = Instant.now().minusSeconds(60).toString()))
+            repository.updateTask(repository.tasks.value.single().copy(start = null))
+
+            assertTrue(repository.tasks.value.single().annotations.isEmpty())
+        }
+
+    @Test
+    fun testCompletingActiveTaskJournalsStop() =
+        runBlocking {
+            repository.init()
+            settingsRepository.setAutoStopActiveOnComplete(true)
+            settingsRepository.setJournalTimeEnabled(true)
+            settingsRepository.setJournalStopAnnotation("Journal stopped")
+            val activeTask =
+                repository.addTask(
+                    "Active journaled completion",
+                    null,
+                    emptyList(),
+                    null,
+                    null,
+                    null,
+                    start = Instant.now().minusSeconds(60).toString(),
+                )
+
+            repository.completeTask(activeTask.uuid, sync = false)
+
+            val completed = repository.tasks.value.single()
+            assertNull(completed.start)
+            assertEquals(listOf("Journal stopped"), completed.annotations.map { it.description })
+        }
+
+    @Test
     fun testAddTaskReturnsCreatedTask() =
         runBlocking {
             repository.init()

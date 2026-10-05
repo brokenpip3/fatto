@@ -153,6 +153,18 @@ interface SettingsRepository {
 
     fun setDefaultProject(project: String?)
 
+    fun getJournalTimeEnabled(): Boolean
+
+    fun setJournalTimeEnabled(enabled: Boolean)
+
+    fun getJournalStartAnnotation(): String
+
+    fun setJournalStartAnnotation(text: String)
+
+    fun getJournalStopAnnotation(): String
+
+    fun setJournalStopAnnotation(text: String)
+
     fun getTagsPerLine(): Int
 
     fun setTagsPerLine(count: Int)
@@ -609,6 +621,32 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         _defaultProject.value = normalizedProject
     }
 
+    override fun getJournalTimeEnabled(): Boolean {
+        return sharedPreferences?.getBoolean("journal_time_enabled", false) ?: false
+    }
+
+    override fun setJournalTimeEnabled(enabled: Boolean) {
+        sharedPreferences?.edit()?.putBoolean("journal_time_enabled", enabled)?.apply()
+    }
+
+    override fun getJournalStartAnnotation(): String {
+        return sharedPreferences?.getString("journal_start_annotation", null)?.takeIf { it.isNotEmpty() }
+            ?: JournalTimeDefaults.START_ANNOTATION
+    }
+
+    override fun setJournalStartAnnotation(text: String) {
+        sharedPreferences?.edit()?.putString("journal_start_annotation", text.ifEmpty { JournalTimeDefaults.START_ANNOTATION })?.apply()
+    }
+
+    override fun getJournalStopAnnotation(): String {
+        return sharedPreferences?.getString("journal_stop_annotation", null)?.takeIf { it.isNotEmpty() }
+            ?: JournalTimeDefaults.STOP_ANNOTATION
+    }
+
+    override fun setJournalStopAnnotation(text: String) {
+        sharedPreferences?.edit()?.putString("journal_stop_annotation", text.ifEmpty { JournalTimeDefaults.STOP_ANNOTATION })?.apply()
+    }
+
     override fun getTagsPerLine(): Int {
         return sharedPreferences?.getInt("tags_per_line", 4) ?: 4
     }
@@ -736,6 +774,9 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         setFirstDayOfWeek(preview.firstDayOfWeekAfter)
         setDefaultProject(preview.defaultProjectAfter)
         setDefaultProjectEnabled(preview.defaultProjectEnabledAfter)
+        setJournalTimeEnabled(preview.journalTimeEnabledAfter)
+        setJournalStartAnnotation(preview.journalStartAnnotationAfter)
+        setJournalStopAnnotation(preview.journalStopAnnotationAfter)
         preview.serverCredentialsAfter?.let {
             saveCredentials(it.url, it.clientId, it.secret)
         }

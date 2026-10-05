@@ -40,6 +40,9 @@ class SettingsBackupTest {
                 setSwipeStartToEndAction(TaskSwipeAction.COMPLETE)
                 setSwipeEndToStartAction(TaskSwipeAction.DELETE)
                 setThemeMode(ThemeMode.DARK)
+                setJournalTimeEnabled(true)
+                setJournalStartAnnotation("Began")
+                setJournalStopAnnotation("Paused")
                 replaceTaskContexts(listOf(TaskContext(id = "ctx", name = "Work", expressionText = "+work")))
                 setActiveTaskContextId("ctx")
             }
@@ -64,6 +67,26 @@ class SettingsBackupTest {
         assertEquals(ThemeMode.DARK, target.getThemeMode())
         assertEquals(listOf(TaskContext(id = "ctx", name = "Work", expressionText = "+work")), target.getTaskContexts())
         assertEquals("ctx", target.getActiveTaskContextId())
+        assertTrue(target.getJournalTimeEnabled())
+        assertEquals("Began", target.getJournalStartAnnotation())
+        assertEquals("Paused", target.getJournalStopAnnotation())
+    }
+
+    @Test
+    fun `decode accepts backup without journal settings`() {
+        val json = backupService(FakeSettingsRepository()).exportJson().getOrThrow()
+        val legacy = JSONObject(json)
+        legacy.getJSONObject("settings").apply {
+            remove("journalTimeEnabled")
+            remove("journalStartAnnotation")
+            remove("journalStopAnnotation")
+        }
+
+        val settings = backupService(FakeSettingsRepository()).parseImport(legacy.toString()).getOrThrow().settings
+
+        assertFalse(settings.journalTimeEnabled)
+        assertEquals(JournalTimeDefaults.START_ANNOTATION, settings.journalStartAnnotation)
+        assertEquals(JournalTimeDefaults.STOP_ANNOTATION, settings.journalStopAnnotation)
     }
 
     @Test
@@ -330,6 +353,28 @@ class SettingsBackupTest {
 
         override fun setDefaultProject(project: String?) {
             defaultProject.value = project
+        }
+
+        private var _journalTimeEnabled = false
+        private var _journalStartAnnotation = JournalTimeDefaults.START_ANNOTATION
+        private var _journalStopAnnotation = JournalTimeDefaults.STOP_ANNOTATION
+
+        override fun getJournalTimeEnabled(): Boolean = _journalTimeEnabled
+
+        override fun setJournalTimeEnabled(enabled: Boolean) {
+            _journalTimeEnabled = enabled
+        }
+
+        override fun getJournalStartAnnotation(): String = _journalStartAnnotation
+
+        override fun setJournalStartAnnotation(text: String) {
+            _journalStartAnnotation = text
+        }
+
+        override fun getJournalStopAnnotation(): String = _journalStopAnnotation
+
+        override fun setJournalStopAnnotation(text: String) {
+            _journalStopAnnotation = text
         }
 
         override fun getTagsPerLine(): Int = tagsPerLine.value

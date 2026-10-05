@@ -138,7 +138,7 @@ class TaskRepository(
         withContext(Dispatchers.IO) {
             val r = replica ?: throw Exception("Replica not initialized")
             try {
-                r.updateTask(task.toUpdateProps())
+                r.updateTaskWithJournal(task.toUpdateProps(), journalStartAnnotation(), journalStopAnnotation())
                 loadTasks()
                 notifyWidgetRefresh()
                 triggerSync()
@@ -178,7 +178,11 @@ class TaskRepository(
                     null
                 }
             if (taskToComplete?.start != null) {
-                r.updateTask(taskToComplete.copy(status = TaskStatus.COMPLETED, start = null).toUpdateProps())
+                r.updateTaskWithJournal(
+                    taskToComplete.copy(status = TaskStatus.COMPLETED, start = null).toUpdateProps(),
+                    journalStartAnnotation(),
+                    journalStopAnnotation(),
+                )
             } else {
                 r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
             }
@@ -192,6 +196,14 @@ class TaskRepository(
             throw e
         }
     }
+
+    // Mirrors taskwarrior's journal.time: the annotation text to add on start/stop, or null when
+    // journaling is off. The state change and annotation are committed together in the backend.
+    private fun journalStartAnnotation(): String? =
+        if (settingsRepository.getJournalTimeEnabled()) settingsRepository.getJournalStartAnnotation() else null
+
+    private fun journalStopAnnotation(): String? =
+        if (settingsRepository.getJournalTimeEnabled()) settingsRepository.getJournalStopAnnotation() else null
 
     private fun Task.toUpdateProps() =
         TaskUpdateProps(

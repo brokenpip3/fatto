@@ -27,6 +27,9 @@ data class SettingsBackupSettings(
     val showEmptyProjects: Boolean,
     val defaultProjectEnabled: Boolean,
     val defaultProject: String?,
+    val journalTimeEnabled: Boolean = false,
+    val journalStartAnnotation: String = JournalTimeDefaults.START_ANNOTATION,
+    val journalStopAnnotation: String = JournalTimeDefaults.STOP_ANNOTATION,
     val tagsPerLine: Int,
     val sortOrder: String,
     val sortDirection: String,
@@ -119,6 +122,9 @@ class SettingsBackupCodec(
             .put("showEmptyProjects", settings.showEmptyProjects)
             .put("defaultProjectEnabled", settings.defaultProjectEnabled)
             .putNullable("defaultProject", settings.defaultProject)
+            .put("journalTimeEnabled", settings.journalTimeEnabled)
+            .put("journalStartAnnotation", settings.journalStartAnnotation)
+            .put("journalStopAnnotation", settings.journalStopAnnotation)
             .put("tagsPerLine", settings.tagsPerLine)
             .put("sortOrder", settings.sortOrder)
             .put("sortDirection", settings.sortDirection)
@@ -153,6 +159,14 @@ class SettingsBackupCodec(
             showEmptyProjects = json.requiredBoolean("showEmptyProjects"),
             defaultProjectEnabled = json.requiredBoolean("defaultProjectEnabled"),
             defaultProject = json.requiredNullableString("defaultProject"),
+            // Added after format v1 shipped, so older backups may not carry these.
+            journalTimeEnabled = if (json.has("journalTimeEnabled")) json.requiredBoolean("journalTimeEnabled") else false,
+            journalStartAnnotation =
+                (if (json.has("journalStartAnnotation")) json.requiredString("journalStartAnnotation") else "")
+                    .ifEmpty { JournalTimeDefaults.START_ANNOTATION },
+            journalStopAnnotation =
+                (if (json.has("journalStopAnnotation")) json.requiredString("journalStopAnnotation") else "")
+                    .ifEmpty { JournalTimeDefaults.STOP_ANNOTATION },
             tagsPerLine = json.requiredInt("tagsPerLine"),
             sortOrder =
                 json.requiredString("sortOrder").also { value ->
@@ -269,6 +283,9 @@ class SettingsBackupService(
             repository.setShowEmptyProjects(settings.showEmptyProjects)
             repository.setDefaultProject(settings.defaultProject)
             repository.setDefaultProjectEnabled(settings.defaultProjectEnabled)
+            repository.setJournalTimeEnabled(settings.journalTimeEnabled)
+            repository.setJournalStartAnnotation(settings.journalStartAnnotation)
+            repository.setJournalStopAnnotation(settings.journalStopAnnotation)
             repository.setTagsPerLine(settings.tagsPerLine)
             repository.setSortOrder(settings.sortOrder)
             repository.setSortDirection(settings.sortDirection)
@@ -302,6 +319,9 @@ class SettingsBackupService(
             showEmptyProjects = getShowEmptyProjects(),
             defaultProjectEnabled = getDefaultProjectEnabled(),
             defaultProject = getDefaultProject(),
+            journalTimeEnabled = getJournalTimeEnabled(),
+            journalStartAnnotation = getJournalStartAnnotation(),
+            journalStopAnnotation = getJournalStopAnnotation(),
             tagsPerLine = getTagsPerLine(),
             sortOrder = getSortOrder(),
             sortDirection = getSortDirection(),

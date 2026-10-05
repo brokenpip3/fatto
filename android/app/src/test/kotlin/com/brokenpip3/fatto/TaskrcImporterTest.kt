@@ -1,5 +1,6 @@
 package com.brokenpip3.fatto
 
+import com.brokenpip3.fatto.data.JournalTimeDefaults
 import com.brokenpip3.fatto.data.S3Credentials
 import com.brokenpip3.fatto.data.SyncCredentials
 import com.brokenpip3.fatto.data.SyncType
@@ -389,6 +390,81 @@ class TaskrcImporterTest {
         assertTrue(preview.hasErrors)
         assertNull(preview.s3CredentialsAfter)
         assertEquals(SyncType.SERVER, preview.syncTypeAfter)
+    }
+
+    @Test
+    fun `journal time on enables journaling`() {
+        val preview = TaskrcImporter.preview("journal.time=on", emptyList(), null, Calendar.MONDAY)
+
+        assertTrue(preview.journalTimeEnabledAfter)
+        assertEquals(TaskrcImportResultType.UPDATED, preview.actions.single().type)
+    }
+
+    @Test
+    fun `journal time off disables journaling`() {
+        val preview =
+            TaskrcImporter.preview(
+                "journal.time=no",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+                currentJournalTimeEnabled = true,
+            )
+
+        assertFalse(preview.journalTimeEnabledAfter)
+        assertEquals(TaskrcImportResultType.UPDATED, preview.actions.single().type)
+    }
+
+    @Test
+    fun `journal time matching current value is unchanged`() {
+        val preview = TaskrcImporter.preview("journal.time=off", emptyList(), null, Calendar.MONDAY)
+
+        assertFalse(preview.journalTimeEnabledAfter)
+        assertEquals(TaskrcImportResultType.UNCHANGED, preview.actions.single().type)
+    }
+
+    @Test
+    fun `invalid journal time value is an error and keeps current value`() {
+        val preview =
+            TaskrcImporter.preview(
+                "journal.time=maybe",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+                currentJournalTimeEnabled = true,
+            )
+
+        assertTrue(preview.hasErrors)
+        assertTrue(preview.journalTimeEnabledAfter)
+    }
+
+    @Test
+    fun `journal start and stop annotations are imported`() {
+        val preview =
+            TaskrcImporter.preview(
+                "journal.time.start.annotation=Began work\njournal.time.stop.annotation=Paused",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+            )
+
+        assertEquals("Began work", preview.journalStartAnnotationAfter)
+        assertEquals("Paused", preview.journalStopAnnotationAfter)
+        assertEquals(listOf(TaskrcImportResultType.UPDATED, TaskrcImportResultType.UPDATED), preview.actions.map { it.type })
+    }
+
+    @Test
+    fun `blank journal annotation falls back to the default text`() {
+        val preview =
+            TaskrcImporter.preview(
+                "journal.time.start.annotation=",
+                emptyList(),
+                null,
+                Calendar.MONDAY,
+                currentJournalStartAnnotation = "Custom",
+            )
+
+        assertEquals(JournalTimeDefaults.START_ANNOTATION, preview.journalStartAnnotationAfter)
     }
 
     @Test
