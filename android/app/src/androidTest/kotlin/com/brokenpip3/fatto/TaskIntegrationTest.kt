@@ -43,8 +43,8 @@ class TaskIntegrationTest {
     }
 
     private fun dismissBottomSheet() {
-        composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("CloseButton"), 15000)
-        composeTestRule.onNode(hasContentDescription("CloseButton"), useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("CloseButton"), 15000)
+        composeTestRule.onNode(hasTestTag("CloseButton"), useUnmergedTree = true).performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
         composeTestRule.waitForIdle()
     }
@@ -71,7 +71,7 @@ class TaskIntegrationTest {
         composeTestRule.waitUntilAtLeastOneExists(hasText("Task created"), 15000)
         composeTestRule.onNodeWithText("Edit").performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
-        composeTestRule.onNodeWithContentDescription("TaskDescriptionInput", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskDescriptionInput", useUnmergedTree = true)
             .assertTextContains(description)
     }
 
@@ -84,7 +84,7 @@ class TaskIntegrationTest {
         composeTestRule.onNodeWithText("Create").performClick()
 
         composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
-        composeTestRule.onNodeWithContentDescription("TaskDescriptionInput", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskDescriptionInput", useUnmergedTree = true)
             .assertTextContains(description)
         composeTestRule.onNodeWithText("Task created").assertDoesNotExist()
     }
@@ -115,9 +115,9 @@ class TaskIntegrationTest {
         composeTestRule.onNode(hasText(initialDescription) and hasAnyAncestor(hasTestTag("TaskList"))).performClick()
 
         val updatedDescription = "Updated ${System.currentTimeMillis()}"
-        composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("TaskDescriptionInput"), 15000)
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDescriptionInput"), 15000)
         composeTestRule.onNode(
-            hasContentDescription("TaskDescriptionInput"),
+            hasTestTag("TaskDescriptionInput"),
             useUnmergedTree = true,
         ).performScrollTo().performTextReplacement(updatedDescription)
 

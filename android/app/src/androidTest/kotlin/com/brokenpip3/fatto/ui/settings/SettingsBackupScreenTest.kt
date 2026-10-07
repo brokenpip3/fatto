@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.brokenpip3.fatto.data.S3Credentials
@@ -60,7 +61,7 @@ class SettingsBackupScreenTest {
     fun backupTabShowsPlaintextWarning() {
         composeTestRule.setContent { SettingsScreen(SettingsViewModel(settingsRepository), emptyList(), emptySet()) }
 
-        composeTestRule.onNodeWithText("Backup").performClick()
+        composeTestRule.onNodeWithText("Backup").performScrollTo().performClick()
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Settings backup").assertIsDisplayed()
@@ -74,7 +75,7 @@ class SettingsBackupScreenTest {
     fun exportButtonShowsUnencryptedConfirmationBeforePicker() {
         composeTestRule.setContent { SettingsScreen(SettingsViewModel(settingsRepository), emptyList(), emptySet()) }
 
-        composeTestRule.onNodeWithText("Backup").performClick()
+        composeTestRule.onNodeWithText("Backup").performScrollTo().performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("ExportSettingsButton").performClick()
 
@@ -86,7 +87,7 @@ class SettingsBackupScreenTest {
     fun importButtonShowsOverwriteWarningCopy() {
         composeTestRule.setContent { SettingsScreen(SettingsViewModel(settingsRepository), emptyList(), emptySet()) }
 
-        composeTestRule.onNodeWithText("Backup").performClick()
+        composeTestRule.onNodeWithText("Backup").performScrollTo().performClick()
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Import settings").assertIsDisplayed()

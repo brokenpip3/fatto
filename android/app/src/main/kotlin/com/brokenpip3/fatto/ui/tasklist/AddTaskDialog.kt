@@ -2,18 +2,18 @@ package com.brokenpip3.fatto.ui.tasklist
 
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,7 +27,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,6 +44,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
+import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
@@ -110,164 +112,130 @@ fun AddTaskDialog(
         onDismiss()
     }
 
+    val addTag = {
+        if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
+            tags = tags + newTag.trim()
+            newTag = ""
+        }
+    }
+
     AlertDialog(
         onDismissRequest = resetAndDismiss,
         modifier = Modifier.testTag("AddTaskDialog"),
-        title = { Text("New Task", style = MaterialTheme.typography.titleMedium) },
+        title = { Text("New Task", style = MaterialTheme.typography.headlineSmall) },
         text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                TextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth().testTag("DescriptionInput"),
-                    colors =
-                        TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                )
-
-                TextField(
-                    value = project,
-                    onValueChange = { project = it },
-                    label = { Text("Project") },
-                    modifier = Modifier.fillMaxWidth().testTag("ProjectInput"),
-                    colors =
-                        TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                    trailingIcon = {
-                        IconButton(
-                            onClick = { showProjectPicker = true },
-                            modifier = Modifier.testTag("SelectProjectButton"),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select project")
-                        }
-                    },
-                )
-
-                if (filteredProjects.isNotEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        items(filteredProjects) { suggestion ->
-                            SuggestionChip(label = suggestion, onClick = { project = suggestion })
-                        }
-                    }
-                }
-
-                if (tags.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        items(tags) { tag ->
-                            TagChip(tag = tag, onRemove = { tags = tags - tag })
-                        }
-                    }
-                }
-
-                TextField(
-                    value = newTag,
-                    onValueChange = { newTag = it },
-                    label = { Text("Add Tag") },
-                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "TagInput" },
-                    singleLine = true,
-                    colors =
-                        TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                    trailingIcon = {
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            TextButton(
-                                onClick = {
-                                    if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
-                                        tags = tags + newTag.trim()
-                                        newTag = ""
-                                    }
-                                },
-                                modifier =
-                                    Modifier.semantics {
-                                        contentDescription = "AddTagButton"
-                                    },
-                            ) {
-                                Text("Add", style = MaterialTheme.typography.labelLarge)
-                            }
-                            IconButton(
-                                onClick = { showTagPicker = true },
-                                modifier = Modifier.testTag("SelectTagsButton"),
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select tags")
-                            }
-                        }
-                    },
-                )
-
-                if (filteredTags.isNotEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        items(filteredTags) { suggestion ->
-                            SuggestionChip(
-                                label = suggestion,
-                                onClick = {
-                                    if (!tags.contains(suggestion)) {
-                                        tags = tags + suggestion
-                                    }
-                                    newTag = ""
-                                },
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    PriorityIconButton(
-                        priority = priority,
-                        onPriorityChange = { priority = it },
-                    )
-                    DatePickerIconButton(
-                        label = "Due",
-                        date = dueDate,
-                        icon = Icons.Default.Event,
-                        onClick = { activePicker = DatePickerType.DUE },
-                    )
-                    DatePickerIconButton(
-                        label = "Sch",
-                        date = scheduledDate,
-                        icon = Icons.Default.Schedule,
-                        onClick = { activePicker = DatePickerType.SCHEDULED },
-                    )
-                    DatePickerIconButton(
-                        label = "Wait",
-                        date = waitDate,
-                        icon = Icons.Default.CalendarMonth,
-                        onClick = { activePicker = DatePickerType.WAIT },
-                    )
-                }
-
-                Row(
+            Box(Modifier.fillMaxWidth()) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.medium),
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .testTag("OpenEditorAfterCreateSwitch")
-                            .toggleable(
-                                value = openEditorAfterCreate,
-                                role = Role.Switch,
-                                onValueChange = { openEditorAfterCreate = it },
-                            ),
-                    verticalAlignment = Alignment.CenterVertically,
+                            .heightIn(max = FattoMetrics.formBodyMaxHeight)
+                            .verticalScroll(rememberScrollState()),
                 ) {
-                    Text("Open editor after creating", modifier = Modifier.weight(1f))
-                    Switch(checked = openEditorAfterCreate, onCheckedChange = null)
+                    TextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Description") },
+                        modifier = Modifier.fillMaxWidth().testTag("DescriptionInput"),
+                        colors = FattoFieldDefaults.filledColors(),
+                    )
+
+                    TextField(
+                        value = project,
+                        onValueChange = { project = it },
+                        label = { Text("Project") },
+                        modifier = Modifier.fillMaxWidth().testTag("ProjectInput"),
+                        colors = FattoFieldDefaults.filledColors(),
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { showProjectPicker = true },
+                                modifier = Modifier.testTag("SelectProjectButton"),
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select project")
+                            }
+                        },
+                    )
+
+                    if (filteredProjects.isNotEmpty()) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            items(filteredProjects) { suggestion ->
+                                SuggestionChip(label = suggestion, onClick = { project = suggestion })
+                            }
+                        }
+                    }
+
+                    if (tags.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            items(tags) { tag ->
+                                TagChip(tag = tag, onRemove = { tags = tags - tag })
+                            }
+                        }
+                    }
+
+                    TextField(
+                        value = newTag,
+                        onValueChange = { newTag = it },
+                        label = { Text("Add Tag") },
+                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "TagInput" },
+                        singleLine = true,
+                        colors = FattoFieldDefaults.filledColors(),
+                        trailingIcon = {
+                            TaskTagActions(
+                                onAdd = addTag,
+                                addContentDescription = "AddTagButton",
+                                onSelect = { showTagPicker = true },
+                            )
+                        },
+                    )
+
+                    if (filteredTags.isNotEmpty()) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            items(filteredTags) { suggestion ->
+                                SuggestionChip(
+                                    label = suggestion,
+                                    onClick = {
+                                        if (!tags.contains(suggestion)) {
+                                            tags = tags + suggestion
+                                        }
+                                        newTag = ""
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    TaskDateAndPriorityControls(
+                        priority = priority,
+                        due = dueDate,
+                        scheduled = scheduledDate,
+                        wait = waitDate,
+                        onPriorityChange = { priority = it },
+                        onDateClick = { activePicker = it },
+                    )
+
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = FattoMetrics.minTouchTarget)
+                                .testTag("OpenEditorAfterCreateSwitch")
+                                .toggleable(
+                                    value = openEditorAfterCreate,
+                                    role = Role.Switch,
+                                    onValueChange = { openEditorAfterCreate = it },
+                                ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Open editor after creating", modifier = Modifier.weight(1f))
+                        Switch(checked = openEditorAfterCreate, onCheckedChange = null)
+                    }
                 }
             }
         },
@@ -298,7 +266,7 @@ fun AddTaskDialog(
                         openEditorAfterCreate = false
                     }
                 },
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.medium,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -313,8 +281,8 @@ fun AddTaskDialog(
                 Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(12.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.extraLarge,
     )
 
     if (showProjectPicker) {

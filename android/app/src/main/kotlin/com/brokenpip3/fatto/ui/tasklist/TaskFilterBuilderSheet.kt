@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
@@ -28,11 +27,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.filter.SupportedVirtualTags
 import com.brokenpip3.fatto.data.filter.TaskFilterExpressionParser
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
 
 enum class TaskFilterBuilderPurpose {
     FILTER,
@@ -179,6 +181,8 @@ fun TaskFilterBuilderSheet(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         title = {
             Text(
                 if (purpose == TaskFilterBuilderPurpose.FILTER) {
@@ -186,15 +190,16 @@ fun TaskFilterBuilderSheet(
                 } else {
                     "Context"
                 },
+                style = MaterialTheme.typography.headlineSmall,
             )
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.medium),
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 520.dp)
+                        .heightIn(max = FattoMetrics.formBodyMaxHeight)
                         .verticalScroll(scrollState),
             ) {
                 if (purpose == TaskFilterBuilderPurpose.FILTER) {
@@ -286,7 +291,7 @@ fun TaskFilterBuilderSheet(
                     buildModeError?.let {
                         Text(
                             text = it,
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -295,9 +300,9 @@ fun TaskFilterBuilderSheet(
         },
         confirmButton = {
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(start = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                modifier = Modifier.padding(start = FattoSpacing.small),
             ) {
                 TextButton(
                     onClick = {
@@ -312,16 +317,17 @@ fun TaskFilterBuilderSheet(
                         contextTagsExpanded = false
                         contextVirtualTagsExpanded = false
                     },
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text("Clear")
                 }
                 if (purpose == TaskFilterBuilderPurpose.FILTER) {
-                    TextButton(onClick = { showNameDialog = true }) {
+                    TextButton(onClick = { showNameDialog = true }, shape = MaterialTheme.shapes.medium) {
                         Text("Save")
                     }
                     Button(
                         onClick = { onApply?.invoke(state) },
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text("Apply")
                     }
@@ -329,7 +335,7 @@ fun TaskFilterBuilderSheet(
                     Button(
                         onClick = { showNameDialog = true },
                         enabled = expressionError == null,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text("Save")
                     }
@@ -337,7 +343,7 @@ fun TaskFilterBuilderSheet(
                     Button(
                         onClick = { onApply.invoke(actionState) },
                         enabled = expressionError == null,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text("Update")
                     }
@@ -345,7 +351,7 @@ fun TaskFilterBuilderSheet(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, shape = MaterialTheme.shapes.medium) {
                 Text("Cancel")
             }
         },
@@ -388,6 +394,8 @@ private fun SimpleFilterContent(
         label = { Text("Search") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = FattoFieldDefaults.outlinedColors(),
     )
 
     AccordionSection(
@@ -403,11 +411,13 @@ private fun SimpleFilterContent(
             label = { Text("Find project") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            colors = FattoFieldDefaults.outlinedColors(),
         )
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+            modifier = Modifier.padding(top = FattoSpacing.small),
         ) {
             SuggestionChip(
                 label = "Any project",
@@ -437,9 +447,9 @@ private fun SimpleFilterContent(
     ) {
         if (state.tags.isNotEmpty()) {
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                modifier = Modifier.padding(bottom = FattoSpacing.small),
             ) {
                 state.tags.sorted().forEach { tag ->
                     TagChip(tag = tag, onRemove = { onStateChange(state.copy(tags = state.tags - tag)) })
@@ -452,6 +462,8 @@ private fun SimpleFilterContent(
             label = { Text("Add tag") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            colors = FattoFieldDefaults.outlinedColors(),
             trailingIcon = {
                 TextButton(
                     onClick = {
@@ -461,6 +473,7 @@ private fun SimpleFilterContent(
                             onTagQueryChange("")
                         }
                     },
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text("Add")
                 }
@@ -468,9 +481,9 @@ private fun SimpleFilterContent(
         )
         if (filteredTags.isNotEmpty()) {
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                modifier = Modifier.padding(top = FattoSpacing.small),
             ) {
                 filteredTags.forEach { tag ->
                     SuggestionChip(
@@ -555,31 +568,35 @@ private fun ContextBuilderContent(
     val tagTermCount = state.builderTerms.count { it.kind == ContextBuilderTermKind.TAG }
     val virtualTagTermCount = state.builderTerms.count { it.kind == ContextBuilderTermKind.VIRTUAL_TAG }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.medium)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
             if (contextTab == ContextBuilderTab.BUILD) {
                 Button(
                     onClick = { onContextTabChange(ContextBuilderTab.BUILD) },
-                    modifier = Modifier.testTag("ContextBuildTab"),
+                    modifier = Modifier.testTag("ContextBuildTab").semantics { selected = true },
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text("Build")
                 }
                 TextButton(
                     onClick = { onContextTabChange(ContextBuilderTab.EXPRESSION) },
-                    modifier = Modifier.testTag("ContextExpressionTab"),
+                    modifier = Modifier.testTag("ContextExpressionTab").semantics { selected = false },
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text("Expression")
                 }
             } else {
                 TextButton(
                     onClick = { onContextTabChange(ContextBuilderTab.BUILD) },
-                    modifier = Modifier.testTag("ContextBuildTab"),
+                    modifier = Modifier.testTag("ContextBuildTab").semantics { selected = false },
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text("Build")
                 }
                 Button(
                     onClick = { onContextTabChange(ContextBuilderTab.EXPRESSION) },
-                    modifier = Modifier.testTag("ContextExpressionTab"),
+                    modifier = Modifier.testTag("ContextExpressionTab").semantics { selected = true },
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text("Expression")
                 }
@@ -587,13 +604,53 @@ private fun ContextBuilderContent(
         }
 
         if (contextTab == ContextBuilderTab.BUILD) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
                 if (polarity == ContextBuilderPolarity.INCLUDE) {
-                    Button(onClick = { onPolarityChange(ContextBuilderPolarity.INCLUDE) }) { Text("+") }
-                    TextButton(onClick = { onPolarityChange(ContextBuilderPolarity.EXCLUDE) }) { Text("-") }
+                    Button(
+                        onClick = { onPolarityChange(ContextBuilderPolarity.INCLUDE) },
+                        modifier =
+                            Modifier.semantics {
+                                contentDescription = "Include terms"
+                                selected = true
+                            },
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("+")
+                    }
+                    TextButton(
+                        onClick = { onPolarityChange(ContextBuilderPolarity.EXCLUDE) },
+                        modifier =
+                            Modifier.semantics {
+                                contentDescription = "Exclude terms"
+                                selected = false
+                            },
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("-")
+                    }
                 } else {
-                    TextButton(onClick = { onPolarityChange(ContextBuilderPolarity.INCLUDE) }) { Text("+") }
-                    Button(onClick = { onPolarityChange(ContextBuilderPolarity.EXCLUDE) }) { Text("-") }
+                    TextButton(
+                        onClick = { onPolarityChange(ContextBuilderPolarity.INCLUDE) },
+                        modifier =
+                            Modifier.semantics {
+                                contentDescription = "Include terms"
+                                selected = false
+                            },
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("+")
+                    }
+                    Button(
+                        onClick = { onPolarityChange(ContextBuilderPolarity.EXCLUDE) },
+                        modifier =
+                            Modifier.semantics {
+                                contentDescription = "Exclude terms"
+                                selected = true
+                            },
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("-")
+                    }
                 }
             }
 
@@ -603,6 +660,8 @@ private fun ContextBuilderContent(
                 label = { Text("Search") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                colors = FattoFieldDefaults.outlinedColors(),
                 trailingIcon = {
                     TextButton(
                         onClick = {
@@ -616,6 +675,7 @@ private fun ContextBuilderContent(
                                 onKeywordQueryChange("")
                             }
                         },
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text("Add")
                     }
@@ -635,10 +695,12 @@ private fun ContextBuilderContent(
                     label = { Text("Find project") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.outlinedColors(),
                 )
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                 ) {
                     filteredProjects.forEach { project ->
                         SuggestionChip(
@@ -669,10 +731,12 @@ private fun ContextBuilderContent(
                     label = { Text("Find tag") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.outlinedColors(),
                 )
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                 ) {
                     filteredTags.forEach { tag ->
                         SuggestionChip(
@@ -698,8 +762,8 @@ private fun ContextBuilderContent(
                 onToggle = { sectionActions.onVirtualTagsExpandedChange(!sections.virtualTagsExpanded) },
             ) {
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                 ) {
                     virtualTags.forEach { tag ->
                         SuggestionChip(
@@ -716,15 +780,15 @@ private fun ContextBuilderContent(
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
                 if (includeTerms.isNotEmpty()) {
                     Text(
                         text = "Include",
                         style = MaterialTheme.typography.titleSmall,
                     )
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                     ) {
                         includeTerms.forEach { term ->
                             TagChip(
@@ -740,8 +804,8 @@ private fun ContextBuilderContent(
                         style = MaterialTheme.typography.titleSmall,
                     )
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                     ) {
                         excludeTerms.forEach { term ->
                             TagChip(
@@ -760,6 +824,8 @@ private fun ContextBuilderContent(
                 label = { Text("Expression") },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                colors = FattoFieldDefaults.outlinedColors(),
             )
         } else {
             OutlinedTextField(
@@ -771,10 +837,12 @@ private fun ContextBuilderContent(
                 label = { Text("Expression") },
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth().testTag("ContextExpressionInput"),
+                shape = MaterialTheme.shapes.medium,
+                colors = FattoFieldDefaults.outlinedColors(),
             )
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
             ) {
                 listOf("+", "-", "(", ")", "or", "project:").forEach { token ->
                     TextButton(
@@ -782,6 +850,7 @@ private fun ContextBuilderContent(
                             onBuildModeErrorChange(null)
                             onStateChange(TaskFilterState(rawExpressionText = appendExpressionToken(state.rawExpressionText, token)))
                         },
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text(token)
                     }
@@ -793,7 +862,7 @@ private fun ContextBuilderContent(
                 ?.let { message ->
                     Text(
                         text = message,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -814,15 +883,23 @@ private fun SaveContextDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save context") },
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        title = { Text("Save context", style = MaterialTheme.typography.headlineSmall) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Context name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = FattoMetrics.formBodyMaxHeight),
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Context name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.outlinedColors(),
+                )
+            }
         },
         confirmButton = {
             Button(
@@ -832,13 +909,13 @@ private fun SaveContextDialog(
                     Modifier.semantics {
                         contentDescription = "Confirm save context"
                     },
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.medium,
             ) {
                 Text("Save")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, shape = MaterialTheme.shapes.medium) {
                 Text("Cancel")
             }
         },

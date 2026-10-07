@@ -11,13 +11,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material3.Button
@@ -37,9 +40,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.brokenpip3.fatto.ui.theme.FattoElevation
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoOpacity
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.FattoStroke
+import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import com.brokenpip3.fatto.ui.theme.toNordicColor
 import com.brokenpip3.fatto.vm.Breadcrumb
 import com.brokenpip3.fatto.vm.ProjectNode
@@ -94,13 +103,20 @@ fun ProjectsScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.AccountTree,
+                            contentDescription = null,
+                            modifier = Modifier.size(FattoMetrics.icon),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(FattoSpacing.medium))
                         Text(
                             text = "No subprojects here",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         if (path != null) {
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(FattoSpacing.large))
                             Button(onClick = {
                                 viewModel.setActiveProject(path)
                                 onProjectSelected()
@@ -114,8 +130,8 @@ fun ProjectsScreen(
                 val path = currentPath
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().weight(1f),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(FattoSpacing.large),
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                 ) {
                     items(projectNodes) { node ->
                         val hasSubprojects =
@@ -139,7 +155,7 @@ fun ProjectsScreen(
 
                     if (path != null) {
                         item {
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(FattoSpacing.small))
                             TextButton(
                                 onClick = {
                                     viewModel.setActiveProject(path)
@@ -166,28 +182,37 @@ fun BreadcrumbBar(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = FattoSpacing.large, vertical = FattoSpacing.small),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall),
     ) {
         items(breadcrumbs.size) { index ->
             val crumb = breadcrumbs[index]
             val isLast = index == breadcrumbs.size - 1
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = crumb.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.clickable { onCrumbClick(crumb.fullPath) }.padding(4.dp),
-                )
+                Box(
+                    modifier =
+                        Modifier
+                            .heightIn(min = FattoMetrics.minTouchTarget)
+                            .widthIn(min = FattoMetrics.minTouchTarget)
+                            .clickable { onCrumbClick(crumb.fullPath) }
+                            .semantics { selected = isLast }
+                            .padding(horizontal = FattoSpacing.small),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = crumb.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (!isLast) {
                     Text(
                         text = "/",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(horizontal = 2.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = FattoSpacing.xSmall),
                     )
                 }
             }
@@ -212,58 +237,72 @@ fun ProjectCard(
             CardDefaults.elevatedCardColors(
                 containerColor = MaterialTheme.colorScheme.surface,
             ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = FattoElevation.card),
     ) {
+        val fontScale = effectiveFontScale()
+        val ringSize =
+            if (fontScale >= FattoMetrics.largeFontScale) {
+                FattoMetrics.largeProgressRing * (fontScale / 2f).coerceAtLeast(1f)
+            } else {
+                FattoMetrics.progressRing
+            }
+
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(FattoSpacing.large),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = node.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = "${node.count} pending tasks",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(48.dp),
-            ) {
-                CircularProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxSize(),
-                    color = color,
-                    strokeWidth = 4.dp,
-                    trackColor = color.copy(alpha = 0.1f),
-                )
-                Text(
-                    text = "${(progress * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            ProjectProgressRing(progress = progress, color = color, size = ringSize)
+            Spacer(modifier = Modifier.width(FattoSpacing.small))
 
-            // Fixed width container for chevron to keep circles aligned
+            // Reserve the navigation slot so progress rings align across cards.
             Box(
-                modifier = Modifier.width(28.dp),
+                modifier = Modifier.width(FattoMetrics.icon).testTag("ProjectNavigationSlot"),
                 contentAlignment = Alignment.CenterEnd,
             ) {
                 if (hasSubprojects) {
                     Icon(
                         Icons.Default.ChevronRight,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(FattoMetrics.smallIcon),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProjectProgressRing(
+    progress: Float,
+    color: androidx.compose.ui.graphics.Color,
+    size: androidx.compose.ui.unit.Dp,
+) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxSize(),
+            color = color,
+            strokeWidth = FattoStroke.progress,
+            trackColor = color.copy(alpha = FattoOpacity.track),
+        )
+        Text(
+            text = "${(progress * 100).toInt()}%",
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
 }

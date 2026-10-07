@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
@@ -58,7 +59,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -70,16 +70,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -87,6 +89,13 @@ import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.ui.theme.FattoElevation
+import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoOpacity
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.FattoStroke
+import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import com.brokenpip3.fatto.ui.theme.toNordicColor
 import com.brokenpip3.fatto.vm.SortDirection
 import com.brokenpip3.fatto.vm.SortOrder
@@ -107,6 +116,7 @@ fun TaskListScreen(
     swipeStartToEndAction: TaskSwipeAction,
     swipeEndToStartAction: TaskSwipeAction,
 ) {
+    val largeFontScale = effectiveFontScale() >= 1.5f
     val tasks by viewModel.activeTasks.collectAsState()
     val allTasks by viewModel.allTasks.collectAsState()
     val waitingTasks by viewModel.waitingTasks.collectAsState()
@@ -292,17 +302,16 @@ fun TaskListScreen(
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
+                tonalElevation = FattoElevation.none,
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(FattoSpacing.large)) {
+                    TasksTitle(visible = largeFontScale)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = "Tasks",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
+                        TasksTitle(
+                            visible = !largeFontScale,
                             modifier = Modifier.weight(1f),
                         )
 
@@ -317,7 +326,10 @@ fun TaskListScreen(
                                 onManageContexts = onManageContexts,
                             )
                         }
-                        IconButton(onClick = { showFilters = !showFilters }) {
+                        IconButton(
+                            onClick = { showFilters = !showFilters },
+                            modifier = Modifier.semantics { stateDescription = if (showFilters) "Filters shown" else "Filters hidden" },
+                        ) {
                             Icon(Icons.Default.FilterList, contentDescription = "Toggle Filters")
                         }
                         Box {
@@ -327,6 +339,8 @@ fun TaskListScreen(
                             DropdownMenu(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false },
+                                shape = MaterialTheme.shapes.medium,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             ) {
                                 SortOrder.entries.forEach { order ->
                                     DropdownMenuItem(
@@ -335,7 +349,7 @@ fun TaskListScreen(
                                             viewModel.setSortOrder(order)
                                             showSortMenu = false
                                         },
-                                        leadingIcon = {
+                                        trailingIcon = {
                                             if (currentSortOrder == order) {
                                                 val isAsc = currentSortDirection == SortDirection.ASCENDING
                                                 Icon(
@@ -365,15 +379,23 @@ fun TaskListScreen(
                                     },
                             )
                         }
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp).padding(4.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        } else {
-                            IconButton(onClick = { viewModel.sync() }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Sync")
+                        Box(
+                            modifier = Modifier.size(FattoMetrics.minTouchTarget),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier =
+                                        Modifier
+                                            .size(FattoMetrics.icon)
+                                            .semantics { contentDescription = "Syncing" },
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            } else {
+                                IconButton(onClick = { viewModel.sync() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Sync")
+                                }
                             }
                         }
                     }
@@ -387,45 +409,16 @@ fun TaskListScreen(
                                 activeContext != null,
                     ) {
                         Column(
-                            modifier = Modifier.padding(top = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = FattoSpacing.large),
+                            verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    "Filters",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    TextButton(
-                                        onClick = { filterBuilderPurpose = TaskFilterBuilderPurpose.FILTER },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(32.dp),
-                                    ) {
-                                        Text("Build filter", style = MaterialTheme.typography.labelSmall)
-                                    }
-                                    if (searchQuery.isNotEmpty() || selectedTags.isNotEmpty() || activeProject != null) {
-                                        TextButton(
-                                            onClick = { viewModel.clearFilters() },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(32.dp),
-                                        ) {
-                                            Text(
-                                                "Clear All",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.error,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            val hasClearableFilters = searchQuery.isNotEmpty() || selectedTags.isNotEmpty() || activeProject != null
+                            FilterSectionActions(
+                                largeFontScale = largeFontScale,
+                                hasClearableFilters = hasClearableFilters,
+                                onBuildFilter = { filterBuilderPurpose = TaskFilterBuilderPurpose.FILTER },
+                                onClearFilters = viewModel::clearFilters,
+                            )
 
                             OutlinedTextField(
                                 value = textFieldValue,
@@ -436,17 +429,16 @@ fun TaskListScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 placeholder = { Text("Search tasks...") },
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                                shape = RoundedCornerShape(12.dp),
                                 singleLine = true,
-                                colors =
-                                    TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    ),
+                                colors = FattoFieldDefaults.outlinedColors(),
                                 trailingIcon = {
                                     if (textFieldValue.text.isNotEmpty()) {
                                         IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
-                                            Icon(Icons.Default.Close, contentDescription = "Clear search", modifier = Modifier.size(18.dp))
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Clear search",
+                                                modifier = Modifier.size(FattoMetrics.inlineIcon),
+                                            )
                                         }
                                     }
                                 },
@@ -459,27 +451,32 @@ fun TaskListScreen(
                             if (activeProject != null) {
                                 Surface(
                                     onClick = { viewModel.setActiveProject(null) },
-                                    color = activeProject!!.toNordicColor().copy(alpha = 0.1f),
-                                    shape = RoundedCornerShape(16.dp),
-                                    border = BorderStroke(1.dp, activeProject!!.toNordicColor()),
+                                    modifier = Modifier.heightIn(min = FattoMetrics.minTouchTarget).semantics { selected = true },
+                                    color = activeProject!!.toNordicColor().copy(alpha = FattoOpacity.tint),
+                                    shape = MaterialTheme.shapes.small,
+                                    border = BorderStroke(FattoStroke.subtle, activeProject!!.toNordicColor()),
                                 ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = FattoSpacing.medium),
                                         verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                                     ) {
                                         Text(
                                             text = "Project: $activeProject",
                                             modifier =
                                                 Modifier
                                                     .weight(1f)
-                                                    .padding(start = 12.dp, top = 6.dp, bottom = 6.dp),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = activeProject!!.toNordicColor(),
+                                                    .padding(vertical = FattoSpacing.small),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                         )
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = null,
-                                            modifier = Modifier.size(14.dp).padding(4.dp),
+                                            modifier = Modifier.size(FattoMetrics.inlineIcon),
                                         )
                                     }
                                 }
@@ -487,37 +484,45 @@ fun TaskListScreen(
 
                             if (availableTags.isNotEmpty()) {
                                 LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    contentPadding = PaddingValues(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                                    contentPadding = PaddingValues(bottom = FattoSpacing.small),
                                 ) {
                                     items(availableTags.toList()) { tag ->
                                         Surface(
                                             onClick = { viewModel.toggleTag(tag) },
+                                            modifier =
+                                                Modifier
+                                                    .heightIn(min = FattoMetrics.minTouchTarget)
+                                                    .semantics { selected = selectedTags.contains(tag) },
                                             color =
                                                 if (selectedTags.contains(tag)) {
-                                                    tag.toNordicColor().copy(alpha = 0.2f)
+                                                    tag.toNordicColor().copy(alpha = FattoOpacity.selectedTint)
                                                 } else {
-                                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                    MaterialTheme.colorScheme.surfaceContainerLow
                                                 },
-                                            shape = RoundedCornerShape(16.dp),
+                                            shape = MaterialTheme.shapes.small,
                                             border =
                                                 BorderStroke(
-                                                    width = 1.dp,
+                                                    width = FattoStroke.subtle,
                                                     color =
                                                         if (selectedTags.contains(tag)) {
                                                             tag.toNordicColor()
                                                         } else {
-                                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                                            MaterialTheme.colorScheme.outlineVariant
                                                         },
                                                 ),
                                         ) {
                                             Text(
                                                 text = tag,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                                style = MaterialTheme.typography.labelSmall,
+                                                modifier =
+                                                    Modifier.padding(
+                                                        horizontal = FattoSpacing.medium,
+                                                        vertical = FattoSpacing.small,
+                                                    ),
+                                                style = MaterialTheme.typography.labelMedium,
                                                 color =
                                                     if (selectedTags.contains(tag)) {
-                                                        tag.toNordicColor()
+                                                        MaterialTheme.colorScheme.onSurface
                                                     } else {
                                                         MaterialTheme.colorScheme.onSurfaceVariant
                                                     },
@@ -534,15 +539,21 @@ fun TaskListScreen(
             AnimatedVisibility(
                 visible = syncStatusMessage != null,
             ) {
-                Text(
-                    text = syncStatusMessage ?: "",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    shape = MaterialTheme.shapes.medium,
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                )
+                            .padding(horizontal = FattoSpacing.large, vertical = FattoSpacing.small),
+                ) {
+                    Text(
+                        text = syncStatusMessage ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(FattoSpacing.small),
+                    )
+                }
             }
 
             ContextErrorBanner(
@@ -557,8 +568,14 @@ fun TaskListScreen(
                         .weight(1f)
                         .testTag("TaskList")
                         .nestedScroll(pullToRefreshConnection),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding =
+                    PaddingValues(
+                        start = FattoSpacing.large,
+                        top = FattoSpacing.small,
+                        end = FattoSpacing.large,
+                        bottom = FattoMetrics.taskListBottomInset,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
             ) {
                 items(tasks, key = { it.uuid }) { task ->
                     TaskListRow(
@@ -644,7 +661,9 @@ fun TaskListScreen(
             if (taskToComplete != null) {
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { taskToComplete = null },
-                    title = { Text("Complete Task") },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    title = { Text("Complete Task", style = MaterialTheme.typography.headlineSmall) },
                     text = {
                         val task = taskToComplete!!
                         val dependencyUuids = unresolvedDependencyUuids(task, allTasks)
@@ -712,7 +731,9 @@ fun TaskListScreen(
             if (taskToDelete != null) {
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { taskToDelete = null },
-                    title = { Text("Delete Task") },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    title = { Text("Delete Task", style = MaterialTheme.typography.headlineSmall) },
                     text = { Text("Are you sure you want to delete this task?") },
                     confirmButton = {
                         TextButton(
@@ -787,13 +808,13 @@ private fun ContextErrorBanner(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(8.dp),
+                    .padding(horizontal = FattoSpacing.large, vertical = FattoSpacing.small),
+            shape = MaterialTheme.shapes.medium,
         ) {
             Text(
                 text = "Context \"$contextName\" has an invalid filter: ${error.orEmpty()}",
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(FattoSpacing.medium),
             )
         }
     }
@@ -807,26 +828,31 @@ private fun ContextChip(
     Surface(
         onClick = onClear,
         modifier =
-            Modifier.semantics {
-                contentDescription = "Clear context"
-            },
+            Modifier
+                .semantics { contentDescription = "Clear context" }
+                .heightIn(min = FattoMetrics.minTouchTarget)
+                .fillMaxWidth(),
         color = MaterialTheme.colorScheme.primaryContainer,
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.small,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = FattoSpacing.medium, vertical = FattoSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
         ) {
             Text(
                 "Context: ${context.name}",
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Icon(
                 Icons.Default.Close,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(FattoMetrics.inlineIcon),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
@@ -844,8 +870,10 @@ fun CollapsibleHeader(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .heightIn(min = FattoMetrics.minTouchTarget)
                 .clickable { onClick() }
-                .padding(vertical = 8.dp),
+                .semantics { stateDescription = if (isExpanded) "Expanded" else "Collapsed" }
+                .padding(vertical = FattoSpacing.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -875,13 +903,14 @@ fun TaskItem(
     showUrgencyBar: Boolean = false,
     onRestore: (() -> Unit)? = null,
 ) {
+    val maxDescriptionLines = if (effectiveFontScale() >= FattoMetrics.largeFontScale) 4 else 2
     Card(
         modifier =
-            Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
-                contentDescription = "TaskItem"
+            Modifier.fillMaxWidth().semantics {
+                contentDescription = task.description
             },
         onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.medium,
         colors =
             CardDefaults.cardColors(
                 containerColor =
@@ -894,13 +923,13 @@ fun TaskItem(
         border =
             if (task.start != null) {
                 BorderStroke(
-                    width = 1.5.dp,
+                    width = FattoStroke.selected,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                 )
             } else {
                 null
             },
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = FattoElevation.card),
     ) {
         Column {
             Row(
@@ -910,7 +939,7 @@ fun TaskItem(
                 Box(
                     modifier =
                         Modifier
-                            .width(4.dp)
+                            .width(FattoStroke.projectStripe)
                             .fillMaxHeight()
                             .background(task.project?.toNordicColor() ?: MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                 )
@@ -918,7 +947,7 @@ fun TaskItem(
                 Row(
                     modifier =
                         Modifier
-                            .padding(12.dp)
+                            .padding(FattoSpacing.medium)
                             .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -930,14 +959,16 @@ fun TaskItem(
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
                                     contentDescription = "Active",
-                                    modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                                    modifier = Modifier.size(FattoMetrics.inlineIcon),
                                     tint = MaterialTheme.colorScheme.primary,
                                 )
+                                Spacer(modifier = Modifier.width(FattoSpacing.xSmall))
                             }
                             Text(
                                 text = task.description,
                                 style = MaterialTheme.typography.titleSmall,
-                                maxLines = 2,
+                                textDecoration = if (task.status == TaskStatus.COMPLETED) TextDecoration.LineThrough else null,
+                                maxLines = maxDescriptionLines,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
                             )
@@ -946,12 +977,35 @@ fun TaskItem(
                             }
                         }
 
-                        if (task.project != null || task.due != null || task.tags.isNotEmpty() || task.scheduled != null) {
+                        if (
+                            task.isBlocked ||
+                            task.project != null ||
+                            task.due != null ||
+                            task.tags.isNotEmpty() ||
+                            task.scheduled != null
+                        ) {
                             FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                                verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall),
+                                modifier = Modifier.padding(top = FattoSpacing.xSmall),
                             ) {
+                                if (task.isBlocked) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.errorContainer,
+                                        shape = MaterialTheme.shapes.small,
+                                    ) {
+                                        Text(
+                                            text = "Blocked",
+                                            modifier =
+                                                Modifier.padding(
+                                                    horizontal = FattoSpacing.small,
+                                                    vertical = FattoSpacing.xSmall,
+                                                ),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                        )
+                                    }
+                                }
                                 task.project?.let { proj ->
                                     Text(
                                         text = proj,
@@ -965,7 +1019,7 @@ fun TaskItem(
                                     Text(
                                         text = "Due: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                        color = MaterialTheme.colorScheme.error,
                                     )
                                 }
 
@@ -973,7 +1027,7 @@ fun TaskItem(
                                     Text(
                                         text = "Sch: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                        color = MaterialTheme.colorScheme.primary,
                                     )
                                 }
 
@@ -985,30 +1039,36 @@ fun TaskItem(
                     }
 
                     if (task.status == TaskStatus.PENDING) {
-                        IconButton(onClick = onComplete, modifier = Modifier.size(32.dp)) {
+                        IconButton(
+                            onClick = onComplete,
+                            modifier = Modifier.size(FattoMetrics.minTouchTarget).testTag("TaskCompleteAction"),
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = "Complete",
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                modifier = Modifier.size(FattoMetrics.smallIcon),
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         }
                     } else if (task.status == TaskStatus.COMPLETED && onRestore != null) {
-                        IconButton(onClick = onRestore, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = onRestore, modifier = Modifier.size(FattoMetrics.minTouchTarget)) {
                             Icon(
                                 imageVector = Icons.Default.Restore,
                                 contentDescription = "Restore",
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                modifier = Modifier.size(FattoMetrics.smallIcon),
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(FattoMetrics.minTouchTarget).testTag("TaskDeleteAction"),
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "DeleteTask",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            contentDescription = "Delete task",
+                            modifier = Modifier.size(FattoMetrics.smallIcon),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -1021,25 +1081,114 @@ fun TaskItem(
 }
 
 @Composable
+private fun FilterSectionActions(
+    largeFontScale: Boolean,
+    hasClearableFilters: Boolean,
+    onBuildFilter: () -> Unit,
+    onClearFilters: () -> Unit,
+) {
+    val label = @Composable {
+        Text(
+            "Filters",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (largeFontScale) {
+        Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall)) {
+            label()
+            BuildFilterAction(modifier = Modifier.fillMaxWidth(), onClick = onBuildFilter)
+            if (hasClearableFilters) {
+                ClearFilterAction(modifier = Modifier.fillMaxWidth(), onClick = onClearFilters)
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            label()
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BuildFilterAction(modifier = Modifier, onClick = onBuildFilter)
+                if (hasClearableFilters) {
+                    ClearFilterAction(modifier = Modifier, onClick = onClearFilters)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BuildFilterAction(
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = FattoSpacing.small, vertical = FattoSpacing.small),
+        modifier = modifier.heightIn(min = FattoMetrics.minTouchTarget),
+    ) {
+        Text("Build filter", style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+private fun ClearFilterAction(
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = FattoSpacing.small, vertical = FattoSpacing.small),
+        modifier = modifier.heightIn(min = FattoMetrics.minTouchTarget),
+    ) {
+        Text(
+            "Clear All",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+@Composable
+private fun TasksTitle(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (visible) {
+        Text(
+            text = "Tasks",
+            style = MaterialTheme.typography.headlineSmall,
+            maxLines = 1,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
 fun PriorityBadge(priority: String) {
     val (bg, fg) =
         when (priority) {
-            "H" -> Color(0xFFFCEBEB) to Color(0xFFA32D2D)
-            "M" -> Color(0xFFFAEEDA) to Color(0xFF854F0B)
-            "L" -> Color(0xFFF1EFE8) to Color(0xFF5F5E5A)
+            "H" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+            "M" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+            "L" -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
             else -> return
         }
     Surface(
         color = bg,
-        shape = RoundedCornerShape(4.dp),
-        modifier = Modifier.padding(start = 6.dp),
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.padding(start = FattoSpacing.xSmall),
     ) {
         Text(
             text = priority,
             color = fg,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = FattoSpacing.small, vertical = FattoSpacing.xSmall),
         )
     }
 }
@@ -1052,16 +1201,16 @@ fun UrgencyBar(
     val ratio = if (maxUrgency > 0f) (maxOf(0f, urgency) / maxUrgency).coerceIn(0f, 1f) else 0f
     val barColor =
         when {
-            ratio > 0.66f -> Color(0xFFE24B4A)
-            ratio > 0.33f -> Color(0xFFEF9F27)
-            else -> Color(0xFF888780)
+            ratio > 0.66f -> MaterialTheme.colorScheme.error
+            ratio > 0.33f -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.outline
         }
     Box(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(3.dp)
-                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                .height(FattoStroke.urgency)
+                .background(MaterialTheme.colorScheme.outline.copy(alpha = FattoOpacity.track)),
     ) {
         Box(
             modifier =

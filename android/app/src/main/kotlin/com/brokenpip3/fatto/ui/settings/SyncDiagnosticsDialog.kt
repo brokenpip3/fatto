@@ -2,13 +2,12 @@ package com.brokenpip3.fatto.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -18,10 +17,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.SyncDiagnosticEvent
 import com.brokenpip3.fatto.data.SyncDiagnosticsFormatter
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import java.text.DateFormat
 import java.util.Date
 
@@ -33,32 +35,39 @@ internal fun SyncDiagnosticsDialog(
     onShare: () -> Unit,
     onClear: () -> Unit,
 ) {
+    val compactActions =
+        LocalConfiguration.current.screenWidthDp < FattoMetrics.compactLayoutWidth.value ||
+            effectiveFontScale() >= FattoMetrics.largeFontScale
+    val maxActionsPerRow = if (compactActions) 1 else 2
+
     AlertDialog(
         modifier = Modifier.testTag("DiagnosticsView"),
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         onDismissRequest = onDismiss,
-        title = { Text("Sync diagnostics") },
+        title = { Text("Sync diagnostics", style = MaterialTheme.typography.headlineSmall) },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.65f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
             ) {
                 if (events.isEmpty()) {
                     Text(
                         text = "No diagnostics yet",
-                        modifier = Modifier.padding(vertical = 16.dp),
+                        modifier = Modifier.padding(vertical = FattoSpacing.large),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 } else {
                     Text(
                         text = "Stored on this device. URLs and credentials are redacted.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     HorizontalDivider()
                     LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = FattoMetrics.formBodyMaxHeight),
+                        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                     ) {
                         items(events.reversed()) { rawEvent ->
                             DiagnosticEventCard(rawEvent)
@@ -68,13 +77,21 @@ internal fun SyncDiagnosticsDialog(
             }
         },
         confirmButton = {
-            Row {
+            FlowRow(
+                maxItemsInEachRow = maxActionsPerRow,
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+            ) {
                 TextButton(onClick = onCopy, enabled = events.isNotEmpty()) { Text("Copy") }
                 TextButton(onClick = onShare, enabled = events.isNotEmpty()) { Text("Share") }
             }
         },
         dismissButton = {
-            Row {
+            FlowRow(
+                maxItemsInEachRow = maxActionsPerRow,
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+            ) {
                 TextButton(
                     onClick = onClear,
                     enabled = events.isNotEmpty(),
@@ -91,12 +108,12 @@ private fun DiagnosticEventCard(event: SyncDiagnosticEvent) {
     val safeEvent = SyncDiagnosticsFormatter.sanitizeEvent(event)
     Card(
         modifier = Modifier.fillMaxWidth().testTag("DiagnosticEvent"),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(FattoSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall),
         ) {
             Text(
                 text = "${formatTimestamp(safeEvent.timestampEpochMillis)} · ${safeEvent.stage} · ${safeEvent.outcome}",
@@ -105,13 +122,13 @@ private fun DiagnosticEventCard(event: SyncDiagnosticEvent) {
             )
             Text(safeEvent.summary, style = MaterialTheme.typography.bodyMedium)
             safeEvent.serverOrigin?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
             }
             safeEvent.elapsedMillis?.let {
                 Text(
                     "${it}ms · ${safeEvent.appVersion}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

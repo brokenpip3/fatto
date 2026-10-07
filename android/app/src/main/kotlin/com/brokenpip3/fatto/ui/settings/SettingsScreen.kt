@@ -9,6 +9,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -19,7 +20,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
@@ -57,7 +60,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -77,9 +79,11 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -99,7 +103,12 @@ import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderPurpose
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterBuilderSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskFilterState
+import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.FattoStroke
 import com.brokenpip3.fatto.ui.theme.ThemeMode
+import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import com.brokenpip3.fatto.vm.SyncTestState
 import kotlinx.coroutines.launch
@@ -260,6 +269,7 @@ fun SettingsScreen(
     val swipeStartToEndAction by viewModel.swipeStartToEndAction.collectAsState()
     val swipeEndToStartAction by viewModel.swipeEndToStartAction.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val fontSizePercent by viewModel.fontSizePercent.collectAsState()
     val taskContexts by viewModel.taskContexts.collectAsState()
     val activeTaskContextId by viewModel.activeTaskContextId.collectAsState()
     val taskrcImportText by viewModel.taskrcImportText.collectAsState()
@@ -382,13 +392,14 @@ fun SettingsScreen(
                 selectedTabIndex = selectedTab.ordinal,
                 modifier = Modifier.fillMaxWidth().testTag("SettingsTabs"),
                 edgePadding = 0.dp,
+                containerColor = MaterialTheme.colorScheme.surface,
             ) {
                 SettingsTab.entries.forEach { tab ->
                     Tab(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
                         modifier = Modifier.testTag(tab.tag),
-                        text = { Text(tab.label) },
+                        text = { Text(tab.label, style = MaterialTheme.typography.labelLarge) },
                     )
                 }
             }
@@ -469,6 +480,8 @@ fun SettingsScreen(
                         DisplaySettingsSection(
                             scrollState = displayScrollState,
                             themeMode = themeMode,
+                            fontSizePercent = fontSizePercent,
+                            onFontSizePercentChange = viewModel::onFontSizePercentChange,
                             confirmActions = confirmActions,
                             state =
                                 DisplaySettingsSectionState(
@@ -502,6 +515,11 @@ fun SettingsScreen(
 
                     SettingsTab.HOOKS ->
                         SettingsSection(scrollState = hooksScrollState) {
+                            Text(
+                                text = "Hooks",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                             SettingsCheckboxRow(
                                 checked = autoWaiting,
                                 onCheckedChange = viewModel::onAutoWaitingChange,
@@ -575,8 +593,12 @@ fun SettingsScreen(
 
             if (showExportWarning) {
                 AlertDialog(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     onDismissRequest = { showExportWarning = false },
-                    title = { Text("Export unencrypted settings?") },
+                    title = {
+                        Text("Export unencrypted settings?", style = MaterialTheme.typography.headlineSmall)
+                    },
                     text = {
                         Text(
                             "The exported JSON is unencrypted and may include TSS/S3 credentials " +
@@ -609,8 +631,10 @@ fun SettingsScreen(
 
             pendingImportDocument?.let { document ->
                 AlertDialog(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     onDismissRequest = { pendingImportDocument = null },
-                    title = { Text("Import settings?") },
+                    title = { Text("Import settings?", style = MaterialTheme.typography.headlineSmall) },
                     text = {
                         Text(
                             "This file may contain plain text credentials and will overwrite current settings, " +
@@ -666,13 +690,14 @@ private fun AboutSettingsSection(scrollState: ScrollState) {
     SettingsSection(scrollState = scrollState) {
         Card(
             modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
             colors =
                 CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 ),
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(FattoSpacing.large),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
@@ -683,7 +708,7 @@ private fun AboutSettingsSection(scrollState: ScrollState) {
                 Text(
                     text = "Your TaskWarrior android companion",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -703,8 +728,13 @@ private fun AboutSettingsSection(scrollState: ScrollState) {
                 )
                 Text(
                     text = "https://github.com/brokenpip3/fatto",
-                    modifier = Modifier.clickable { uriHandler.openUri("https://github.com/brokenpip3/fatto") },
-                    style = MaterialTheme.typography.bodySmall,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = FattoMetrics.minTouchTarget)
+                            .clickable { uriHandler.openUri("https://github.com/brokenpip3/fatto") }
+                            .padding(vertical = FattoSpacing.small),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
@@ -714,8 +744,13 @@ private fun AboutSettingsSection(scrollState: ScrollState) {
                 )
                 Text(
                     text = "https://github.com/brokenpip3/fatto/issues",
-                    modifier = Modifier.clickable { uriHandler.openUri("https://github.com/brokenpip3/fatto/issues") },
-                    style = MaterialTheme.typography.bodySmall,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = FattoMetrics.minTouchTarget)
+                            .clickable { uriHandler.openUri("https://github.com/brokenpip3/fatto/issues") }
+                            .padding(vertical = FattoSpacing.small),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -732,6 +767,7 @@ private fun SyncSettingsSection(
     val urlFocusRequester = remember { FocusRequester() }
     val clientIdFocusRequester = remember { FocusRequester() }
     val secretFocusRequester = remember { FocusRequester() }
+    val largeFontScale = effectiveFontScale() >= FattoMetrics.largeFontScale
     LaunchedEffect(state.syncType, state.validationErrors) {
         if (state.syncType == SyncType.SERVER) {
             when (state.validationErrors.keys.minByOrNull { it.ordinal }) {
@@ -750,215 +786,200 @@ private fun SyncSettingsSection(
             color = MaterialTheme.colorScheme.primary,
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth().selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            Row(
-                modifier =
-                    Modifier.selectable(
-                        selected = state.syncType == SyncType.SERVER,
-                        onClick = { actions.onSyncTypeChange(SyncType.SERVER) },
-                        role = Role.RadioButton,
-                    ),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = state.syncType == SyncType.SERVER, onClick = null)
-                Text("Sync server", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
-            }
-            Row(
-                modifier =
-                    Modifier.selectable(
-                        selected = state.syncType == SyncType.S3,
-                        onClick = { actions.onSyncTypeChange(SyncType.S3) },
-                        role = Role.RadioButton,
-                    ),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = state.syncType == SyncType.S3, onClick = null)
-                Text("S3 storage", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
-            }
-        }
+        SyncTypeSelection(
+            syncType = state.syncType,
+            largeFontScale = largeFontScale,
+            onSyncTypeChange = actions.onSyncTypeChange,
+        )
 
-        if (state.syncType == SyncType.SERVER) {
-            SyncConnectionStatus(
-                state = state.syncTestState,
-                diagnosticEvents = state.diagnosticEvents,
-            )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(FattoSpacing.medium),
+        ) {
+            if (state.syncType == SyncType.SERVER) {
+                SyncConnectionStatus(
+                    state = state.syncTestState,
+                    diagnosticEvents = state.diagnosticEvents,
+                )
+                TextField(
+                    value = state.syncUrl,
+                    onValueChange = actions.onSyncUrlChange,
+                    label = { Text("Sync Server URL") },
+                    placeholder = { Text("https://sync.example.com") },
+                    isError = state.validationErrors[SyncServerField.URL] != null,
+                    supportingText = state.validationErrors[SyncServerField.URL]?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth().focusRequester(urlFocusRequester).testTag("SyncServerUrlInput"),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.filledColors(),
+                )
+                TextField(
+                    value = state.clientId,
+                    onValueChange = actions.onClientIdChange,
+                    label = { Text("Client ID (UUID)") },
+                    placeholder = { Text("00000000-0000-0000-0000-000000000000") },
+                    isError = state.validationErrors[SyncServerField.CLIENT_ID] != null,
+                    supportingText = state.validationErrors[SyncServerField.CLIENT_ID]?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth().focusRequester(clientIdFocusRequester).testTag("SyncServerClientIdInput"),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.filledColors(),
+                )
+            } else {
+                TextField(
+                    value = state.s3Bucket,
+                    onValueChange = actions.onS3BucketChange,
+                    label = { Text("Bucket") },
+                    placeholder = { Text("my-tasks-bucket") },
+                    isError = state.s3ValidationErrors[SyncS3Field.BUCKET] != null,
+                    supportingText = state.s3ValidationErrors[SyncS3Field.BUCKET]?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.filledColors(),
+                )
+                TextField(
+                    value = state.s3EndpointUrl,
+                    onValueChange = actions.onS3EndpointUrlChange,
+                    label = { Text("Endpoint URL (optional)") },
+                    placeholder = { Text("https://minio.example.com") },
+                    isError = state.s3ValidationErrors[SyncS3Field.ENDPOINT_URL] != null,
+                    supportingText = state.s3ValidationErrors[SyncS3Field.ENDPOINT_URL]?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.filledColors(),
+                )
+                TextField(
+                    value = state.s3Region,
+                    onValueChange = actions.onS3RegionChange,
+                    label = { Text("Region (optional)") },
+                    placeholder = { Text("us-east-1") },
+                    isError = state.s3ValidationErrors[SyncS3Field.REGION] != null,
+                    supportingText = state.s3ValidationErrors[SyncS3Field.REGION]?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.filledColors(),
+                )
+                TextField(
+                    value = state.s3AccessKeyId,
+                    onValueChange = actions.onS3AccessKeyIdChange,
+                    label = { Text("Access Key ID") },
+                    isError = state.s3ValidationErrors[SyncS3Field.ACCESS_KEY_ID] != null,
+                    supportingText = state.s3ValidationErrors[SyncS3Field.ACCESS_KEY_ID]?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.filledColors(),
+                )
+                TextField(
+                    value = state.s3SecretAccessKey,
+                    onValueChange = actions.onS3SecretAccessKeyChange,
+                    label = { Text("Secret Access Key") },
+                    isError = state.s3ValidationErrors[SyncS3Field.SECRET_ACCESS_KEY] != null,
+                    supportingText = state.s3ValidationErrors[SyncS3Field.SECRET_ACCESS_KEY]?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = if (state.s3SecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { actions.onS3SecretVisibleChange(!state.s3SecretVisible) }) {
+                            Icon(
+                                imageVector = if (state.s3SecretVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (state.s3SecretVisible) "Hide secret" else "Show secret",
+                            )
+                        }
+                    },
+                    shape = MaterialTheme.shapes.medium,
+                    colors = FattoFieldDefaults.filledColors(),
+                )
+            }
+
             TextField(
-                value = state.syncUrl,
-                onValueChange = actions.onSyncUrlChange,
-                label = { Text("Sync Server URL") },
-                placeholder = { Text("https://sync.example.com") },
-                isError = state.validationErrors[SyncServerField.URL] != null,
-                supportingText = state.validationErrors[SyncServerField.URL]?.let { error -> { Text(error) } },
-                modifier = Modifier.fillMaxWidth().focusRequester(urlFocusRequester).testTag("SyncServerUrlInput"),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-            )
-            TextField(
-                value = state.clientId,
-                onValueChange = actions.onClientIdChange,
-                label = { Text("Client ID (UUID)") },
-                placeholder = { Text("00000000-0000-0000-0000-000000000000") },
-                isError = state.validationErrors[SyncServerField.CLIENT_ID] != null,
-                supportingText = state.validationErrors[SyncServerField.CLIENT_ID]?.let { error -> { Text(error) } },
-                modifier = Modifier.fillMaxWidth().focusRequester(clientIdFocusRequester).testTag("SyncServerClientIdInput"),
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-            )
-        } else {
-            TextField(
-                value = state.s3Bucket,
-                onValueChange = actions.onS3BucketChange,
-                label = { Text("Bucket") },
-                placeholder = { Text("my-tasks-bucket") },
-                isError = state.s3ValidationErrors[SyncS3Field.BUCKET] != null,
-                supportingText = state.s3ValidationErrors[SyncS3Field.BUCKET]?.let { error -> { Text(error) } },
-                modifier = Modifier.fillMaxWidth(),
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-            )
-            TextField(
-                value = state.s3EndpointUrl,
-                onValueChange = actions.onS3EndpointUrlChange,
-                label = { Text("Endpoint URL (optional)") },
-                placeholder = { Text("https://minio.example.com") },
-                isError = state.s3ValidationErrors[SyncS3Field.ENDPOINT_URL] != null,
-                supportingText = state.s3ValidationErrors[SyncS3Field.ENDPOINT_URL]?.let { error -> { Text(error) } },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-            )
-            TextField(
-                value = state.s3Region,
-                onValueChange = actions.onS3RegionChange,
-                label = { Text("Region (optional)") },
-                placeholder = { Text("us-east-1") },
-                isError = state.s3ValidationErrors[SyncS3Field.REGION] != null,
-                supportingText = state.s3ValidationErrors[SyncS3Field.REGION]?.let { error -> { Text(error) } },
-                modifier = Modifier.fillMaxWidth(),
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-            )
-            TextField(
-                value = state.s3AccessKeyId,
-                onValueChange = actions.onS3AccessKeyIdChange,
-                label = { Text("Access Key ID") },
-                isError = state.s3ValidationErrors[SyncS3Field.ACCESS_KEY_ID] != null,
-                supportingText = state.s3ValidationErrors[SyncS3Field.ACCESS_KEY_ID]?.let { error -> { Text(error) } },
-                modifier = Modifier.fillMaxWidth(),
+                value = state.encryptionSecret,
+                onValueChange = actions.onSecretChange,
+                label = { Text("Encryption Secret") },
+                isError =
+                    if (state.syncType == SyncType.SERVER) {
+                        state.validationErrors[SyncServerField.ENCRYPTION_SECRET] != null
+                    } else {
+                        state.s3ValidationErrors[SyncS3Field.ENCRYPTION_SECRET] != null
+                    },
+                supportingText =
+                    if (state.syncType == SyncType.SERVER) {
+                        state.validationErrors[SyncServerField.ENCRYPTION_SECRET]?.let { error -> { Text(error) } }
+                    } else {
+                        state.s3ValidationErrors[SyncS3Field.ENCRYPTION_SECRET]?.let { error -> { Text(error) } }
+                    },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .focusRequester(secretFocusRequester)
+                        .then(if (state.syncType == SyncType.SERVER) Modifier.testTag("SyncServerSecretInput") else Modifier),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-            )
-            TextField(
-                value = state.s3SecretAccessKey,
-                onValueChange = actions.onS3SecretAccessKeyChange,
-                label = { Text("Secret Access Key") },
-                isError = state.s3ValidationErrors[SyncS3Field.SECRET_ACCESS_KEY] != null,
-                supportingText = state.s3ValidationErrors[SyncS3Field.SECRET_ACCESS_KEY]?.let { error -> { Text(error) } },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                visualTransformation = if (state.s3SecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                visualTransformation = if (state.secretVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
-                    IconButton(onClick = { actions.onS3SecretVisibleChange(!state.s3SecretVisible) }) {
+                    IconButton(onClick = { actions.onSecretVisibleChange(!state.secretVisible) }) {
                         Icon(
-                            imageVector = if (state.s3SecretVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (state.s3SecretVisible) "Hide secret" else "Show secret",
+                            imageVector = if (state.secretVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (state.secretVisible) "Hide secret" else "Show secret",
                         )
                     }
                 },
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
+                shape = MaterialTheme.shapes.medium,
+                colors = FattoFieldDefaults.filledColors(),
             )
         }
 
-        TextField(
-            value = state.encryptionSecret,
-            onValueChange = actions.onSecretChange,
-            label = { Text("Encryption Secret") },
-            isError =
-                if (state.syncType == SyncType.SERVER) {
-                    state.validationErrors[SyncServerField.ENCRYPTION_SECRET] != null
-                } else {
-                    state.s3ValidationErrors[SyncS3Field.ENCRYPTION_SECRET] != null
-                },
-            supportingText =
-                if (state.syncType == SyncType.SERVER) {
-                    state.validationErrors[SyncServerField.ENCRYPTION_SECRET]?.let { error -> { Text(error) } }
-                } else {
-                    state.s3ValidationErrors[SyncS3Field.ENCRYPTION_SECRET]?.let { error -> { Text(error) } }
-                },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .focusRequester(secretFocusRequester)
-                    .then(if (state.syncType == SyncType.SERVER) Modifier.testTag("SyncServerSecretInput") else Modifier),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            visualTransformation = if (state.secretVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { actions.onSecretVisibleChange(!state.secretVisible) }) {
-                    Icon(
-                        imageVector = if (state.secretVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (state.secretVisible) "Hide secret" else "Show secret",
-                    )
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val compactLayout = maxWidth < FattoMetrics.compactLayoutWidth || largeFontScale
+            if (compactLayout) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                ) {
+                    Button(
+                        onClick = actions.onSaveAndTest,
+                        enabled = state.syncTestState !is SyncTestState.Testing,
+                        modifier = Modifier.fillMaxWidth().testTag("SaveAndTestButton"),
+                        shape = MaterialTheme.shapes.medium,
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                    ) {
+                        Text(if (state.syncTestState is SyncTestState.Testing) "Testing…" else "Save & Test")
+                    }
+                    OutlinedButton(
+                        onClick = actions.onClear,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                    ) { Text("Clear") }
                 }
-            },
-            colors =
-                TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                ),
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = actions.onSaveAndTest,
-                enabled = state.syncTestState !is SyncTestState.Testing,
-                modifier = Modifier.weight(1f).testTag("SaveAndTestButton"),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-            ) {
-                Text(if (state.syncTestState is SyncTestState.Testing) "Testing…" else "Save & Test")
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                ) {
+                    Button(
+                        onClick = actions.onSaveAndTest,
+                        enabled = state.syncTestState !is SyncTestState.Testing,
+                        modifier = Modifier.weight(1f).testTag("SaveAndTestButton"),
+                        shape = MaterialTheme.shapes.medium,
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                    ) {
+                        Text(if (state.syncTestState is SyncTestState.Testing) "Testing…" else "Save & Test")
+                    }
+                    OutlinedButton(
+                        onClick = actions.onClear,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                    ) { Text("Clear") }
+                }
             }
-            OutlinedButton(
-                onClick = actions.onClear,
-                modifier = Modifier.weight(1f),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-            ) { Text("Clear") }
         }
 
         TextButton(
@@ -972,7 +993,7 @@ private fun SyncSettingsSection(
             modifier = Modifier.fillMaxWidth(),
             colors =
                 CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 ),
         ) {
             Text(
@@ -982,11 +1003,65 @@ private fun SyncSettingsSection(
                     } else {
                         "Save & Test stores these settings and runs a real sync using this replica. Task data may be exchanged."
                     },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(FattoSpacing.medium),
             )
         }
+    }
+}
+
+@Composable
+private fun SyncTypeSelection(
+    syncType: SyncType,
+    largeFontScale: Boolean,
+    onSyncTypeChange: (SyncType) -> Unit,
+) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val compactLayout = maxWidth < FattoMetrics.compactLayoutWidth || largeFontScale
+        if (compactLayout) {
+            Column(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall),
+            ) {
+                SyncTypeOption(SyncType.SERVER, "Sync server", syncType, Modifier.fillMaxWidth(), onSyncTypeChange)
+                SyncTypeOption(SyncType.S3, "S3 storage", syncType, Modifier.fillMaxWidth(), onSyncTypeChange)
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.large),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                SyncTypeOption(SyncType.SERVER, "Sync server", syncType, Modifier.weight(1f), onSyncTypeChange)
+                SyncTypeOption(SyncType.S3, "S3 storage", syncType, Modifier.weight(1f), onSyncTypeChange)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncTypeOption(
+    option: SyncType,
+    label: String,
+    selectedType: SyncType,
+    modifier: Modifier,
+    onSyncTypeChange: (SyncType) -> Unit,
+) {
+    val selected = selectedType == option
+    Row(
+        modifier =
+            modifier
+                .heightIn(min = FattoMetrics.minTouchTarget)
+                .selectable(
+                    selected = selected,
+                    onClick = { onSyncTypeChange(option) },
+                    role = Role.RadioButton,
+                ),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = FattoSpacing.small))
     }
 }
 
@@ -1018,22 +1093,43 @@ private fun SyncConnectionStatus(
             is SyncTestState.Succeeded -> "Last test completed in ${state.elapsedMillis}ms"
             else -> null
         }
+    val statusColor =
+        when (state) {
+            is SyncTestState.Succeeded -> MaterialTheme.colorScheme.secondary
+            is SyncTestState.Failed, is SyncTestState.SaveFailed -> MaterialTheme.colorScheme.error
+            SyncTestState.Testing -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurface
+        }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(FattoSpacing.medium),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(statusTitle, modifier = Modifier.testTag("SyncConnectionStatusText"), style = MaterialTheme.typography.titleSmall)
+            Text(
+                statusTitle,
+                modifier = Modifier.testTag("SyncConnectionStatusText"),
+                style = MaterialTheme.typography.titleSmall,
+                color = statusColor,
+            )
             attemptTimestamp?.let {
                 Text("Last attempt: ${formatSyncTimestamp(it)}", style = MaterialTheme.typography.bodySmall)
             }
-            statusSummary?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            statusSummary?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
             if (state is SyncTestState.Testing) {
-                Text("Testing the saved connection…", style = MaterialTheme.typography.bodySmall)
+                Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(FattoMetrics.smallIcon),
+                        strokeWidth = com.brokenpip3.fatto.ui.theme.FattoStroke.progress,
+                    )
+                    Text("Testing the saved connection…", style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
     }
@@ -1070,7 +1166,7 @@ private fun ContextSettingsSection(
 
         Column(
             modifier = Modifier.testTag("TaskDefaultsSection"),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
         ) {
             Text(
                 text = "Task defaults",
@@ -1092,14 +1188,15 @@ private fun ContextSettingsSection(
             )
 
             if (state.defaultProjectEnabled || !state.defaultProject.isNullOrBlank()) {
-                Row(
+                Column(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .heightIn(min = FattoMetrics.minTouchTarget)
                             .clickable { onShowDefaultProjectPickerChange(true) }
                             .testTag("DefaultProjectValue")
-                            .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                            .padding(vertical = FattoSpacing.small),
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall),
                 ) {
                     Text(
                         text = "Project",
@@ -1109,6 +1206,7 @@ private fun ContextSettingsSection(
                         text = state.defaultProject.orEmpty(),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -1130,14 +1228,15 @@ private fun ContextSettingsSection(
             state.taskContexts.forEach { context ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
                     colors =
                         CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface,
                         ),
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(FattoSpacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                     ) {
                         Text(
                             text = context.name,
@@ -1149,8 +1248,8 @@ private fun ContextSettingsSection(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                            verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                         ) {
                             TextButton(onClick = { actions.onUseContext(context.id) }) {
                                 Text(if (state.activeTaskContextId == context.id) "Active" else "Use")
@@ -1190,6 +1289,8 @@ private fun ContextSettingsSection(
 private fun DisplaySettingsSection(
     scrollState: ScrollState,
     themeMode: ThemeMode,
+    fontSizePercent: Int,
+    onFontSizePercentChange: (Int) -> Unit,
     confirmActions: Boolean,
     state: DisplaySettingsSectionState,
     actions: DisplaySettingsSectionActions,
@@ -1208,7 +1309,13 @@ private fun DisplaySettingsSection(
             onThemeModeChange = onThemeModeChange,
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        FontSizeSetting(fontSizePercent = fontSizePercent, onFontSizePercentChange = onFontSizePercentChange)
+
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = FattoSpacing.small),
+            thickness = FattoStroke.subtle,
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
 
         Text(
             text = "Swipe Actions",
@@ -1230,7 +1337,11 @@ private fun DisplaySettingsSection(
             onValueChange = actions.onSwipeEndToStartActionChange,
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = FattoSpacing.small),
+            thickness = FattoStroke.subtle,
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
 
         Text(
             text = "Options",
@@ -1286,9 +1397,13 @@ private fun DisplaySettingsSection(
             label = "Hide blocked tasks (waiting-only deps)",
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = FattoSpacing.small),
+            thickness = FattoStroke.subtle,
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
 
-        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = FattoSpacing.small)) {
             Text(
                 text = "Tags per line: ${state.tagsPerLine}",
                 style = MaterialTheme.typography.bodyLarge,
@@ -1296,6 +1411,11 @@ private fun DisplaySettingsSection(
             Slider(
                 value = state.tagsPerLine.toFloat(),
                 onValueChange = { actions.onTagsPerLineChange(it.toInt()) },
+                modifier =
+                    Modifier.semantics {
+                        contentDescription = "Tags per line"
+                        stateDescription = state.tagsPerLine.toString()
+                    },
                 valueRange = 2f..6f,
                 steps = 3,
                 colors =
@@ -1341,6 +1461,8 @@ private fun SwipeActionSetting(
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                     .fillMaxWidth()
                     .testTag(testTag),
+            shape = MaterialTheme.shapes.medium,
+            colors = FattoFieldDefaults.filledColors(),
         )
         ExposedDropdownMenu(
             expanded = expanded,
@@ -1371,50 +1493,83 @@ private fun ThemeModeSetting(
         color = MaterialTheme.colorScheme.primary,
     )
 
-    Row(
-        modifier = Modifier.fillMaxWidth().selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        ThemeMode.entries.forEach { mode ->
-            val selected = themeMode == mode
-            OutlinedButton(
-                onClick = { onThemeModeChange(mode) },
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .semantics {
-                            this.selected = selected
-                            this.role = Role.RadioButton
-                        },
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
-                colors =
-                    ButtonDefaults.outlinedButtonColors(
-                        containerColor =
-                            if (selected) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                Color.Transparent
-                            },
-                        contentColor =
-                            if (selected) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
-                    ),
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val compactLayout =
+            maxWidth < FattoMetrics.compactLayoutWidth ||
+                effectiveFontScale() >= FattoMetrics.largeFontScale
+        val modes = ThemeMode.entries
+        if (compactLayout) {
+            Column(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
             ) {
-                Text(
-                    text =
-                        when (mode) {
-                            ThemeMode.SYSTEM -> "System"
-                            ThemeMode.LIGHT -> "Light"
-                            ThemeMode.DARK -> "Dark"
-                        },
-                    maxLines = 1,
-                )
+                modes.forEach { mode ->
+                    ThemeModeOption(
+                        mode = mode,
+                        selected = themeMode == mode,
+                        onClick = { onThemeModeChange(mode) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = FattoMetrics.minTouchTarget),
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+            ) {
+                modes.forEach { mode ->
+                    ThemeModeOption(
+                        mode = mode,
+                        selected = themeMode == mode,
+                        onClick = { onThemeModeChange(mode) },
+                        modifier = Modifier.weight(1f).heightIn(min = FattoMetrics.minTouchTarget),
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ThemeModeOption(
+    mode: ThemeMode,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier =
+            modifier.semantics {
+                this.selected = selected
+                this.role = Role.RadioButton
+            },
+        shape = MaterialTheme.shapes.medium,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+        colors =
+            ButtonDefaults.outlinedButtonColors(
+                containerColor =
+                    if (selected) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        Color.Transparent
+                    },
+                contentColor =
+                    if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+            ),
+    ) {
+        Text(
+            text =
+                when (mode) {
+                    ThemeMode.SYSTEM -> "System"
+                    ThemeMode.LIGHT -> "Light"
+                    ThemeMode.DARK -> "Dark"
+                },
+        )
     }
 }
 
@@ -1423,56 +1578,71 @@ private fun FirstDayOfWeekSetting(
     firstDayOfWeek: Int,
     onFirstDayOfWeekChange: (Int) -> Unit,
 ) {
-    Text(
-        text = "First day of week",
-        style = MaterialTheme.typography.bodyLarge,
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
+        Text(
+            text = "First day of week",
+            style = MaterialTheme.typography.titleMedium,
+        )
 
-    Row(
-        modifier = Modifier.fillMaxWidth().selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .selectable(
-                        selected = firstDayOfWeek == java.util.Calendar.MONDAY,
-                        onClick = { onFirstDayOfWeekChange(java.util.Calendar.MONDAY) },
-                        role = Role.RadioButton,
-                    ),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            RadioButton(
-                selected = firstDayOfWeek == java.util.Calendar.MONDAY,
-                onClick = null,
-            )
-            Text(
-                text = "Monday",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val compactLayout =
+                maxWidth < FattoMetrics.compactLayoutWidth ||
+                    effectiveFontScale() >= FattoMetrics.largeFontScale
+            val options =
+                listOf(
+                    java.util.Calendar.MONDAY to "Monday",
+                    java.util.Calendar.SUNDAY to "Sunday",
+                )
 
-        Row(
-            modifier =
-                Modifier
-                    .selectable(
-                        selected = firstDayOfWeek == java.util.Calendar.SUNDAY,
-                        onClick = { onFirstDayOfWeekChange(java.util.Calendar.SUNDAY) },
-                        role = Role.RadioButton,
-                    ),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            RadioButton(
-                selected = firstDayOfWeek == java.util.Calendar.SUNDAY,
-                onClick = null,
-            )
-            Text(
-                text = "Sunday",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 8.dp),
-            )
+            @Composable
+            fun WeekdayOption(
+                day: Int,
+                label: String,
+                modifier: Modifier = Modifier,
+            ) {
+                Row(
+                    modifier =
+                        modifier
+                            .heightIn(min = FattoMetrics.minTouchTarget)
+                            .selectable(
+                                selected = firstDayOfWeek == day,
+                                onClick = { onFirstDayOfWeekChange(day) },
+                                role = Role.RadioButton,
+                            ),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    RadioButton(
+                        selected = firstDayOfWeek == day,
+                        onClick = null,
+                    )
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(start = FattoSpacing.small),
+                    )
+                }
+            }
+
+            if (compactLayout) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().selectableGroup(),
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                ) {
+                    options.forEach { (day, label) ->
+                        WeekdayOption(day = day, label = label, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().selectableGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.large),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    options.forEach { (day, label) ->
+                        WeekdayOption(day = day, label = label, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
@@ -1513,10 +1683,8 @@ private fun NotificationSettingsSection(
                     label = { Text("Daily notification time") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     colors =
-                        TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
+                        FattoFieldDefaults.filledColors(),
+                    shape = MaterialTheme.shapes.medium,
                     modifier =
                         Modifier
                             .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
@@ -1572,6 +1740,7 @@ private fun BackupSettingsSection(
             color = MaterialTheme.colorScheme.primary,
         )
         Card(
+            shape = MaterialTheme.shapes.medium,
             colors =
                 CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -1583,27 +1752,51 @@ private fun BackupSettingsSection(
                 text =
                     "Exports are unencrypted JSON. TSS and S3 credentials, including encryption secrets, " +
                         "are saved in plain text. Imported settings can overwrite your current sync configuration.",
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(FattoSpacing.large),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = onExport,
-                modifier = Modifier.weight(1f).testTag("ExportSettingsButton"),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-            ) {
-                Text("Export settings")
-            }
-            OutlinedButton(
-                onClick = onImport,
-                modifier = Modifier.weight(1f).testTag("ImportSettingsButton"),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-            ) {
-                Text("Import settings")
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val stackActions =
+                maxWidth < FattoMetrics.compactLayoutWidth ||
+                    effectiveFontScale() >= FattoMetrics.largeFontScale
+            if (stackActions) {
+                Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
+                    Button(
+                        onClick = onExport,
+                        modifier = Modifier.fillMaxWidth().testTag("ExportSettingsButton"),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Export settings")
+                    }
+                    OutlinedButton(
+                        onClick = onImport,
+                        modifier = Modifier.fillMaxWidth().testTag("ImportSettingsButton"),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Import settings")
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                ) {
+                    Button(
+                        onClick = onExport,
+                        modifier = Modifier.weight(1f).testTag("ExportSettingsButton"),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Export settings")
+                    }
+                    OutlinedButton(
+                        onClick = onImport,
+                        modifier = Modifier.weight(1f).testTag("ImportSettingsButton"),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Import settings")
+                    }
+                }
             }
         }
     }
@@ -1619,8 +1812,9 @@ private fun SettingsSection(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = FattoSpacing.large)
+                .padding(top = FattoSpacing.large, bottom = FattoSpacing.xxLarge),
+        verticalArrangement = Arrangement.spacedBy(FattoSpacing.large),
         content = content,
     )
 }
@@ -1633,67 +1827,92 @@ private fun TaskrcImportSection(
     onPreviewTaskrcImport: () -> Unit,
     onApplyTaskrcImport: () -> Unit,
 ) {
-    Text(
-        text = "Taskrc import",
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
+        Text(
+            text = "Taskrc import",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
 
-    TextField(
-        value = taskrcImportText,
-        onValueChange = onTaskrcImportTextChange,
-        label = { Text("Paste .taskrc") },
-        minLines = 4,
-        maxLines = 8,
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            ),
-    )
+        TextField(
+            value = taskrcImportText,
+            onValueChange = onTaskrcImportTextChange,
+            label = { Text("Paste .taskrc") },
+            minLines = 4,
+            maxLines = 8,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            colors = FattoFieldDefaults.filledColors(),
+        )
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OutlinedButton(
-            onClick = onPreviewTaskrcImport,
-            enabled = taskrcImportText.isNotBlank(),
-            modifier = Modifier.weight(1f),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-        ) {
-            Text("Preview import")
-        }
-        Button(
-            onClick = onApplyTaskrcImport,
-            enabled = taskrcImportPreview != null && taskrcImportPreview.hasErrors == false,
-            modifier = Modifier.weight(1f),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-        ) {
-            Text("Apply import")
-        }
-    }
-
-    taskrcImportPreview?.let { preview ->
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            preview.actions.forEach { action ->
-                val color =
-                    when (action.type) {
-                        TaskrcImportResultType.ERROR -> MaterialTheme.colorScheme.error
-                        TaskrcImportResultType.SKIPPED -> MaterialTheme.colorScheme.onSurfaceVariant
-                        else -> MaterialTheme.colorScheme.onSurface
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val compactLayout =
+                maxWidth < FattoMetrics.compactLayoutWidth ||
+                    effectiveFontScale() >= FattoMetrics.largeFontScale
+            if (compactLayout) {
+                Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
+                    OutlinedButton(
+                        onClick = onPreviewTaskrcImport,
+                        enabled = taskrcImportText.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Preview import")
                     }
-                Text(
-                    text =
-                        if (action.lineNumber > 0) {
-                            "Line ${action.lineNumber}: ${action.type} ${action.message}"
-                        } else {
-                            "${action.type} ${action.message}"
-                        },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = color,
-                )
+                    Button(
+                        onClick = onApplyTaskrcImport,
+                        enabled = taskrcImportPreview != null && taskrcImportPreview.hasErrors == false,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Apply import")
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                ) {
+                    OutlinedButton(
+                        onClick = onPreviewTaskrcImport,
+                        enabled = taskrcImportText.isNotBlank(),
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Preview import")
+                    }
+                    Button(
+                        onClick = onApplyTaskrcImport,
+                        enabled = taskrcImportPreview != null && taskrcImportPreview.hasErrors == false,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text("Apply import")
+                    }
+                }
+            }
+        }
+
+        taskrcImportPreview?.let { preview ->
+            Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall)) {
+                preview.actions.forEach { action ->
+                    val color =
+                        when (action.type) {
+                            TaskrcImportResultType.ERROR -> MaterialTheme.colorScheme.error
+                            TaskrcImportResultType.SKIPPED -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                    Text(
+                        text =
+                            if (action.lineNumber > 0) {
+                                "Line ${action.lineNumber}: ${action.type} ${action.message}"
+                            } else {
+                                "${action.type} ${action.message}"
+                            },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = color,
+                    )
+                }
             }
         }
     }
@@ -1715,7 +1934,8 @@ private fun SettingsCheckboxRow(
                     onValueChange = onCheckedChange,
                     role = Role.Checkbox,
                 )
-                .padding(vertical = 8.dp),
+                .heightIn(min = FattoMetrics.minTouchTarget)
+                .padding(vertical = FattoSpacing.small),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         Checkbox(
@@ -1729,7 +1949,7 @@ private fun SettingsCheckboxRow(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(start = 8.dp),
+            modifier = Modifier.weight(1f).padding(start = FattoSpacing.small),
         )
     }
 }

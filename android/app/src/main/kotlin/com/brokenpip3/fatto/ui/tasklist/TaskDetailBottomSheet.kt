@@ -4,9 +4,12 @@ import android.content.res.Configuration
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,14 +20,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -40,7 +40,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -55,6 +54,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Annotation
@@ -63,6 +63,10 @@ import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
 import com.brokenpip3.fatto.ui.common.TaskPickerDialog
+import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import kotlinx.coroutines.launch
 import uniffi.taskchampion_android.TaskStatus
 import java.time.Instant
@@ -70,7 +74,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Calendar
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun TaskDetailBottomSheet(
@@ -88,6 +92,7 @@ fun TaskDetailBottomSheet(
     onAddDependencies: suspend (String, List<String>) -> Unit = { _, _ -> },
     onRemoveDependency: suspend (String, String) -> Unit = { _, _ -> },
 ) {
+    val largeFontScale = effectiveFontScale() >= 1.5f
     var description by remember(task) { mutableStateOf(task.description) }
     var project by remember(task) { mutableStateOf(task.project ?: "") }
     var tags by remember(task) { mutableStateOf(task.userTags) }
@@ -169,7 +174,8 @@ fun TaskDetailBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = saveAndDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.extraLarge,
         dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)) },
     ) {
         Column(
@@ -177,15 +183,16 @@ fun TaskDetailBottomSheet(
                 Modifier
                     .fillMaxWidth()
                     .verticalScroll(scrollState)
-                    .padding(16.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(FattoSpacing.large)
+                    .padding(bottom = FattoSpacing.large)
                     .testTag("TaskDetailBottomSheet"),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(FattoSpacing.large),
         ) {
             if (isBlockedLive || isBlockingLive) {
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                    verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                 ) {
                     if (isBlockedLive) {
                         Surface(
@@ -194,8 +201,8 @@ fun TaskDetailBottomSheet(
                         ) {
                             Text(
                                 text = "Task is blocked",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = FattoSpacing.small, vertical = FattoSpacing.xSmall),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )
                         }
@@ -207,8 +214,8 @@ fun TaskDetailBottomSheet(
                         ) {
                             Text(
                                 text = "Blocking other tasks",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = FattoSpacing.small, vertical = FattoSpacing.xSmall),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                             )
                         }
@@ -216,15 +223,12 @@ fun TaskDetailBottomSheet(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            @Composable
+            fun HeaderTitle(modifier: Modifier = Modifier) {
+                Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = saveAndDismiss,
-                        modifier = Modifier.semantics { contentDescription = "CloseButton" },
+                        modifier = Modifier.testTag("CloseButton").semantics { contentDescription = "Close task editor" },
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -232,9 +236,12 @@ fun TaskDetailBottomSheet(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Text(text = "Edit Task", style = MaterialTheme.typography.titleMedium)
+                    Text(text = "Edit Task", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                 }
+            }
 
+            @Composable
+            fun StartButton() {
                 Button(
                     onClick = {
                         start = if (start == null) Instant.now().truncatedTo(ChronoUnit.SECONDS).toString() else null
@@ -263,21 +270,28 @@ fun TaskDetailBottomSheet(
                         imageVector = if (start == null) Icons.Default.PlayArrow else Icons.Default.Stop,
                         contentDescription = null,
                     )
-                    Text(if (start == null) "Start" else "Stop")
+                    if (!largeFontScale) {
+                        Text(if (start == null) "Start" else "Stop")
+                    }
                 }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                HeaderTitle(Modifier.weight(1f))
+                StartButton()
             }
 
             TextField(
                 value = description,
                 onValueChange = { description = it },
                 label = { Text("Description") },
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "TaskDescriptionInput" },
+                modifier = Modifier.fillMaxWidth().testTag("TaskDescriptionInput"),
                 maxLines = 5,
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
+                colors = FattoFieldDefaults.filledColors(),
             )
 
             TextField(
@@ -285,11 +299,7 @@ fun TaskDetailBottomSheet(
                 onValueChange = { project = it },
                 label = { Text("Project") },
                 modifier = Modifier.fillMaxWidth(),
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
+                colors = FattoFieldDefaults.filledColors(),
                 trailingIcon = {
                     IconButton(
                         onClick = { showProjectPicker = true },
@@ -311,33 +321,14 @@ fun TaskDetailBottomSheet(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                PriorityIconButton(
-                    priority = priority,
-                    onPriorityChange = { priority = it },
-                )
-                DatePickerIconButton(
-                    label = "Due",
-                    date = due,
-                    icon = Icons.Default.Event,
-                    onClick = { activePicker = DatePickerType.DUE },
-                )
-                DatePickerIconButton(
-                    label = "Sch",
-                    date = scheduled,
-                    icon = Icons.Default.Schedule,
-                    onClick = { activePicker = DatePickerType.SCHEDULED },
-                )
-                DatePickerIconButton(
-                    label = "Wait",
-                    date = wait,
-                    icon = Icons.Default.CalendarMonth,
-                    onClick = { activePicker = DatePickerType.WAIT },
-                )
-            }
+            TaskDateAndPriorityControls(
+                priority = priority,
+                due = due,
+                scheduled = scheduled,
+                wait = wait,
+                onPriorityChange = { priority = it },
+                onDateClick = { activePicker = it },
+            )
 
             Text(text = "Tags", style = MaterialTheme.typography.labelLarge)
 
@@ -349,40 +340,26 @@ fun TaskDetailBottomSheet(
                 }
             }
 
+            val addTag = {
+                if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
+                    tags = tags + newTag.trim()
+                    newTag = ""
+                }
+            }
+
             TextField(
                 value = newTag,
                 onValueChange = { newTag = it },
                 label = { Text("Add Tag") },
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "TagInput" },
+                modifier = Modifier.fillMaxWidth().testTag("TagInput"),
                 singleLine = true,
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
+                colors = FattoFieldDefaults.filledColors(),
                 trailingIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(
-                            onClick = {
-                                if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
-                                    tags = tags + newTag.trim()
-                                    newTag = ""
-                                }
-                            },
-                            modifier =
-                                Modifier.semantics {
-                                    contentDescription = "AddTagButton"
-                                },
-                        ) {
-                            Text("Add", style = MaterialTheme.typography.labelLarge)
-                        }
-                        IconButton(
-                            onClick = { showTagPicker = true },
-                            modifier = Modifier.testTag("SelectTagsButton"),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select tags")
-                        }
-                    }
+                    TaskTagActions(
+                        addActionModifier = Modifier.testTag("AddTagButton"),
+                        onAdd = addTag,
+                        onSelect = { showTagPicker = true },
+                    )
                 },
             )
 
@@ -422,7 +399,7 @@ fun TaskDetailBottomSheet(
                             Text(
                                 text = annotation.entry,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         IconButton(onClick = {
@@ -447,11 +424,7 @@ fun TaskDetailBottomSheet(
                         placeholder = { Text("Add a note...") },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
-                        colors =
-                            TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            ),
+                        colors = FattoFieldDefaults.filledColors(),
                     )
                     TextButton(
                         onClick = {
@@ -498,7 +471,8 @@ fun TaskDetailBottomSheet(
                 }
                 AddDependencyRow(
                     label = "Add task",
-                    contentDescription = "AddBlockedByButton",
+                    contentDescription = "Add blocking dependency",
+                    testTag = "AddBlockedByButton",
                     onClick = { showBlockedByPicker = true },
                 )
             }
@@ -526,7 +500,8 @@ fun TaskDetailBottomSheet(
                 }
                 AddDependencyRow(
                     label = "Add task",
-                    contentDescription = "AddBlockingButton",
+                    contentDescription = "Add dependent task",
+                    testTag = "AddBlockingButton",
                     onClick = { showBlockingPicker = true },
                 )
             }
@@ -545,23 +520,21 @@ fun TaskDetailBottomSheet(
                     Text("Urgency", style = MaterialTheme.typography.bodyMedium)
                     Text("%.2f".format(task.urgency), style = MaterialTheme.typography.bodyMedium)
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall)) {
                     Text("UUID", style = MaterialTheme.typography.bodyMedium)
                     Text(
                         text = task.uuid,
+                        modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (task.udas.isNotEmpty()) {
                     Text("Extra Attributes (UDAs)", style = MaterialTheme.typography.labelLarge)
                     for ((key, value) in task.udas) {
-                        Row(
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall),
                         ) {
                             Text(
                                 text = key,
@@ -570,6 +543,7 @@ fun TaskDetailBottomSheet(
                             )
                             Text(
                                 text = value,
+                                modifier = Modifier.fillMaxWidth(),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -714,7 +688,7 @@ private fun DependencyRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color =
                     if (task?.status == TaskStatus.COMPLETED) {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
@@ -756,24 +730,28 @@ private fun DependencyRow(
 private fun AddDependencyRow(
     label: String,
     contentDescription: String,
+    testTag: String,
     onClick: () -> Unit,
 ) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .heightIn(min = FattoMetrics.minTouchTarget)
                 .clickable(onClick = onClick)
-                .padding(vertical = 8.dp)
-                .semantics { this.contentDescription = contentDescription },
+                .semantics {
+                    this.contentDescription = contentDescription
+                    this.testTag = testTag
+                },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             Icons.Default.Add,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(FattoMetrics.smallIcon),
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(FattoSpacing.small))
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,

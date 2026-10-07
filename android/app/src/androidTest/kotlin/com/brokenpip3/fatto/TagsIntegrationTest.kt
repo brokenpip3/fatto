@@ -1,11 +1,16 @@
 package com.brokenpip3.fatto
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -14,9 +19,12 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.compose.ui.test.waitUntilDoesNotExist
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
+import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExternalResource
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import java.io.File
 
@@ -32,19 +40,19 @@ class TagsIntegrationTest {
      * in the UI. Declaring this rule before composeTestRule makes it the outermost
      * rule, so it runs first.
      */
-    @get:Rule
-    val clearDatabaseRule: ExternalResource =
+    private val clearDatabaseRule: ExternalResource =
         object : ExternalResource() {
             override fun before() {
                 clearDatabase()
             }
         }
 
-    @get:Rule
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    private val composeTestRule = createAndroidComposeRule<MainActivity>()
+
+    private val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
 
     @get:Rule
-    val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
+    val testRule: TestRule = RuleChain.outerRule(clearDatabaseRule).around(permissionRule).around(composeTestRule)
 
     private fun clearDatabase() {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
@@ -57,12 +65,33 @@ class TagsIntegrationTest {
 
         // Clear shared preferences
         context.getSharedPreferences("sync_settings", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        SettingsRepositoryImpl(context).setConfirmActions(true)
+    }
+
+    private fun ensureConfirmActionsEnabled() {
+        composeTestRule.onNodeWithText("Settings").performClick()
+        composeTestRule.onNodeWithTag("SettingsTabDisplay").performScrollTo().performClick()
+        val confirmActions = composeTestRule.onNodeWithText("Confirm complete/delete")
+        if (confirmActions.fetchSemanticsNode().config[SemanticsProperties.ToggleableState] != ToggleableState.On) {
+            confirmActions.performClick()
+        }
+        confirmActions.assertIsOn()
+        composeTestRule.onNodeWithText("Tasks").performClick()
+    }
+
+    private fun dismissTaskCreatedSnackbar() {
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Task created"), 15000)
+        composeTestRule.onNodeWithText("Edit").performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
     }
 
     @Test
     fun testInternalTagsFiltering() {
         // Wait for the app to load
         composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Add Task"), 30000)
+        ensureConfirmActionsEnabled()
 
         val taskDescription = "Internal Tag Test ${System.currentTimeMillis()}"
 
@@ -86,8 +115,8 @@ class TagsIntegrationTest {
         composeTestRule.onNode(hasContentDescription("Start")).performScrollTo().performClick()
 
         // Close bottom sheet
-        composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("CloseButton"), 15000)
-        composeTestRule.onNode(hasContentDescription("CloseButton"), useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("CloseButton"), 15000)
+        composeTestRule.onNode(hasTestTag("CloseButton"), useUnmergedTree = true).performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
 
         // 3. Verify regular-tag is visible and ACTIVE is hidden by default
@@ -99,6 +128,7 @@ class TagsIntegrationTest {
     fun testTagsAlphabeticalSorting() {
         // Wait for the app to load
         composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Add Task"), 30000)
+        ensureConfirmActionsEnabled()
 
         val taskDescription = "Sorting Test ${System.currentTimeMillis()}"
 
@@ -128,6 +158,7 @@ class TagsIntegrationTest {
     fun testStaleTagChipRemovedAfterComplete() {
         // Wait for the app to load
         composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Add Task"), 30000)
+        ensureConfirmActionsEnabled()
 
         val staleTag = "stale-complete-${System.currentTimeMillis()}"
         val taskDescription = "Complete me ${System.currentTimeMillis()}"
@@ -139,13 +170,14 @@ class TagsIntegrationTest {
         composeTestRule.onNodeWithContentDescription("AddTagButton").performClick()
         composeTestRule.onNodeWithText("Create").performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("AddTaskDialog"), 15000)
+        dismissTaskCreatedSnackbar()
 
         // Open the Filters panel and verify the tag chip appears
         composeTestRule.onNodeWithContentDescription("Toggle Filters").performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasText(staleTag), 15000)
 
-        // Complete the task (confirmation dialog)
-        composeTestRule.onNodeWithContentDescription("Complete").performClick()
+        // Complete the task with confirmations enabled by the test setup.
+        composeTestRule.onNodeWithTag("TaskCompleteAction", useUnmergedTree = true).assertHasClickAction().performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasText("Confirm"), 15000)
         composeTestRule.onNodeWithText("Confirm").performClick()
 
@@ -157,6 +189,7 @@ class TagsIntegrationTest {
     fun testStaleTagChipRemovedAfterDelete() {
         // Wait for the app to load
         composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("Add Task"), 30000)
+        ensureConfirmActionsEnabled()
 
         val staleTag = "stale-delete-${System.currentTimeMillis()}"
         val taskDescription = "Delete me ${System.currentTimeMillis()}"
@@ -168,13 +201,14 @@ class TagsIntegrationTest {
         composeTestRule.onNodeWithContentDescription("AddTagButton").performClick()
         composeTestRule.onNodeWithText("Create").performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("AddTaskDialog"), 15000)
+        dismissTaskCreatedSnackbar()
 
         // 2. Open the Filters panel and verify the tag chip appears
         composeTestRule.onNodeWithContentDescription("Toggle Filters").performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasText(staleTag), 15000)
 
-        // 3. Delete the task (confirmation dialog)
-        composeTestRule.onNodeWithContentDescription("DeleteTask").performClick()
+        // 3. Delete the task with confirmations enabled by the test setup.
+        composeTestRule.onNodeWithTag("TaskDeleteAction", useUnmergedTree = true).assertHasClickAction().performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasText("Confirm"), 15000)
         composeTestRule.onNodeWithText("Confirm").performClick()
 

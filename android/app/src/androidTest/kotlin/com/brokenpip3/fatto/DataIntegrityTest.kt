@@ -51,8 +51,8 @@ class DataIntegrityTest {
     }
 
     private fun dismissBottomSheet() {
-        composeTestRule.waitUntilAtLeastOneExists(hasContentDescription("CloseButton"), 15000)
-        composeTestRule.onNode(hasContentDescription("CloseButton"), useUnmergedTree = true).performScrollTo().performClick()
+        composeTestRule.waitUntilAtLeastOneExists(hasTestTag("CloseButton"), 15000)
+        composeTestRule.onNode(hasTestTag("CloseButton"), useUnmergedTree = true).performScrollTo().performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
         composeTestRule.waitForIdle()
     }
@@ -86,11 +86,11 @@ class DataIntegrityTest {
         // while the soft keyboard is shown, which intermittently times out
         // Espresso's onView(isRoot()). A semantics click works regardless of
         // the keyboard covering the button.
-        composeTestRule.onNode(hasContentDescription("TagInput"), useUnmergedTree = true).performScrollTo().performTextInput(tagName)
+        composeTestRule.onNode(hasTestTag("TagInput"), useUnmergedTree = true).performScrollTo().performTextInput(tagName)
         composeTestRule.onNode(
-            hasContentDescription("AddTagButton"),
+            hasTestTag("AddTagButton"),
             useUnmergedTree = true,
-        ).performClick()
+        ).performScrollTo().performClick()
 
         // Verify tag chip appears in sheet
         composeTestRule.waitUntilAtLeastOneExists(hasText(tagName) and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")), 15000)

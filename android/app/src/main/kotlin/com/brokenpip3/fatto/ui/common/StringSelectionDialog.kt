@@ -1,5 +1,6 @@
 package com.brokenpip3.fatto.ui.common
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,18 +8,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,7 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
 
 private enum class SelectionMode {
     SINGLE,
@@ -128,7 +134,9 @@ private fun SearchableStringSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
         text = {
             Column(modifier = Modifier.testTag(rootTestTag)) {
                 TextField(
@@ -137,23 +145,31 @@ private fun SearchableStringSelectionDialog(
                     label = { Text(searchLabel) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("${rootTestTag.removeSuffix("Dialog")}Search"),
-                    colors =
-                        TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
+                    shape = MaterialTheme.shapes.medium,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(FattoMetrics.icon),
+                        )
+                    },
+                    colors = FattoFieldDefaults.filledColors(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(FattoSpacing.small))
                 if (filteredChoices.isEmpty()) {
                     Text(
                         text = emptyMessage,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 16.dp),
+                        modifier = Modifier.padding(vertical = FattoSpacing.large),
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = FattoMetrics.pickerListMaxHeight),
+                        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                     ) {
                         items(filteredChoices, key = { it }) { option ->
                             Row(
@@ -183,7 +199,7 @@ private fun SearchableStringSelectionDialog(
                                                         role = Role.Checkbox,
                                                     )
                                             },
-                                        ).padding(vertical = 10.dp),
+                                        ).heightIn(min = FattoMetrics.minTouchTarget),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 when (mode) {
@@ -200,7 +216,7 @@ private fun SearchableStringSelectionDialog(
                                 }
                                 Text(
                                     text = option,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyLarge,
                                 )
                             }
                         }
