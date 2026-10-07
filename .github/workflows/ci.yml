@@ -19,18 +19,17 @@ jobs:
         with:
           extra-conf: |
             experimental-features = nix-command flakes
-      - name: Cache Rust
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Setup Cachix
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          path: |
-            rust/taskchampion-android/target
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.nix', 'flake.lock', 'rust/taskchampion-android/Cargo.toml', 'rust/taskchampion-android/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.nix', 'flake.lock') }}
+          name: brokenpip3
+          authToken: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.CACHIX_AUTH_TOKEN || '' }}
+          skipPush: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
       - name: Generate uniffi bindings
-        run: nix develop .#fatto-ci --no-update-lock-file --command just build-bindings
+        run: |
+          nix build .#taskchampion-android --no-update-lock-file
+          rm -rf android/app/src/main/uniffi
+          cp -R result/uniffi android/app/src/main/uniffi
       - name: Upload uniffi bindings
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -70,6 +69,12 @@ jobs:
         with:
           extra-conf: |
             experimental-features = nix-command flakes
+      - name: Setup Cachix
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: brokenpip3
+          authToken: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.CACHIX_AUTH_TOKEN || '' }}
+          skipPush: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
       - name: Download uniffi bindings
         if: contains(matrix.shell, 'kotlin')
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -84,18 +89,18 @@ jobs:
             rust/taskchampion-android/target
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock', 'rust/taskchampion-android/Cargo.toml', 'rust/taskchampion-android/Cargo.lock') }}
+          key: ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-${{ hashFiles('rust/taskchampion-android/Cargo.toml', 'rust/taskchampion-android/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+            ${{ runner.os }}-rust-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-
       - name: Cache Gradle
         if: contains(matrix.shell, 'kotlin')
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
+            .gradle-home/caches
+            .gradle-home/wrapper
+          key: v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+            v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-
       - name: Run ${{ matrix.command }}
         run: nix develop .#${{ matrix.shell }} --no-update-lock-file --command just ${{ matrix.command }}
