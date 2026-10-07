@@ -1,0 +1,4 @@
+the focus of this version is ui/ux revamp:
+- unify app styling
+- fix form cards and selectors
+- add font-size settings
