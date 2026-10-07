@@ -20,16 +20,32 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
       - name: Setup Cachix
+        if: github.repository == 'brokenpip3/fatto' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: brokenpip3
           authToken: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.CACHIX_AUTH_TOKEN || '' }}
           skipPush: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
-      - name: Generate uniffi bindings
+      - name: Cache Rust (fork fallback)
+        if: github.repository != 'brokenpip3/fatto' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            rust/taskchampion-android/target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.nix', 'flake.lock') }}-${{ hashFiles('rust/taskchampion-android/Cargo.toml', 'rust/taskchampion-android/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-fatto-ci-${{ hashFiles('flake.nix', 'flake.lock') }}-
+      - name: Generate UniFFI bindings with Nix
+        if: github.repository == 'brokenpip3/fatto' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         run: |
           nix build .#taskchampion-android --no-update-lock-file
           rm -rf android/app/src/main/uniffi
           cp -R result/uniffi android/app/src/main/uniffi
+      - name: Generate UniFFI bindings with Cargo (fork fallback)
+        if: github.repository != 'brokenpip3/fatto' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
+        run: nix develop .#fatto-ci --no-update-lock-file --command just build-bindings
       - name: Upload uniffi bindings
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -70,6 +86,7 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
       - name: Setup Cachix
+        if: github.repository == 'brokenpip3/fatto' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: brokenpip3
