@@ -17,6 +17,8 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
+import androidx.glance.color.ColorProvider
+import androidx.glance.color.colorProviders
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
@@ -28,7 +30,6 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
 import com.brokenpip3.fatto.MainActivity
 import com.brokenpip3.fatto.R
 import com.brokenpip3.fatto.data.DateTimeUtils
@@ -37,21 +38,78 @@ import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.notification.NotificationNavigation
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.NordicBlueGrey
+import com.brokenpip3.fatto.ui.theme.NordicDarkMoss
+import com.brokenpip3.fatto.ui.theme.NordicFrost
+import com.brokenpip3.fatto.ui.theme.NordicGrey
+import com.brokenpip3.fatto.ui.theme.NordicIce
+import com.brokenpip3.fatto.ui.theme.NordicIceBlue
+import com.brokenpip3.fatto.ui.theme.NordicMidnight
+import com.brokenpip3.fatto.ui.theme.NordicMist
+import com.brokenpip3.fatto.ui.theme.NordicMoss
+import com.brokenpip3.fatto.ui.theme.NordicNight
+import com.brokenpip3.fatto.ui.theme.NordicNightSurface
+import com.brokenpip3.fatto.ui.theme.NordicNightSurfaceVariant
+import com.brokenpip3.fatto.ui.theme.NordicOnSecondaryContainerDark
+import com.brokenpip3.fatto.ui.theme.NordicOnSecondaryContainerLight
+import com.brokenpip3.fatto.ui.theme.NordicSecondaryContainerDark
+import com.brokenpip3.fatto.ui.theme.NordicSecondaryContainerLight
+import com.brokenpip3.fatto.ui.theme.NordicSlate
+import com.brokenpip3.fatto.ui.theme.NordicStorm
+import com.brokenpip3.fatto.ui.theme.NordicTertiaryDark
 
-/** Nordic aurora red, used for overdue due dates. */
-private val OVERDUE_RED = ColorProvider(Color(0xFFBF616A))
+private val widgetColors =
+    colorProviders(
+        primary = ColorProvider(day = NordicSlate, night = NordicIceBlue),
+        onPrimary = ColorProvider(day = Color.White, night = NordicNight),
+        primaryContainer = ColorProvider(day = NordicIce, night = NordicNightSurfaceVariant),
+        onPrimaryContainer = ColorProvider(day = NordicMidnight, night = NordicMist),
+        secondary = ColorProvider(day = NordicMoss, night = NordicDarkMoss),
+        onSecondary = ColorProvider(day = Color.White, night = NordicNight),
+        secondaryContainer = ColorProvider(day = NordicSecondaryContainerLight, night = NordicSecondaryContainerDark),
+        onSecondaryContainer = ColorProvider(day = NordicOnSecondaryContainerLight, night = NordicOnSecondaryContainerDark),
+        tertiary = ColorProvider(day = NordicStorm, night = NordicTertiaryDark),
+        onTertiary = ColorProvider(day = Color.White, night = NordicNight),
+        tertiaryContainer = ColorProvider(day = NordicIce, night = Color(0xFF33283D)),
+        onTertiaryContainer = ColorProvider(day = NordicMidnight, night = NordicMist),
+        error = ColorProvider(day = Color(0xFFBA1A1A), night = Color(0xFFFFB4AB)),
+        errorContainer = ColorProvider(day = Color(0xFFFFDAD6), night = Color(0xFF93000A)),
+        onError = ColorProvider(day = Color.White, night = Color(0xFF690005)),
+        onErrorContainer = ColorProvider(day = Color(0xFF410002), night = Color(0xFFFFDAD6)),
+        background = ColorProvider(day = NordicFrost, night = NordicNight),
+        onBackground = ColorProvider(day = NordicMidnight, night = NordicMist),
+        surface = ColorProvider(day = Color.White, night = NordicNightSurface),
+        onSurface = ColorProvider(day = NordicMidnight, night = NordicMist),
+        surfaceVariant = ColorProvider(day = NordicIce, night = NordicNightSurfaceVariant),
+        onSurfaceVariant = ColorProvider(day = NordicGrey, night = NordicBlueGrey),
+        outline = ColorProvider(day = NordicGrey, night = Color(0xFF5D6A75)),
+        inverseOnSurface = ColorProvider(day = NordicFrost, night = NordicNight),
+        inverseSurface = ColorProvider(day = NordicMidnight, night = NordicMist),
+        inversePrimary = ColorProvider(day = NordicIce, night = NordicSlate),
+        widgetBackground = ColorProvider(day = Color.White, night = NordicNightSurface),
+    )
+
+/** Error-role colors from the light and dark Material 3 palettes. */
+private val overdueColor = widgetColors.error
 
 /** Widget title style (Glance 1.2.0-rc01 has no GlanceTheme.typography). */
 private val titleStyle =
     TextStyle(
         fontSize = 16.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.Medium,
     )
 
-/** Project chip style. */
-private val labelStyle =
+/** Metadata style, matching bodySmall while retaining the platform font. */
+private val bodySmallStyle =
     TextStyle(
-        fontSize = 11.sp,
+        fontSize = 12.sp,
+    )
+
+/** Task and empty-state style, matching bodyMedium while retaining the platform font. */
+private val bodyMediumStyle =
+    TextStyle(
+        fontSize = 14.sp,
     )
 
 class TaskListWidget : GlanceAppWidget() {
@@ -64,7 +122,7 @@ class TaskListWidget : GlanceAppWidget() {
             Log.e("TaskListWidget", "Failed to load tasks for widget", result.exceptionOrNull())
         }
         provideContent {
-            GlanceTheme {
+            GlanceTheme(colors = widgetColors) {
                 TaskListWidgetContent(
                     tasks = result.getOrDefault(emptyList()),
                     error = result.isFailure,
@@ -100,12 +158,12 @@ internal fun TaskListWidgetContent(
         }
 
     Column(
-        modifier = GlanceModifier.fillMaxSize().background(colors.surface).padding(16.dp),
+        modifier = GlanceModifier.fillMaxSize().background(colors.surface).padding(FattoSpacing.large),
     ) {
         Text(
             text = widgetTitle,
             style = titleStyle.copy(color = colors.onSurface),
-            modifier = GlanceModifier.padding(bottom = 8.dp),
+            modifier = GlanceModifier.padding(bottom = FattoSpacing.large),
         )
         when {
             error -> EmptyState(LocalContext.current.getString(R.string.widget_error_message))
@@ -119,12 +177,13 @@ internal fun TaskListWidgetContent(
 private fun EmptyState(message: String) {
     Text(
         text = message,
-        style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant),
+        style = bodyMediumStyle.copy(color = GlanceTheme.colors.onSurfaceVariant),
     )
 }
 
 @androidx.compose.runtime.Composable
 private fun TaskRow(task: Task) {
+    // Compact rows preserve the existing 3/5/8-task policy; dense widget sizes may fall below 48dp targets.
     val colors = GlanceTheme.colors
     val dueText = DateTimeUtils.formatLocalDate(task.due).orEmpty()
     val overdue = DateTimeUtils.isOverdue(task.due)
@@ -133,7 +192,7 @@ private fun TaskRow(task: Task) {
         modifier =
             GlanceModifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp)
+                .padding(vertical = FattoSpacing.xSmall)
                 .clickable(
                     actionStartActivity<MainActivity>(
                         actionParametersOf(
@@ -146,24 +205,25 @@ private fun TaskRow(task: Task) {
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 text = task.description,
-                style = TextStyle(color = colors.onSurface),
+                style = bodyMediumStyle.copy(color = colors.onSurface),
                 maxLines = 1,
             )
             task.project?.let { project ->
                 Text(
                     text = project,
-                    style = labelStyle.copy(color = colors.onSurfaceVariant),
+                    style = bodySmallStyle.copy(color = colors.onSurfaceVariant),
                     modifier =
                         GlanceModifier
                             .background(colors.surfaceVariant)
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                            .padding(horizontal = FattoSpacing.small, vertical = FattoSpacing.xSmall),
+                    maxLines = 1,
                 )
             }
         }
-        Spacer(GlanceModifier.width(8.dp))
+        Spacer(GlanceModifier.width(FattoSpacing.small))
         Text(
             text = dueText,
-            style = TextStyle(color = if (overdue) OVERDUE_RED else colors.onSurfaceVariant),
+            style = bodySmallStyle.copy(color = if (overdue) overdueColor else colors.onSurfaceVariant),
         )
     }
 }

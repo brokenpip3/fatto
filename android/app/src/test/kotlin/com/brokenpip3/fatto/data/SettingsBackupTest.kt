@@ -13,6 +13,29 @@ import java.util.Calendar
 
 class SettingsBackupTest {
     @Test
+    fun `older backups restore the default font size`() {
+        val json = JSONObject(backupService().exportJson().getOrThrow())
+        json.getJSONObject("settings").remove("fontSizePercent")
+        val target = FakeSettingsRepository().apply { setFontSizePercent(150) }
+        val service = backupService(target)
+        service.applyImport(service.parseImport(json.toString()).getOrThrow()).getOrThrow()
+        assertEquals(100, target.getFontSizePercent())
+    }
+
+    @Test
+    fun `export includes the app font size`() {
+        val json = JSONObject(backupService().exportJson().getOrThrow())
+        assertEquals(100, json.getJSONObject("settings").getInt("fontSizePercent"))
+    }
+
+    @Test
+    fun `import rejects an out of range font size`() {
+        val json = JSONObject(backupService().exportJson().getOrThrow())
+        json.getJSONObject("settings").put("fontSizePercent", 500)
+        assertTrue(backupService().parseImport(json.toString()).isFailure)
+    }
+
+    @Test
     fun `export includes format and android version code`() {
         val service = backupService(currentVersionCode = 23, currentVersionName = "1.2.3")
 
@@ -40,6 +63,7 @@ class SettingsBackupTest {
                 setSwipeStartToEndAction(TaskSwipeAction.COMPLETE)
                 setSwipeEndToStartAction(TaskSwipeAction.DELETE)
                 setThemeMode(ThemeMode.DARK)
+                setFontSizePercent(140)
                 replaceTaskContexts(listOf(TaskContext(id = "ctx", name = "Work", expressionText = "+work")))
                 setActiveTaskContextId("ctx")
             }
@@ -62,6 +86,7 @@ class SettingsBackupTest {
         assertEquals(TaskSwipeAction.COMPLETE, target.getSwipeStartToEndAction())
         assertEquals(TaskSwipeAction.DELETE, target.getSwipeEndToStartAction())
         assertEquals(ThemeMode.DARK, target.getThemeMode())
+        assertEquals(140, target.getFontSizePercent())
         assertEquals(listOf(TaskContext(id = "ctx", name = "Work", expressionText = "+work")), target.getTaskContexts())
         assertEquals("ctx", target.getActiveTaskContextId())
     }
@@ -192,6 +217,7 @@ class SettingsBackupTest {
         override val showUrgencyBar = MutableStateFlow(false)
         override val swipeStartToEndAction = MutableStateFlow(TaskSwipeAction.NONE)
         override val swipeEndToStartAction = MutableStateFlow(TaskSwipeAction.NONE)
+        override val fontSizePercent = MutableStateFlow(100)
         override val themeMode = MutableStateFlow(ThemeMode.SYSTEM)
         private val contexts = MutableStateFlow<List<TaskContext>>(emptyList())
         override val taskContexts: StateFlow<List<TaskContext>> = contexts
@@ -390,6 +416,12 @@ class SettingsBackupTest {
 
         override fun setSwipeEndToStartAction(value: TaskSwipeAction) {
             swipeEndToStartAction.value = value
+        }
+
+        override fun getFontSizePercent(): Int = fontSizePercent.value
+
+        override fun setFontSizePercent(value: Int) {
+            fontSizePercent.value = value.coerceIn(80, 150)
         }
 
         override fun getThemeMode(): ThemeMode = themeMode.value

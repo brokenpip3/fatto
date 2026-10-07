@@ -19,13 +19,17 @@ class SettingsThemeModeTest {
     @Before
     fun setup() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
-        context.deleteSharedPreferences("sync_settings")
+        clearSettingsPreferences()
         repository = SettingsRepositoryImpl(context)
     }
 
     @After
     fun tearDown() {
-        context.deleteSharedPreferences("sync_settings")
+        clearSettingsPreferences()
+    }
+
+    private fun clearSettingsPreferences() {
+        context.getSharedPreferences("sync_settings", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test

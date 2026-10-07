@@ -28,11 +28,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import uniffi.taskchampion_android.TaskStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -124,9 +125,9 @@ private fun SwipeActionBackground(
         if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
     val horizontalPadding =
         if (direction == SwipeToDismissBoxValue.StartToEnd) {
-            Modifier.padding(start = 24.dp)
+            Modifier.padding(start = FattoSpacing.extraLarge)
         } else {
-            Modifier.padding(end = 24.dp)
+            Modifier.padding(end = FattoSpacing.extraLarge)
         }
     val icon =
         when (action) {
@@ -145,19 +146,34 @@ private fun SwipeActionBackground(
             TaskSwipeAction.START_STOP,
             -> MaterialTheme.colorScheme.primaryContainer
         }
+    val contentColor =
+        when (action) {
+            TaskSwipeAction.NONE -> MaterialTheme.colorScheme.onSurface
+            TaskSwipeAction.DELETE -> MaterialTheme.colorScheme.onErrorContainer
+            TaskSwipeAction.COMPLETE,
+            TaskSwipeAction.EDIT,
+            TaskSwipeAction.START_STOP,
+            -> MaterialTheme.colorScheme.onPrimaryContainer
+        }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(color).then(horizontalPadding),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .clip(MaterialTheme.shapes.medium)
+                .background(color)
+                .then(horizontalPadding),
         contentAlignment = alignment,
     ) {
         if (icon != null) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
+                    tint = contentColor,
                 )
                 Text(
                     text =
@@ -165,6 +181,7 @@ private fun SwipeActionBackground(
                             action = action,
                             isActive = isActive,
                         ),
+                    color = contentColor,
                 )
             }
         }

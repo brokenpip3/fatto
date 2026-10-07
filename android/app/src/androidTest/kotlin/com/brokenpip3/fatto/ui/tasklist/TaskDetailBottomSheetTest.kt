@@ -3,7 +3,6 @@ package com.brokenpip3.fatto.ui.tasklist
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -40,7 +39,7 @@ class TaskDetailBottomSheetTest {
         }
 
         composeTestRule.onNode(
-            hasContentDescription("TagInput") and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")),
+            hasTestTag("TagInput") and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")),
             useUnmergedTree = true,
         ).performTextInput("ur")
 
@@ -69,7 +68,9 @@ class TaskDetailBottomSheetTest {
         composeTestRule.onNodeWithTag("TagPickerOption-home").performClick()
         composeTestRule.onNodeWithTag("TagPickerOption-urgent").performClick()
         composeTestRule.onNodeWithTag("TagPickerConfirmButton").performClick()
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
 
         composeTestRule.runOnIdle {
             assertEquals(setOf("BLOCKING", "urgent"), savedTask?.tags?.toSet())
@@ -95,7 +96,9 @@ class TaskDetailBottomSheetTest {
             .performClick()
         composeTestRule.onNodeWithTag("TagPickerOption-home").performClick()
         composeTestRule.onNodeWithTag("TagPickerConfirmButton").performClick()
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
 
         composeTestRule.runOnIdle {
             assertEquals(setOf("BLOCKING"), savedTask?.tags?.toSet())
@@ -123,8 +126,9 @@ class TaskDetailBottomSheetTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Blocked by").performClick()
-        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithText("Blocked by").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("AddBlockedByButton", useUnmergedTree = true)
+            .performScrollTo()
             .performClick()
 
         composeTestRule.onNode(
@@ -188,22 +192,22 @@ class TaskDetailBottomSheetTest {
             )
         }
 
-        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("AddBlockedByButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
 
         // Self is excluded
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput("Edit me")
         composeTestRule.onNodeWithText("No tasks found").assertExists()
 
         // Existing dependency is excluded
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextReplacement("Existing blocker")
         composeTestRule.onNodeWithText("No tasks found").assertExists()
 
         // Unrelated task is selectable
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextReplacement("Another task")
         composeTestRule.onNode(
             hasAnyDescendant(hasText("Another task")) and hasClickAction(),
@@ -262,15 +266,15 @@ class TaskDetailBottomSheetTest {
         }
 
         composeTestRule.onNodeWithText("Blocked by").performScrollTo().performClick()
-        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("AddBlockedByButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput("Done task")
         composeTestRule.onNodeWithText("No tasks found").assertExists()
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextReplacement("Open task")
         composeTestRule.onNode(
             hasAnyDescendant(hasText("Open task")) and hasClickAction(),
@@ -295,7 +299,7 @@ class TaskDetailBottomSheetTest {
         }
 
         composeTestRule.onNodeWithText("Blocked by").performScrollTo().performClick()
-        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("AddBlockedByButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
 
@@ -323,15 +327,15 @@ class TaskDetailBottomSheetTest {
         }
 
         composeTestRule.onNodeWithText("Blocking").performScrollTo().performClick()
-        composeTestRule.onNodeWithContentDescription("AddBlockingButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("AddBlockingButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput("Done task")
         composeTestRule.onNodeWithText("No tasks found").assertExists()
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextReplacement("Open task")
         composeTestRule.onNode(
             hasAnyDescendant(hasText("Open task")) and hasClickAction(),
@@ -359,7 +363,7 @@ class TaskDetailBottomSheetTest {
         }
 
         composeTestRule.onNodeWithText("Blocking").performScrollTo().performClick()
-        composeTestRule.onNodeWithContentDescription("AddBlockingButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("AddBlockingButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
 

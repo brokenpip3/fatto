@@ -5,14 +5,18 @@ import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.ui.captureLayoutScreenshot
+import com.brokenpip3.fatto.ui.theme.NordicTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,6 +62,21 @@ class TaskPickerDialogTest {
         )
 
     @Test
+    fun longDescriptionsHaveSpaceBesideTheCheckbox() {
+        val description = "write a blog post about the new hm podman module and how to use it for local setup"
+        composeTestRule.setContent {
+            NordicTheme(darkTheme = true) {
+                TaskPickerDialog("Add blocked by", listOf(task("long", description, "writing.techblog")), {}, {})
+            }
+        }
+        val row = rowWithText(description).fetchSemanticsNode().boundsInRoot
+        val text = composeTestRule.onNodeWithText(description, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val minimumIndent = with(composeTestRule.density) { 36.dp.toPx() }
+        assertTrue("Checkbox and text need breathing room", text.left - row.left >= minimumIndent - 1f)
+        captureLayoutScreenshot("task-picker-long")
+    }
+
+    @Test
     fun showsTitleAndTasks() {
         composeTestRule.setContent {
             TaskPickerDialog(
@@ -84,7 +103,7 @@ class TaskPickerDialogTest {
             )
         }
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput("alp")
 
         composeTestRule.onNodeWithText("Alpha task").assertExists()
@@ -106,12 +125,12 @@ class TaskPickerDialogTest {
             )
         }
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput("work")
         composeTestRule.onNodeWithText("Alpha").assertExists()
         composeTestRule.onNodeWithText("Beta").assertDoesNotExist()
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextReplacement("urgent")
         composeTestRule.onNodeWithText("Beta").assertExists()
         composeTestRule.onNodeWithText("Alpha").assertDoesNotExist()
@@ -163,7 +182,7 @@ class TaskPickerDialogTest {
             )
         }
 
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput("zzz")
 
         composeTestRule.onNodeWithText("No tasks found").assertExists()
