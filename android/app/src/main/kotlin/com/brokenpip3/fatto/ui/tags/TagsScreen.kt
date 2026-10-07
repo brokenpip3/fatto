@@ -4,17 +4,22 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,16 +33,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoOpacity
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.FattoStroke
 import com.brokenpip3.fatto.ui.theme.toNordicColor
 import com.brokenpip3.fatto.vm.TaskViewModel
 
@@ -73,11 +79,20 @@ fun TagsScreen(
                         .padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "No active tags",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Tag,
+                        contentDescription = null,
+                        modifier = Modifier.size(FattoMetrics.icon),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(FattoSpacing.medium))
+                    Text(
+                        text = "No active tags",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         } else {
             LazyVerticalGrid(
@@ -86,9 +101,10 @@ fun TagsScreen(
                     Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        .padding(horizontal = FattoSpacing.small),
+                contentPadding = PaddingValues(vertical = FattoSpacing.large),
+                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
             ) {
                 items(tagCounts.toList().sortedByDescending { it.second }) { (tag, count) ->
                     val isSelected = selectedTags.contains(tag)
@@ -97,57 +113,57 @@ fun TagsScreen(
                     Card(
                         modifier =
                             Modifier
-                                .aspectRatio(1f)
                                 .fillMaxWidth()
+                                .semantics {
+                                    selected = isSelected
+                                    contentDescription = "$tag, $count tasks${if (isSelected) ", selected" else ""}"
+                                }
                                 .clickable {
                                     viewModel.toggleTag(tag)
                                     if (!isSelected) {
                                         onTagSelected()
                                     }
                                 },
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.medium,
                         colors =
                             CardDefaults.cardColors(
-                                containerColor = baseColor.copy(alpha = if (isSelected) 0.2f else 0.05f),
+                                containerColor =
+                                    baseColor.copy(
+                                        alpha = if (isSelected) FattoOpacity.selectedTint else FattoOpacity.tint,
+                                    ),
                             ),
                         border =
                             BorderStroke(
-                                width = if (isSelected) 2.dp else 1.dp,
+                                width = if (isSelected) FattoStroke.selected else FattoStroke.subtle,
                                 color = baseColor.copy(alpha = if (isSelected) 1f else 0.3f),
                             ),
                     ) {
-                        Box(modifier = Modifier.fillMaxSize().padding(8.dp)) {
-                            // Task Count Badge
+                        Column(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = FattoMetrics.tagTileMinHeight)
+                                    .padding(FattoSpacing.small),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
                             Surface(
-                                modifier = Modifier.align(Alignment.TopEnd),
                                 shape = CircleShape,
-                                color = baseColor.copy(alpha = 0.1f),
+                                color = baseColor.copy(alpha = FattoOpacity.selectedTint),
                             ) {
                                 Text(
                                     text = count.toString(),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = baseColor,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
                             }
-
-                            // Tag Name (Auto-resizing)
-                            var fontSize by remember(tag) { mutableStateOf(22.sp) }
+                            Spacer(modifier = Modifier.height(FattoSpacing.xSmall))
                             Text(
                                 text = tag,
-                                modifier = Modifier.align(Alignment.Center),
-                                style = MaterialTheme.typography.titleLarge.copy(fontSize = fontSize),
-                                fontWeight = FontWeight.SemiBold,
-                                color = baseColor,
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Clip,
-                                onTextLayout = { textLayoutResult ->
-                                    if (textLayoutResult.hasVisualOverflow && fontSize > 10.sp) {
-                                        fontSize = (fontSize.value - 1).sp
-                                    }
-                                },
                             )
                         }
                     }

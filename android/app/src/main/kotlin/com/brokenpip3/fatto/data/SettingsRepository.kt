@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.ui.theme.FontSize
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -64,6 +65,7 @@ interface SettingsRepository {
     val showUrgencyBar: StateFlow<Boolean>
     val swipeStartToEndAction: StateFlow<TaskSwipeAction>
     val swipeEndToStartAction: StateFlow<TaskSwipeAction>
+    val fontSizePercent: StateFlow<Int>
     val themeMode: StateFlow<ThemeMode>
     val taskContexts: StateFlow<List<TaskContext>>
     val activeTaskContextId: StateFlow<String?>
@@ -193,6 +195,10 @@ interface SettingsRepository {
 
     fun setSwipeEndToStartAction(value: TaskSwipeAction)
 
+    fun getFontSizePercent(): Int
+
+    fun setFontSizePercent(value: Int)
+
     fun getThemeMode(): ThemeMode
 
     fun setThemeMode(value: ThemeMode)
@@ -304,6 +310,9 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
 
     private val _swipeEndToStartAction = MutableStateFlow(getSwipeEndToStartAction())
     override val swipeEndToStartAction: StateFlow<TaskSwipeAction> = _swipeEndToStartAction.asStateFlow()
+
+    private val _fontSizePercent = MutableStateFlow(getFontSizePercent())
+    override val fontSizePercent: StateFlow<Int> = _fontSizePercent.asStateFlow()
 
     private val _themeMode = MutableStateFlow(getThemeMode())
     override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -695,6 +704,15 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override fun setSwipeEndToStartAction(value: TaskSwipeAction) {
         sharedPreferences?.edit()?.putString("swipe_end_to_start_action", value.persistedValue)?.apply()
         _swipeEndToStartAction.value = value
+    }
+
+    override fun getFontSizePercent(): Int =
+        FontSize.normalize(sharedPreferences?.getInt("font_size_percent", FontSize.DEFAULT_PERCENT) ?: FontSize.DEFAULT_PERCENT)
+
+    override fun setFontSizePercent(value: Int) {
+        val percent = FontSize.normalize(value)
+        sharedPreferences?.edit()?.putInt("font_size_percent", percent)?.apply()
+        _fontSizePercent.value = percent
     }
 
     override fun getThemeMode(): ThemeMode {

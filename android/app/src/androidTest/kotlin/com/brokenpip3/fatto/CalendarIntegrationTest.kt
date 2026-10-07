@@ -1,7 +1,10 @@
 package com.brokenpip3.fatto
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -17,12 +20,15 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -77,7 +83,7 @@ class CalendarIntegrationTest {
 
         // Click the Due date icon to open the DatePicker
         composeTestRule.onNode(
-            hasContentDescription("Due"),
+            hasClickAction() and hasAnyDescendant(hasContentDescription("Due")),
             useUnmergedTree = true,
         ).performScrollTo().performClick()
 
@@ -100,7 +106,7 @@ class CalendarIntegrationTest {
 
         // Save and close
         composeTestRule.onNode(
-            hasContentDescription("CloseButton"),
+            hasTestTag("CloseButton"),
             useUnmergedTree = true,
         ).performScrollTo().performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
@@ -115,6 +121,19 @@ class CalendarIntegrationTest {
         composeTestRule.waitUntilAtLeastOneExists(hasText(todayDayNumber), 5000)
         composeTestRule.onNodeWithText(todayDayNumber).performClick()
         composeTestRule.waitForIdle()
+
+        val selectedDateDescription =
+            "${LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.getDefault()))}, " +
+                "tasks available, today"
+        val selectedCalendarDay = composeTestRule.onNodeWithContentDescription(selectedDateDescription)
+        selectedCalendarDay.assertIsSelected()
+        val density =
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+                .targetContext.resources.displayMetrics.density
+        assertTrue(
+            "Calendar date hit area should be at least 48dp high",
+            selectedCalendarDay.fetchSemanticsNode().boundsInRoot.height >= 48f * density,
+        )
 
         // Verify the calendar's bottom sheet shows the task
         composeTestRule.waitUntilAtLeastOneExists(

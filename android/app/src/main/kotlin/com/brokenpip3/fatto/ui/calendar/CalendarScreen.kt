@@ -4,15 +4,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -41,16 +43,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.ui.tasklist.TaskItem
 import com.brokenpip3.fatto.ui.tasklist.completionConfirmationMessage
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
+import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import com.brokenpip3.fatto.vm.TaskViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Calendar
 import java.util.Locale
@@ -66,6 +74,7 @@ fun CalendarScreen(
     val firstDayOfWeekSetting by viewModel.firstDayOfWeek.collectAsState()
     val showPriorityBadge by viewModel.showPriorityBadge.collectAsState()
     val showUrgencyBar by viewModel.showUrgencyBar.collectAsState()
+    val largeFontScale = effectiveFontScale() >= 1.5f
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var taskToComplete by remember { mutableStateOf<Task?>(null) }
@@ -96,99 +105,146 @@ fun CalendarScreen(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp),
+                    .padding(vertical = FattoSpacing.large),
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month")
-                }
-                Text(
-                    text = "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${currentMonth.year}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-                IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")
-                }
-            }
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val gridMinimumWidth = FattoMetrics.minTouchTarget * 7 + FattoSpacing.large * 2
+                val gridHorizontalPadding = if (maxWidth >= gridMinimumWidth) FattoSpacing.large else FattoSpacing.none
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Weekday labels
-            Row(modifier = Modifier.fillMaxWidth()) {
-                val allLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-                val weekdays =
-                    if (firstDayOfWeekSetting == Calendar.MONDAY) {
-                        allLabels
-                    } else {
-                        listOf("Sun") + allLabels.dropLast(1)
-                    }
-                weekdays.forEach { day ->
-                    Text(
-                        text = day,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Grid
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(7),
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(days) { date ->
-                    if (date != null) {
-                        val hasTasks = tasksByDate.containsKey(date)
-                        val isToday = date == LocalDate.now()
-
-                        Box(
-                            modifier =
-                                Modifier
-                                    .aspectRatio(1f)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isToday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                    )
-                                    .clickable {
-                                        if (hasTasks) selectedDate = date
-                                    },
-                            contentAlignment = Alignment.Center,
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = FattoSpacing.large),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = { currentMonth = currentMonth.minusMonths(1) },
+                            modifier = Modifier.size(FattoMetrics.minTouchTarget),
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = date.dayOfMonth.toString(),
-                                    color =
-                                        if (isToday) {
-                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface
-                                        },
-                                )
-                                if (hasTasks) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month")
+                        }
+                        Text(
+                            text = "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${currentMonth.year}",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleLarge,
+                            textAlign = TextAlign.Center,
+                        )
+                        IconButton(
+                            onClick = { currentMonth = currentMonth.plusMonths(1) },
+                            modifier = Modifier.size(FattoMetrics.minTouchTarget),
+                        ) {
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(FattoSpacing.large))
+
+                    // Weekday labels
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = gridHorizontalPadding),
+                    ) {
+                        val allWeekdays =
+                            listOf(
+                                "Monday" to "Mon",
+                                "Tuesday" to "Tue",
+                                "Wednesday" to "Wed",
+                                "Thursday" to "Thu",
+                                "Friday" to "Fri",
+                                "Saturday" to "Sat",
+                                "Sunday" to "Sun",
+                            )
+                        val weekdays =
+                            if (firstDayOfWeekSetting == Calendar.MONDAY) {
+                                allWeekdays
+                            } else {
+                                listOf(allWeekdays.last()) + allWeekdays.dropLast(1)
+                            }
+                        weekdays.forEach { (fullName, shortName) ->
+                            Text(
+                                text = if (largeFontScale) fullName.take(1) else shortName,
+                                modifier = Modifier.weight(1f).semantics { contentDescription = fullName },
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(FattoSpacing.small))
+
+                    // Grid
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(7),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = gridHorizontalPadding),
+                        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+                        horizontalArrangement = Arrangement.spacedBy(FattoSpacing.none),
+                    ) {
+                        items(days) { date ->
+                            if (date != null) {
+                                val hasTasks = tasksByDate.containsKey(date)
+                                val isToday = date == LocalDate.now()
+                                val isSelected = selectedDate == date
+
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = FattoMetrics.minTouchTarget)
+                                            .clickable(enabled = hasTasks) {
+                                                if (hasTasks) selectedDate = date
+                                            }
+                                            .semantics {
+                                                contentDescription =
+                                                    buildString {
+                                                        append(date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")))
+                                                        append(if (hasTasks) ", tasks available" else ", no tasks")
+                                                        if (isToday) append(", today")
+                                                    }
+                                                selected = isSelected
+                                            },
+                                    contentAlignment = Alignment.Center,
+                                ) {
                                     Box(
                                         modifier =
                                             Modifier
-                                                .size(4.dp)
+                                                .widthIn(max = FattoMetrics.minTouchTarget)
+                                                .fillMaxWidth()
+                                                .height(FattoMetrics.minTouchTarget)
                                                 .clip(CircleShape)
-                                                .background(MaterialTheme.colorScheme.primary),
+                                                .background(
+                                                    when {
+                                                        isToday || isSelected -> MaterialTheme.colorScheme.primaryContainer
+                                                        hasTasks -> MaterialTheme.colorScheme.surfaceVariant
+                                                        else -> MaterialTheme.colorScheme.surface
+                                                    },
+                                                ),
                                     )
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = date.dayOfMonth.toString(),
+                                            fontWeight = if (hasTasks || isToday) FontWeight.SemiBold else FontWeight.Normal,
+                                            color =
+                                                if (isToday || isSelected) {
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                },
+                                        )
+                                        if (hasTasks) {
+                                            Box(
+                                                modifier =
+                                                    Modifier
+                                                        .size(FattoSpacing.xSmall)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.primary),
+                                            )
+                                        }
+                                    }
                                 }
+                            } else {
+                                Box(modifier = Modifier.fillMaxWidth().heightIn(min = FattoMetrics.minTouchTarget))
                             }
                         }
-                    } else {
-                        Box(modifier = Modifier.aspectRatio(1f))
                     }
                 }
             }
@@ -201,23 +257,23 @@ fun CalendarScreen(
                 tasksByDate.values.flatten().maxOfOrNull { it.urgency } ?: 0.0f
             ModalBottomSheet(
                 onDismissRequest = { selectedDate = null },
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Column(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(bottom = 32.dp),
+                            .padding(horizontal = FattoSpacing.large)
+                            .padding(bottom = FattoSpacing.xxLarge),
                 ) {
                     Text(
                         text = "Tasks for $selectedDate",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 16.dp),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(bottom = FattoSpacing.large),
                     )
 
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                     ) {
                         items(tasksForDate) { task ->
                             TaskItem(
@@ -243,8 +299,9 @@ fun CalendarScreen(
         taskToComplete?.let { task ->
             AlertDialog(
                 onDismissRequest = { taskToComplete = null },
-                title = { Text("Complete Task") },
-                text = { Text(completionConfirmationMessage(task, allTasks)) },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                title = { Text("Complete Task", style = MaterialTheme.typography.headlineSmall) },
+                text = { Text(completionConfirmationMessage(task, allTasks), style = MaterialTheme.typography.bodyLarge) },
                 confirmButton = {
                     TextButton(onClick = {
                         viewModel.completeTask(task.uuid)

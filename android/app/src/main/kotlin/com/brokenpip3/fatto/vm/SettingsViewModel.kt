@@ -157,6 +157,12 @@ class SettingsViewModel(
     private val _swipeEndToStartAction = MutableStateFlow(TaskSwipeAction.NONE)
     val swipeEndToStartAction = _swipeEndToStartAction.asStateFlow()
 
+    val fontSizePercent = repository.fontSizePercent
+
+    fun onFontSizePercentChange(value: Int) {
+        repository.setFontSizePercent(value)
+    }
+
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode = _themeMode.asStateFlow()
 

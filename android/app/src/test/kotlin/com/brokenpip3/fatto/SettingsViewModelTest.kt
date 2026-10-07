@@ -538,6 +538,7 @@ class SettingsViewModelTest {
         override val showUrgencyBar = MutableStateFlow(false)
         override val swipeStartToEndAction = MutableStateFlow(TaskSwipeAction.NONE)
         override val swipeEndToStartAction = MutableStateFlow(TaskSwipeAction.NONE)
+        override val fontSizePercent = MutableStateFlow(100)
         override val themeMode = MutableStateFlow(ThemeMode.SYSTEM)
         override val taskContexts: StateFlow<List<TaskContext>> = MutableStateFlow(emptyList())
         override val activeTaskContextId: StateFlow<String?> = MutableStateFlow(null)
@@ -745,6 +746,12 @@ class SettingsViewModelTest {
 
         override fun setSwipeEndToStartAction(value: TaskSwipeAction) {
             swipeEndToStartAction.value = value
+        }
+
+        override fun getFontSizePercent(): Int = fontSizePercent.value
+
+        override fun setFontSizePercent(value: Int) {
+            fontSizePercent.value = value.coerceIn(80, 150)
         }
 
         override fun getThemeMode(): ThemeMode = themeMode.value

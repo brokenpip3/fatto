@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto.data
 
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.ui.theme.FontSize
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import org.json.JSONArray
 import org.json.JSONException
@@ -48,6 +49,7 @@ data class SettingsBackupSettings(
     val themeMode: ThemeMode,
     val taskContexts: List<TaskContext>,
     val activeTaskContextId: String?,
+    val fontSizePercent: Int = FontSize.DEFAULT_PERCENT,
 )
 
 sealed class SettingsBackupError(message: String) : IllegalArgumentException(message) {
@@ -138,6 +140,7 @@ class SettingsBackupCodec(
             .put("swipeStartToEndAction", settings.swipeStartToEndAction.persistedValue)
             .put("swipeEndToStartAction", settings.swipeEndToStartAction.persistedValue)
             .put("themeMode", settings.themeMode.storedValue)
+            .put("fontSizePercent", settings.fontSizePercent)
             .put("taskContexts", JSONArray(settings.taskContexts.map(::encodeTaskContext)))
             .putNullable("activeTaskContextId", settings.activeTaskContextId)
 
@@ -184,6 +187,14 @@ class SettingsBackupCodec(
             themeMode =
                 ThemeMode.entries.firstOrNull { it.storedValue == json.requiredString("themeMode") }
                     ?: throw JSONException("Invalid themeMode"),
+            fontSizePercent =
+                if (json.has("fontSizePercent")) {
+                    json.requiredInt("fontSizePercent").also {
+                        if (it !in FontSize.MIN_PERCENT..FontSize.MAX_PERCENT) throw JSONException("Invalid fontSizePercent")
+                    }
+                } else {
+                    FontSize.DEFAULT_PERCENT
+                },
             taskContexts = decodeTaskContexts(json.getJSONArray("taskContexts")),
             activeTaskContextId = json.requiredNullableString("activeTaskContextId"),
         )
@@ -288,6 +299,7 @@ class SettingsBackupService(
             repository.setSwipeStartToEndAction(settings.swipeStartToEndAction)
             repository.setSwipeEndToStartAction(settings.swipeEndToStartAction)
             repository.setThemeMode(settings.themeMode)
+            repository.setFontSizePercent(settings.fontSizePercent)
             repository.replaceTaskContexts(settings.taskContexts)
             repository.setActiveTaskContextId(settings.activeTaskContextId)
         }
@@ -321,6 +333,7 @@ class SettingsBackupService(
             swipeStartToEndAction = getSwipeStartToEndAction(),
             swipeEndToStartAction = getSwipeEndToStartAction(),
             themeMode = getThemeMode(),
+            fontSizePercent = getFontSizePercent(),
             taskContexts = getTaskContexts(),
             activeTaskContextId = getActiveTaskContextId(),
         )

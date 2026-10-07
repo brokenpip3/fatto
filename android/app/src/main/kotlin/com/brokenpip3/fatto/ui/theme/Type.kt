@@ -16,62 +16,34 @@ val InterFontFamily =
         Font(R.font.inter_bold, FontWeight.Bold),
     )
 
+private fun interStyle(
+    size: Int,
+    lineHeight: Int,
+    weight: FontWeight = FontWeight.Normal,
+    letterSpacing: Float = 0f,
+) = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = lineHeight.sp,
+    letterSpacing = letterSpacing.sp,
+)
+
 val Typography =
     Typography(
-        headlineSmall =
-            TextStyle(
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 24.sp,
-                lineHeight = 32.sp,
-                letterSpacing = (-0.02).sp,
-            ),
-        titleLarge =
-            TextStyle(
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 22.sp,
-                lineHeight = 28.sp,
-                letterSpacing = 0.sp,
-            ),
-        titleMedium =
-            TextStyle(
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
-                letterSpacing = 0.15.sp,
-            ),
-        titleSmall =
-            TextStyle(
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                letterSpacing = 0.1.sp,
-            ),
-        bodyLarge =
-            TextStyle(
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.Normal,
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
-                letterSpacing = 0.01.sp,
-            ),
-        bodyMedium =
-            TextStyle(
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.Normal,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                letterSpacing = 0.25.sp,
-            ),
-        labelSmall =
-            TextStyle(
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.sp,
-                lineHeight = 16.sp,
-                letterSpacing = 0.sp,
-            ),
+        displayLarge = interStyle(57, 64, FontWeight.Normal, -0.25f),
+        displayMedium = interStyle(45, 52, FontWeight.Normal),
+        displaySmall = interStyle(36, 44, FontWeight.Normal),
+        headlineLarge = interStyle(32, 40, FontWeight.SemiBold),
+        headlineMedium = interStyle(28, 36, FontWeight.SemiBold),
+        headlineSmall = interStyle(24, 32, FontWeight.SemiBold, -0.02f),
+        titleLarge = interStyle(22, 28, FontWeight.SemiBold),
+        titleMedium = interStyle(16, 24, FontWeight.SemiBold, 0.15f),
+        titleSmall = interStyle(14, 20, FontWeight.Bold, 0.1f),
+        bodyLarge = interStyle(16, 24, letterSpacing = 0.01f),
+        bodyMedium = interStyle(14, 20, letterSpacing = 0.25f),
+        bodySmall = interStyle(12, 16, letterSpacing = 0.4f),
+        labelLarge = interStyle(14, 20, FontWeight.Medium, 0.1f),
+        labelMedium = interStyle(12, 16, FontWeight.Medium, 0.5f),
+        labelSmall = interStyle(12, 16, FontWeight.Medium, 0.5f),
     )

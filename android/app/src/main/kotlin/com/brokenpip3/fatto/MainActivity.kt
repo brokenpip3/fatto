@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountTree
@@ -30,10 +31,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -60,8 +59,11 @@ import com.brokenpip3.fatto.ui.tags.TagsScreen
 import com.brokenpip3.fatto.ui.tasklist.AddTaskDialog
 import com.brokenpip3.fatto.ui.tasklist.TaskDetailBottomSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskListScreen
+import com.brokenpip3.fatto.ui.theme.FattoElevation
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.NordicTheme
 import com.brokenpip3.fatto.ui.theme.ThemeMode
+import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import com.brokenpip3.fatto.vm.TaskViewModel
 import com.brokenpip3.fatto.worker.DailyNotificationWorker
@@ -110,6 +112,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val themeMode by settingsViewModel.themeMode.collectAsState()
+            val fontSizePercent by settingsViewModel.fontSizePercent.collectAsState()
             val systemDarkTheme = isSystemInDarkTheme()
             val darkTheme =
                 when (themeMode) {
@@ -118,7 +121,8 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.DARK -> true
                 }
 
-            NordicTheme(darkTheme = darkTheme) {
+            NordicTheme(darkTheme = darkTheme, fontSizePercent = fontSizePercent) {
+                val compactNavigation = effectiveFontScale() >= 1.5f
                 val navController = rememberNavController()
                 val taskUuid = notificationTaskUuid
 
@@ -154,8 +158,8 @@ class MainActivity : ComponentActivity() {
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
                         NavigationBar(
-                            containerColor = Color.Transparent,
-                            tonalElevation = 0.dp,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = FattoElevation.none,
                         ) {
                             val navBackStackEntry by navController.currentBackStackEntryAsState()
                             val currentDestination = navBackStackEntry?.destination
@@ -173,19 +177,25 @@ class MainActivity : ComponentActivity() {
                                                 "settings" -> Icons.Default.Settings
                                                 else -> Icons.AutoMirrored.Filled.List
                                             }
-                                        Icon(icon, contentDescription = null)
-                                    },
-                                    label = {
-                                        Text(
-                                            text = screen.replaceFirstChar { it.uppercase() },
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Visible,
+                                        Icon(
+                                            icon,
+                                            contentDescription = screen.replaceFirstChar { it.uppercase() },
+                                            modifier = Modifier.size(FattoMetrics.icon),
                                         )
                                     },
+                                    label = {
+                                        if (!compactNavigation) {
+                                            Text(
+                                                text = screen.replaceFirstChar { it.uppercase() },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    },
                                     selected = selected,
-                                    alwaysShowLabel = true,
+                                    alwaysShowLabel = !compactNavigation,
                                     onClick = {
                                         navController.navigate(screen) {
                                             popUpTo(navController.graph.findStartDestination().id) {
@@ -198,8 +208,8 @@ class MainActivity : ComponentActivity() {
                                     colors =
                                         NavigationBarItemDefaults.colors(
                                             selectedIconColor = MaterialTheme.colorScheme.primary,
-                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                         ),
                                 )
                             }

@@ -141,7 +141,7 @@ class DefaultProjectIntegrationTest {
             composeTestRule.onNode(
                 hasText(defaultProject) and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")),
             ).assertDoesNotExist()
-            composeTestRule.onNodeWithContentDescription("TaskDescriptionInput", useUnmergedTree = true)
+            composeTestRule.onNodeWithTag("TaskDescriptionInput", useUnmergedTree = true)
                 .performScrollTo()
                 .performTextReplacement(editedDescription)
             dismissBottomSheet()
@@ -210,10 +210,11 @@ class DefaultProjectIntegrationTest {
             composeTestRule.onNodeWithContentDescription("Start", useUnmergedTree = true)
                 .performScrollTo()
                 .performClick()
-            composeTestRule.onNodeWithContentDescription("TagInput", useUnmergedTree = true)
+            composeTestRule.onNodeWithTag("TagInput", useUnmergedTree = true)
                 .performScrollTo()
                 .performTextInput(visibleTag)
-            composeTestRule.onNodeWithContentDescription("AddTagButton", useUnmergedTree = true)
+            composeTestRule.onNodeWithTag("AddTagButton", useUnmergedTree = true)
+                .performScrollTo()
                 .performClick()
             composeTestRule.waitUntilAtLeastOneExists(
                 hasText(visibleTag) and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")),
@@ -265,7 +266,7 @@ class DefaultProjectIntegrationTest {
     }
 
     private fun dismissBottomSheet() {
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15_000)

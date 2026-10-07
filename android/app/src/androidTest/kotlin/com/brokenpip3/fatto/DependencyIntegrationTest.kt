@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -67,7 +68,7 @@ class DependencyIntegrationTest {
         // The TaskItem Card (merged) carries the task text; the DeleteTask
         // button is a child of that card.
         composeTestRule.onNode(
-            hasContentDescription("DeleteTask") and hasAnyAncestor(hasText(description)),
+            hasTestTag("TaskDeleteAction") and hasAnyAncestor(hasText(description)),
         ).performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasText("Confirm"), 15000)
         composeTestRule.onNodeWithText("Confirm").performClick()
@@ -84,15 +85,15 @@ class DependencyIntegrationTest {
 
         composeTestRule.onNodeWithText(blockedName).performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
-        composeTestRule.onNodeWithText("Blocked by").performClick()
-        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithText("Blocked by").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("AddBlockedByButton", useUnmergedTree = true)
             .performScrollTo().performClick()
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput(blockerName)
         pickerRow(blockerName).performClick()
         composeTestRule.onNodeWithText("Add (1)").performClick()
         composeTestRule.waitUntilAtLeastOneExists(hasText("Task is blocked"), 15000)
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
             .performScrollTo().performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
 
@@ -104,7 +105,7 @@ class DependencyIntegrationTest {
             hasText("Task is blocked") and hasAnyAncestor(hasTestTag("TaskDetailBottomSheet")),
             15000,
         )
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
             .performScrollTo().performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
 
@@ -141,11 +142,11 @@ class DependencyIntegrationTest {
         composeTestRule.waitUntilAtLeastOneExists(hasTestTag("TaskDetailBottomSheet"), 15000)
 
         // Add blocker via the picker
-        composeTestRule.onNodeWithText("Blocked by").performClick()
-        composeTestRule.onNodeWithContentDescription("AddBlockedByButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithText("Blocked by").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("AddBlockedByButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
-        composeTestRule.onNodeWithContentDescription("TaskPickerSearch", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("TaskPickerSearch", useUnmergedTree = true)
             .performTextInput(blockerName)
         pickerRow(blockerName).performClick()
         composeTestRule.onNodeWithText("Add (1)").performClick()
@@ -161,7 +162,7 @@ class DependencyIntegrationTest {
         )
 
         // Close and reopen the blocker's sheet — "Blocking other tasks" chip + row
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
@@ -191,7 +192,7 @@ class DependencyIntegrationTest {
         )
 
         // Reopen the blocked task: dependency gone, chip gone
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
@@ -209,7 +210,7 @@ class DependencyIntegrationTest {
         // Cleanup: remove the created tasks so the shared suite state stays
         // clean for other test classes (e.g. TagsIntegrationTest expects a
         // single pending task when clicking "Complete").
-        composeTestRule.onNodeWithContentDescription("CloseButton", useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
         composeTestRule.waitUntilDoesNotExist(hasTestTag("TaskDetailBottomSheet"), 15000)
