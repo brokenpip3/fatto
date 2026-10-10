@@ -41,8 +41,19 @@
 ```
 
 ### typography & design
-- **nordic frost**: uses `NordicFrost` (0xFFF4F7F9) for high-readability backgrounds.
 - **local fonts**: inter v4.1 (SIL open font license) is bundled locally to ensure privacy and f-droid compatibility.
+
+### required UI theme conventions
+
+All new and modified Android UI must follow the shared Nordic theme introduced by the UI revamp. Before changing UI, read `android/app/src/main/kotlin/com/brokenpip3/fatto/ui/theme/UiTokens.kt`, including `FattoUiContract`, and inspect a similar existing component.
+
+- **theme**: use `NordicTheme` and `MaterialTheme.colorScheme`, `MaterialTheme.typography`, and `MaterialTheme.shapes`. Support both light and dark app themes. Keep palette definitions in `ui/theme`; avoid hardcoded colors or direct light-palette constants in screens. Use `toNordicColor()` for project/tag accent colors.
+- **surface roles**: screens use `background`; task/project cards use `surface`; supporting panels use `surfaceContainerLow`; menus/dialogs/sheets use `surfaceContainerHigh`; fields use `surfaceContainerLowest`. Pair backgrounds with the appropriate `on*` text/icon colors.
+- **shared tokens**: reuse `FattoSpacing`, `FattoMetrics`, `FattoStroke`, `FattoElevation`, and `FattoOpacity` for spacing, dimensions, borders, elevation, and decoration. Add a shared token when a reusable value is missing; keep component-specific measurements local when no token fits. Use `FattoFieldDefaults.filledColors()` or `outlinedColors()` for text fields. Use `MaterialTheme.shapes` for corners.
+- **typography**: screen/dialog/sheet titles use `headlineSmall`; section titles use `titleMedium`; task titles use `titleSmall`; body/field text uses `bodyLarge`; supporting text uses `bodyMedium`; metadata uses `bodySmall`; buttons use `labelLarge`; badges use `labelSmall`. Avoid fixed `sp` sizes in screens and importing the unscaled `Typography` directly: `NordicTheme` applies the user's font-size setting.
+- **responsive layouts**: use `effectiveFontScale()` when adapting layout so both Android font scaling and the app's 80–150% font setting are respected. Follow `FattoUiContract` for wrapping/stacking, keeping tag actions inside fields, editor actions beside titles, and project text beside progress indicators. Avoid fixed heights that clip multiline text; preserve at least 48dp touch targets.
+- **accessibility and Material behavior**: retain native ripple, focus, disabled, and animation behavior. Use existing Material icons and AutoMirrored directional variants. Enabled text must have at least 4.5:1 contrast and essential indicators 3:1. `FattoOpacity` is for backgrounds/decorations, not fading text.
+- **review criteria**: account for light/dark themes, narrow screens, long labels, and combined Android/app font scaling. Reuse existing UI components before creating another styling variant. Theme changes belong in the shared theme files so all screens stay consistent.
 
 ---
 

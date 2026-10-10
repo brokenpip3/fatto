@@ -6,11 +6,19 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountTree
@@ -25,6 +33,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,10 +46,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -122,6 +133,19 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.DARK -> true
                 }
 
+            SideEffect {
+                val systemBarStyle =
+                    if (darkTheme) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    }
+                enableEdgeToEdge(
+                    statusBarStyle = systemBarStyle,
+                    navigationBarStyle = systemBarStyle,
+                )
+            }
+
             NordicTheme(darkTheme = darkTheme, fontSizePercent = fontSizePercent) {
                 val compactNavigation = effectiveFontScale() >= 1.5f
                 val navController = rememberNavController()
@@ -155,7 +179,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    modifier = Modifier.testTag("AppRoot"),
+                    modifier =
+                        Modifier
+                            .background(MaterialTheme.colorScheme.surface)
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                            .testTag("AppRoot"),
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
                         NavigationBar(
@@ -166,7 +194,7 @@ class MainActivity : ComponentActivity() {
                             val currentDestination = navBackStackEntry?.destination
                             val items = listOf("tasks", "projects", "calendar", "tags", "settings")
                             items.forEach { screen ->
-                                val selected = currentDestination?.hierarchy?.any { it.route == screen } == true
+                                val selected = currentDestination?.hierarchy?.any { it.route?.substringBefore("?") == screen } == true
                                 NavigationBarItem(
                                     icon = {
                                         val icon =
@@ -203,7 +231,7 @@ class MainActivity : ComponentActivity() {
                                                 saveState = true
                                             }
                                             launchSingleTop = true
-                                            restoreState = true
+                                            restoreState = screen != "tasks"
                                         }
                                     },
                                     colors =
@@ -261,7 +289,14 @@ class MainActivity : ComponentActivity() {
                                     showAddTaskDialog = true
                                 },
                                 onTaskClick = { selectedTask = it },
-                                onManageContexts = { navController.navigate("settings") },
+                                onManageContexts = {
+                                    navController.navigate("settings?section=contexts") {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                    }
+                                },
                                 confirmActions = confirmActions,
                                 swipeStartToEndAction = swipeStartToEndAction,
                                 swipeEndToStartAction = swipeEndToStartAction,
@@ -344,12 +379,22 @@ class MainActivity : ComponentActivity() {
                                 onTagSelected = { navController.navigate("tasks") },
                             )
                         }
-                        composable("settings") {
+                        composable(
+                            route = "settings?section={section}",
+                            arguments =
+                                listOf(
+                                    navArgument("section") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                    },
+                                ),
+                        ) { entry ->
                             val availableTags by taskViewModel.availableTags.collectAsState()
                             val selectableProjects by taskViewModel.selectableProjects.collectAsState()
 
                             SettingsScreen(
                                 viewModel = settingsViewModel,
+                                openContexts = entry.arguments?.getString("section") == "contexts",
                                 availableProjects = selectableProjects,
                                 availableTags = availableTags,
                             )
