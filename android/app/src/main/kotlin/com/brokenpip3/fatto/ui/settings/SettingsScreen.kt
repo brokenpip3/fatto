@@ -74,6 +74,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
@@ -166,6 +168,7 @@ private data class SyncSettingsSectionActions(
 )
 
 private data class ContextSettingsSectionState(
+    val scrollToContexts: Boolean,
     val taskrcImportText: String,
     val taskrcImportPreview: TaskrcImportPreview?,
     val defaultProjectEnabled: Boolean,
@@ -175,6 +178,7 @@ private data class ContextSettingsSectionState(
 )
 
 private data class ContextSettingsSectionActions(
+    val onContextsScrollHandled: () -> Unit,
     val onTaskrcImportTextChange: (String) -> Unit,
     val onPreviewTaskrcImport: () -> Unit,
     val onApplyTaskrcImport: () -> Unit,
@@ -233,6 +237,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     availableProjects: List<String>,
     availableTags: Set<String>,
+    openContexts: Boolean = false,
 ) {
     val syncType by viewModel.syncType.collectAsState()
     val validationErrors by viewModel.validationErrors.collectAsState()
@@ -275,7 +280,8 @@ fun SettingsScreen(
     val taskrcImportText by viewModel.taskrcImportText.collectAsState()
     val taskrcImportPreview by viewModel.taskrcImportPreview.collectAsState()
 
-    var selectedTab by rememberSaveable { mutableStateOf(SettingsTab.SYNC) }
+    var selectedTab by rememberSaveable { mutableStateOf(if (openContexts) SettingsTab.TASKRC else SettingsTab.SYNC) }
+    var contextsScrollPending by rememberSaveable { mutableStateOf(openContexts) }
     val syncScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val taskrcScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val displayScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
@@ -452,6 +458,7 @@ fun SettingsScreen(
                             firstDayOfWeek = firstDayOfWeek,
                             state =
                                 ContextSettingsSectionState(
+                                    scrollToContexts = contextsScrollPending,
                                     taskrcImportText = taskrcImportText,
                                     taskrcImportPreview = taskrcImportPreview,
                                     defaultProjectEnabled = defaultProjectEnabled,
@@ -461,6 +468,7 @@ fun SettingsScreen(
                                 ),
                             actions =
                                 ContextSettingsSectionActions(
+                                    onContextsScrollHandled = { contextsScrollPending = false },
                                     onTaskrcImportTextChange = viewModel::onTaskrcImportTextChange,
                                     onPreviewTaskrcImport = viewModel::previewTaskrcImport,
                                     onApplyTaskrcImport = onApplyTaskrcImport,
@@ -1149,6 +1157,14 @@ private fun ContextSettingsSection(
     showDefaultProjectPicker: Boolean,
     onShowDefaultProjectPickerChange: (Boolean) -> Unit,
 ) {
+    var contextsOffset by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(state.scrollToContexts, contextsOffset) {
+        val offset = contextsOffset
+        if (state.scrollToContexts && offset != null) {
+            scrollState.scrollTo(offset)
+            actions.onContextsScrollHandled()
+        }
+    }
     SettingsSection(scrollState = scrollState) {
         Text(
             text = "Taskrc",
@@ -1214,6 +1230,7 @@ private fun ContextSettingsSection(
 
         Text(
             text = "Contexts",
+            modifier = Modifier.onGloballyPositioned { contextsOffset = it.positionInParent().y.toInt() },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
         )
