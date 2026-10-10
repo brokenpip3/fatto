@@ -59,6 +59,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.ShareIntentParser
+import com.brokenpip3.fatto.data.SharedTask
 import com.brokenpip3.fatto.data.SyncDiagnosticsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
@@ -86,7 +87,7 @@ import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     private var notificationTaskUuid by mutableStateOf<String?>(null)
-    private var pendingShareDescription by mutableStateOf<String?>(null)
+    private var pendingShare by mutableStateOf<SharedTask?>(null)
 
     private val requestPermissionLauncher =
         registerForActivityResult(
@@ -110,7 +111,7 @@ class MainActivity : ComponentActivity() {
                 diagnosticsRepository = diagnosticsRepository,
             )
         notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
-        pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
+        pendingShare = readShare(intent)
 
         scheduleSync()
         requestNotificationPermission()
@@ -165,8 +166,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(pendingShareDescription) {
-                    if (pendingShareDescription != null) {
+                LaunchedEffect(pendingShare) {
+                    if (pendingShare != null) {
                         navController.navigate("tasks") {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
@@ -249,6 +250,9 @@ class MainActivity : ComponentActivity() {
                             var showAddTaskDialog by remember { mutableStateOf(false) }
                             var selectedTask by remember { mutableStateOf<Task?>(null) }
                             var dialogInitialDescription by remember { mutableStateOf<String?>(null) }
+                            var dialogInitialProject by remember { mutableStateOf<String?>(null) }
+                            var dialogInitialTags by remember { mutableStateOf<List<String>>(emptyList()) }
+                            var dialogInitialDue by remember { mutableStateOf<String?>(null) }
                             val availableTags by taskViewModel.availableTags.collectAsState()
                             val selectableProjects by taskViewModel.selectableProjects.collectAsState()
                             val allTasks by taskViewModel.allTasks.collectAsState()
@@ -263,11 +267,14 @@ class MainActivity : ComponentActivity() {
                             val swipeStartToEndAction by settingsViewModel.swipeStartToEndAction.collectAsState()
                             val swipeEndToStartAction by settingsViewModel.swipeEndToStartAction.collectAsState()
 
-                            LaunchedEffect(pendingShareDescription) {
-                                val shared = pendingShareDescription
-                                if (shared != null) {
-                                    dialogInitialDescription = shared
-                                    pendingShareDescription = null
+                            LaunchedEffect(pendingShare) {
+                                val share = pendingShare
+                                if (share != null) {
+                                    dialogInitialDescription = share.description
+                                    dialogInitialProject = share.project
+                                    dialogInitialTags = share.tags
+                                    dialogInitialDue = share.due
+                                    pendingShare = null
                                     showAddTaskDialog = true
                                 }
                             }
@@ -276,6 +283,9 @@ class MainActivity : ComponentActivity() {
                                 viewModel = taskViewModel,
                                 onAddTaskClick = {
                                     dialogInitialDescription = null
+                                    dialogInitialProject = null
+                                    dialogInitialTags = emptyList()
+                                    dialogInitialDue = null
                                     showAddTaskDialog = true
                                 },
                                 onTaskClick = { selectedTask = it },
@@ -293,14 +303,18 @@ class MainActivity : ComponentActivity() {
                             )
 
                             if (showAddTaskDialog) {
+                                // A project carried by the share wins over the filter
+                                // you happen to be viewing, which wins over the default.
                                 val initialProject =
-                                    activeProject ?: defaultProject.takeIf { defaultProjectEnabled }
+                                    dialogInitialProject
+                                        ?: activeProject ?: defaultProject.takeIf { defaultProjectEnabled }
                                 AddTaskDialog(
                                     availableProjects = selectableProjects,
                                     availableTags = availableTags.toList(),
                                     initialProject = initialProject,
-                                    initialTags = selectedTags.toList(),
+                                    initialTags = (selectedTags.toList() + dialogInitialTags).distinct(),
                                     initialDescription = dialogInitialDescription ?: "",
+                                    initialDue = dialogInitialDue,
                                     onDismiss = { showAddTaskDialog = false },
                                     onConfirm = { desc, proj, tgs, w, d, sch, st, p, deps, openEditor ->
                                         taskViewModel.addTask(desc, proj, tgs, w, d, sch, st, p, deps, openEditor)
@@ -395,7 +409,25 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
-        pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
+        pendingShare = readShare(intent)
+    }
+
+    /**
+     * The share's extras, as one unit: the dialog's seeding fields only make
+     * sense alongside the description they refine, so an intent without text
+     * is not a share at all (the dialog cannot create without a description)
+     * and nothing is held back from it.
+     */
+    private fun readShare(intent: Intent): SharedTask? {
+        val description =
+            ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
+                ?: return null
+        return SharedTask(
+            description = description,
+            project = ShareIntentParser.projectFrom(intent.getStringExtra(ShareIntentParser.EXTRA_PROJECT)),
+            tags = ShareIntentParser.tagsFrom(intent.getStringExtra(ShareIntentParser.EXTRA_TAGS)),
+            due = ShareIntentParser.dueFrom(intent.getStringExtra(ShareIntentParser.EXTRA_DUE)),
+        )
     }
 
     private fun requestNotificationPermission() {
