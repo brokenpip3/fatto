@@ -32,6 +32,8 @@ class TaskListWorker(
             }
             TaskListWidget().updateAll(applicationContext)
             Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("TaskListWorker", "Failed to refresh widget", e)
             Result.failure()

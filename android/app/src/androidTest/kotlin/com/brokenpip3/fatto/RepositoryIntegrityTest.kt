@@ -4,6 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
+import com.brokenpip3.fatto.data.model.RecurrenceRule
+import com.brokenpip3.fatto.data.model.toEditPatch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,6 +14,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import uniffi.taskchampion_android.RecurrenceRulePatch
+import uniffi.taskchampion_android.StringEdit
+import uniffi.taskchampion_android.TaskAddProps
 import uniffi.taskchampion_android.TaskStatus
 import java.io.File
 import java.time.Instant
@@ -48,7 +53,7 @@ class RepositoryIntegrityTest {
             // Update
             val task = tasks[0]
             val updatedTask = task.copy(description = "Updated desc", project = "ProjectB")
-            repository.updateTask(updatedTask)
+            repository.updateTask(updatedTask.toEditPatch(task))
 
             tasks = repository.tasks.value
             assertEquals("Updated desc", tasks[0].description)
@@ -57,17 +62,17 @@ class RepositoryIntegrityTest {
             // Complete
             repository.completeTask(task.uuid)
             tasks = repository.tasks.value
-            assertEquals(TaskStatus.COMPLETED, tasks[0].status)
+            assertEquals(TaskStatus.Completed, tasks[0].status)
 
             // Restore
             repository.restoreTask(task.uuid)
             tasks = repository.tasks.value
-            assertEquals(TaskStatus.PENDING, tasks[0].status)
+            assertEquals(TaskStatus.Pending, tasks[0].status)
 
             // Delete
             repository.deleteTask(task.uuid)
             tasks = repository.tasks.value
-            assertEquals(TaskStatus.DELETED, tasks[0].status)
+            assertEquals(TaskStatus.Deleted, tasks[0].status)
         }
 
     @Test
@@ -89,7 +94,7 @@ class RepositoryIntegrityTest {
             repository.completeTask(activeTask.uuid, sync = false)
 
             val completedTask = repository.tasks.value.single()
-            assertEquals(TaskStatus.COMPLETED, completedTask.status)
+            assertEquals(TaskStatus.Completed, completedTask.status)
             assertNull(completedTask.start)
         }
 
@@ -112,7 +117,7 @@ class RepositoryIntegrityTest {
             repository.completeTask(activeTask.uuid, sync = false)
 
             val completedTask = repository.tasks.value.single()
-            assertEquals(TaskStatus.COMPLETED, completedTask.status)
+            assertEquals(TaskStatus.Completed, completedTask.status)
             assertEquals(activeTask.start, completedTask.start)
         }
 
@@ -126,7 +131,7 @@ class RepositoryIntegrityTest {
             repository.completeTask(task.uuid, sync = false)
 
             val completedTask = repository.tasks.value.single()
-            assertEquals(TaskStatus.COMPLETED, completedTask.status)
+            assertEquals(TaskStatus.Completed, completedTask.status)
             assertNull(completedTask.start)
         }
 
@@ -216,5 +221,36 @@ class RepositoryIntegrityTest {
             val aAfter = repository.tasks.value.find { it.uuid == a.uuid }!!
             assertEquals(1, aAfter.dependencies.size)
             assertEquals(listOf(b.uuid), aAfter.dependencies)
+        }
+
+    @Test
+    fun recurringTemplateLifecycleUsesNativeBindingsAndPublishesWithoutGeneratingChildren() =
+        runBlocking {
+            repository.init()
+            val due = "2030-01-01T00:00:00Z"
+            val parent =
+                repository.addRecurringTask(
+                    TaskAddProps("Native series", null, listOf("home"), due, null, null, null, "H", emptyList()),
+                    RecurrenceRule("daily", "2030-02-01T00:00:00Z"),
+                )
+            assertEquals(TaskStatus.Recurring, parent.status)
+            assertEquals("periodic", parent.recurrence?.rtype)
+            assertEquals(1, repository.tasks.value.size)
+            assertNull(parent.recurrence?.mask)
+            val baseline = repository.tasks.value.single()
+            val patch = baseline.copy(description = "Edited native series").toEditPatch(baseline)
+            val rules = RecurrenceRulePatch(StringEdit.Unchanged, StringEdit.Unchanged)
+            repository.updateRecurrenceTemplate(patch, rules)
+            assertEquals("Edited native series", repository.tasks.value.single().description)
+            val current = repository.tasks.value.single()
+            val fresh = repository.replaceRecurrence(current.toEditPatch(current), rules)
+            assertTrue(fresh.uuid != current.uuid)
+            assertEquals(2, repository.tasks.value.size)
+            assertEquals(TaskStatus.Deleted, repository.tasks.value.first { it.uuid == current.uuid }.status)
+            assertEquals(listOf("home"), fresh.userTags)
+            repository.stopRecurrence(fresh.uuid)
+            assertEquals(2, repository.tasks.value.size)
+            assertTrue(repository.tasks.value.all { it.status == TaskStatus.Deleted })
+            assertTrue(repository.tasks.value.none { it.recurrence?.parent != null })
         }
 }

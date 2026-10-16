@@ -220,7 +220,7 @@ class BlockedTasksFilterTest {
                 createTask(
                     uuid = "dep-completed",
                     desc = "Completed dep",
-                    status = TaskStatus.COMPLETED,
+                    status = TaskStatus.Completed,
                     wait = futureWait,
                 )
             val normalTask =
@@ -246,7 +246,7 @@ class BlockedTasksFilterTest {
     private fun createTask(
         uuid: String = "uuid",
         desc: String = "task",
-        status: TaskStatus = TaskStatus.PENDING,
+        status: TaskStatus = TaskStatus.Pending,
         wait: String? = null,
         isBlocked: Boolean = false,
         dependencies: List<String> = emptyList(),

@@ -104,7 +104,7 @@ class TaskSortTest {
         return Task(
             uuid = "uuid-$desc",
             description = desc,
-            status = TaskStatus.PENDING,
+            status = TaskStatus.Pending,
             tags = emptyList(),
             project = null,
             entry = "2026-01-01T00:00:00Z",

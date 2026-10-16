@@ -36,8 +36,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -115,10 +117,15 @@ fun TaskListScreen(
     confirmActions: Boolean,
     swipeStartToEndAction: TaskSwipeAction,
     swipeEndToStartAction: TaskSwipeAction,
+    onSeriesClick: (Task) -> Unit = onTaskClick,
 ) {
     val largeFontScale = effectiveFontScale() >= 1.5f
     val tasks by viewModel.activeTasks.collectAsState()
     val allTasks by viewModel.allTasks.collectAsState()
+    val templates by viewModel.recurringTemplates.collectAsState()
+    val recurrenceDiagnostics by viewModel.recurrenceDiagnostics.collectAsState()
+    var showRecurring by remember { mutableStateOf(false) }
+    var showTaskMenu by remember { mutableStateOf(false) }
     val waitingTasks by viewModel.waitingTasks.collectAsState()
     val completedTasks by viewModel.completedTasks.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -146,6 +153,16 @@ fun TaskListScreen(
     var filterBuilderPurpose by remember { mutableStateOf<TaskFilterBuilderPurpose?>(null) }
     var showCompleted by remember { mutableStateOf(false) }
     var showWaiting by remember { mutableStateOf(false) }
+
+    if (showRecurring) {
+        RecurringTasksSheet(templates, allTasks, recurrenceDiagnostics, { showRecurring = false }, onOccurrenceClick = {
+            showRecurring = false
+            onTaskClick(it)
+        }, onEditSeries = {
+            showRecurring = false
+            onSeriesClick(it)
+        })
+    }
 
     val lazyListState = rememberLazyListState()
     ScrollToTopOnListChange(
@@ -228,6 +245,10 @@ fun TaskListScreen(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val syncTransportError by viewModel.syncTransportError.collectAsState()
+    LaunchedEffect(syncTransportError) {
+        syncTransportError?.let { snackbarHostState.showSnackbar(it) }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { message ->
@@ -238,11 +259,15 @@ fun TaskListScreen(
     LaunchedEffect(Unit) {
         viewModel.taskCreatedEvent.collect { event ->
             if (event.openEditor) {
-                onTaskClick(event.task)
+                openCreatedTask(event.task, onTaskClick, onSeriesClick)
             } else {
-                val result = snackbarHostState.showSnackbar(message = "Task created", actionLabel = "Edit")
+                val result =
+                    snackbarHostState.showSnackbar(
+                        message = createdTaskMessage(event.task),
+                        actionLabel = "Edit",
+                    )
                 if (result == SnackbarResult.ActionPerformed) {
-                    onTaskClick(event.task)
+                    openCreatedTask(event.task, onTaskClick, onSeriesClick)
                 }
             }
         }
@@ -362,23 +387,6 @@ fun TaskListScreen(
                                 }
                             }
                         }
-                        IconButton(onClick = { viewModel.toggleShowOnlyActiveTasks() }) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription =
-                                    if (showOnlyActiveTasks) {
-                                        "Show all tasks"
-                                    } else {
-                                        "Show only active tasks"
-                                    },
-                                tint =
-                                    if (showOnlyActiveTasks) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                            )
-                        }
                         Box(
                             modifier = Modifier.size(FattoMetrics.minTouchTarget),
                             contentAlignment = Alignment.Center,
@@ -396,6 +404,37 @@ fun TaskListScreen(
                                 IconButton(onClick = { viewModel.sync() }) {
                                     Icon(Icons.Default.Refresh, contentDescription = "Sync")
                                 }
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { showTaskMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More task options")
+                            }
+                            DropdownMenu(
+                                expanded = showTaskMenu,
+                                onDismissRequest = { showTaskMenu = false },
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Only active tasks") },
+                                    modifier = Modifier.semantics { selected = showOnlyActiveTasks },
+                                    leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
+                                    trailingIcon = {
+                                        if (showOnlyActiveTasks) Icon(Icons.Default.Check, contentDescription = "Enabled")
+                                    },
+                                    onClick = {
+                                        viewModel.toggleShowOnlyActiveTasks()
+                                        showTaskMenu = false
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Recurring series") },
+                                    leadingIcon = { Icon(Icons.Default.Repeat, contentDescription = null) },
+                                    onClick = {
+                                        showTaskMenu = false
+                                        showRecurring = true
+                                    },
+                                )
                             }
                         }
                     }
@@ -787,7 +826,7 @@ private fun TaskListRow(
             onClick = onClick,
             onComplete = onComplete,
             onDelete = onDelete,
-            onRestore = if (task.status == TaskStatus.COMPLETED) onRestore else null,
+            onRestore = if (task.status == TaskStatus.Completed) onRestore else null,
             showInternalTags = showInternalTags,
             maxUrgency = maxUrgency,
             showPriorityBadge = showPriorityBadge,
@@ -955,6 +994,15 @@ fun TaskItem(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            if (task.isRecurringOccurrence) {
+                                Icon(
+                                    Icons.Default.Repeat,
+                                    contentDescription = "Recurring occurrence",
+                                    modifier = Modifier.size(FattoMetrics.inlineIcon),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                                Spacer(Modifier.width(FattoSpacing.xSmall))
+                            }
                             if (task.start != null) {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
@@ -967,7 +1015,7 @@ fun TaskItem(
                             Text(
                                 text = task.description,
                                 style = MaterialTheme.typography.titleSmall,
-                                textDecoration = if (task.status == TaskStatus.COMPLETED) TextDecoration.LineThrough else null,
+                                textDecoration = if (task.status == TaskStatus.Completed) TextDecoration.LineThrough else null,
                                 maxLines = maxDescriptionLines,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
@@ -1038,7 +1086,7 @@ fun TaskItem(
                         }
                     }
 
-                    if (task.status == TaskStatus.PENDING) {
+                    if (task.status == TaskStatus.Pending) {
                         IconButton(
                             onClick = onComplete,
                             modifier = Modifier.size(FattoMetrics.minTouchTarget).testTag("TaskCompleteAction"),
@@ -1050,7 +1098,7 @@ fun TaskItem(
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
-                    } else if (task.status == TaskStatus.COMPLETED && onRestore != null) {
+                    } else if (task.status == TaskStatus.Completed && onRestore != null) {
                         IconButton(onClick = onRestore, modifier = Modifier.size(FattoMetrics.minTouchTarget)) {
                             Icon(
                                 imageVector = Icons.Default.Restore,
@@ -1234,3 +1282,14 @@ private fun ScrollToTopOnListChange(
         lazyListState.scrollToItem(0)
     }
 }
+
+private fun openCreatedTask(
+    task: Task,
+    onTaskClick: (Task) -> Unit,
+    onSeriesClick: (Task) -> Unit,
+) {
+    val editor = if (task.isRecurrenceTemplate) onSeriesClick else onTaskClick
+    editor(task)
+}
+
+private fun createdTaskMessage(task: Task): String = if (task.isRecurrenceTemplate) "Recurring series created" else "Task created"

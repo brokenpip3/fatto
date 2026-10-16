@@ -3,12 +3,15 @@ package com.brokenpip3.fatto
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.data.model.TaskEditResult
+import com.brokenpip3.fatto.data.model.toEditPatch
 import com.brokenpip3.fatto.vm.TaskViewModel
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -27,6 +30,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import uniffi.taskchampion_android.TaskAddProps
 import uniffi.taskchampion_android.TaskStatus
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -61,6 +65,42 @@ class TaskContextViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
     }
+
+    @Test
+    fun `checked creation reports an add task error`() =
+        runTest {
+            coEvery { repository.addTask(any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
+                IllegalArgumentException("Invalid tag")
+            val viewModel = TaskViewModel(repository)
+            val props = TaskAddProps("Added", null, listOf("bad tag"), null, null, null, null, null, emptyList())
+            val result = viewModel.createTask(props, null, false)
+            assertEquals(TaskEditResult.Failure("Failed to add task: Invalid tag"), result)
+        }
+
+    @Test
+    fun `checked creation returns while a previous creation snackbar is still displayed`() =
+        runTest {
+            val viewModel = TaskViewModel(repository)
+            val release = CompletableDeferred<Unit>()
+            val collector =
+                launch(testDispatcher) {
+                    viewModel.taskCreatedEvent.collect { release.await() }
+                }
+            advanceUntilIdle()
+            val props = TaskAddProps("Added", null, emptyList(), null, null, null, null, null, emptyList())
+            val first = async { viewModel.createTask(props, null, false) }
+            advanceUntilIdle()
+            assertTrue(first.isCompleted)
+            val second = async { viewModel.createTask(props, null, false) }
+            advanceUntilIdle()
+            try {
+                assertTrue("A displayed snackbar must not block committing or closing another creation", second.isCompleted)
+                assertEquals(TaskEditResult.Success, second.await())
+            } finally {
+                release.complete(Unit)
+                collector.cancel()
+            }
+        }
 
     @Test
     fun `sync failure emits sanitized repository error`() =
@@ -169,7 +209,7 @@ class TaskContextViewModelTest {
                     task(
                         uuid = "completed-started",
                         description = "Completed started task",
-                        status = TaskStatus.COMPLETED,
+                        status = TaskStatus.Completed,
                         start = "2026-06-28T10:00:00Z",
                     ),
                     task(uuid = "pending", description = "Pending task"),
@@ -406,12 +446,13 @@ class TaskContextViewModelTest {
                         ),
                 )
 
-            viewModel.updateTask(edited)
+            val original = edited.copy(due = null, scheduled = null)
+            viewModel.saveTask(edited.toEditPatch(original, autoWaiting = true))
             advanceUntilIdle()
 
             coVerify {
                 repository.updateTask(
-                    edited.copy(wait = "2030-09-03T00:00:00Z"),
+                    edited.copy(wait = "2030-09-03T00:00:00Z").toEditPatch(original),
                 )
             }
         }
@@ -432,10 +473,12 @@ class TaskContextViewModelTest {
                         ),
                 )
 
-            viewModel.updateTask(edited)
+            val original = edited.copy(wait = null, due = null)
+            val patch = edited.toEditPatch(original, autoWaiting = true)
+            viewModel.saveTask(patch)
             advanceUntilIdle()
 
-            coVerify { repository.updateTask(edited) }
+            coVerify { repository.updateTask(edited.toEditPatch(original)) }
         }
 
     @Test
@@ -454,7 +497,7 @@ class TaskContextViewModelTest {
     private fun task(
         uuid: String,
         description: String,
-        status: TaskStatus = TaskStatus.PENDING,
+        status: TaskStatus = TaskStatus.Pending,
         project: String? = null,
         tags: List<String> = emptyList(),
         dates: TaskDates = TaskDates(),

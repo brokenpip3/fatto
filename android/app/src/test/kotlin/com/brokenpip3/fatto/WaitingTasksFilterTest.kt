@@ -111,7 +111,7 @@ class WaitingTasksFilterTest {
                 createTask(
                     uuid = "completed-waiting",
                     desc = "Completed with wait",
-                    status = TaskStatus.COMPLETED,
+                    status = TaskStatus.Completed,
                     wait = futureWait,
                 )
 
@@ -171,7 +171,7 @@ class WaitingTasksFilterTest {
     private fun createTask(
         uuid: String = "uuid",
         desc: String = "task",
-        status: TaskStatus = TaskStatus.PENDING,
+        status: TaskStatus = TaskStatus.Pending,
         wait: String? = null,
     ): Task {
         return Task(

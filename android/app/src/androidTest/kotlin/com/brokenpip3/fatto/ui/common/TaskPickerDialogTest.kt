@@ -32,7 +32,7 @@ class TaskPickerDialogTest {
         description: String,
         project: String? = null,
         tags: List<String> = emptyList(),
-        status: TaskStatus = TaskStatus.PENDING,
+        status: TaskStatus = TaskStatus.Pending,
     ): Task =
         Task(
             uuid = uuid,

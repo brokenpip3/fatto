@@ -58,9 +58,9 @@ fun TaskPickerDialog(
         remember(query, tasks) {
             val q = query.trim()
             if (q.isEmpty()) {
-                tasks
+                tasks.filter { it.isActionableStatus }
             } else {
-                tasks.filter { t ->
+                tasks.filter { it.isActionableStatus }.filter { t ->
                     t.description.contains(q, ignoreCase = true) ||
                         t.project?.contains(q, ignoreCase = true) == true ||
                         t.userTags.any { it.contains(q, ignoreCase = true) }
@@ -139,7 +139,7 @@ fun TaskPickerDialog(
                                         text = t.description,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color =
-                                            if (t.status == TaskStatus.COMPLETED) {
+                                            if (t.status == TaskStatus.Completed) {
                                                 MaterialTheme.colorScheme.onSurfaceVariant
                                             } else {
                                                 MaterialTheme.colorScheme.onSurface
@@ -159,7 +159,7 @@ fun TaskPickerDialog(
                                     }
                                 }
                                 when {
-                                    t.status == TaskStatus.COMPLETED -> {
+                                    t.status == TaskStatus.Completed -> {
                                         Icon(
                                             Icons.Default.Check,
                                             contentDescription = "Completed",

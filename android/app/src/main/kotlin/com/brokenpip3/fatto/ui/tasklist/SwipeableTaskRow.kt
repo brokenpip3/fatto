@@ -60,12 +60,12 @@ internal fun SwipeableTaskRow(
     fun runAction(action: TaskSwipeAction) {
         when (action) {
             TaskSwipeAction.NONE -> Unit
-            TaskSwipeAction.DELETE -> currentOnDelete()
+            TaskSwipeAction.DELETE -> if (currentTask.isActionableStatus) currentOnDelete()
             TaskSwipeAction.COMPLETE ->
-                if (currentTask.status != TaskStatus.COMPLETED) currentOnComplete()
+                if (currentTask.status == TaskStatus.Pending && currentTask.isActionableStatus) currentOnComplete()
             TaskSwipeAction.EDIT -> currentOnEdit()
             TaskSwipeAction.START_STOP ->
-                if (currentTask.status != TaskStatus.COMPLETED) currentOnStartStop()
+                if (currentTask.status == TaskStatus.Pending && currentTask.isActionableStatus) currentOnStartStop()
         }
     }
 

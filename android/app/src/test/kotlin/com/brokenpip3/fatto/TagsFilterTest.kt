@@ -12,7 +12,7 @@ class TagsFilterTest {
             Task(
                 uuid = "uuid",
                 description = "Test",
-                status = TaskStatus.PENDING,
+                status = TaskStatus.Pending,
                 tags = listOf("Z", "PENDING", "A", "COMPLETED", "B"),
                 project = null,
                 entry = null,

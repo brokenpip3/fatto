@@ -62,16 +62,16 @@ object TaskContextMatcher {
         now: Instant,
     ): Boolean =
         when (SupportedVirtualTags.normalize(tagName)) {
-            "PENDING" -> task.status == TaskStatus.PENDING
-            "COMPLETED" -> task.status == TaskStatus.COMPLETED
+            "PENDING" -> task.status == TaskStatus.Pending
+            "COMPLETED" -> task.status == TaskStatus.Completed
             "DUE" -> task.due != null
             "WAITING" ->
-                task.status == TaskStatus.PENDING &&
+                task.status == TaskStatus.Pending &&
                     task.wait
                         ?.let { DateTimeUtils.parseToInstant(it)?.isAfter(now) }
                         ?: false
             "ACTIVE" ->
-                task.status == TaskStatus.PENDING &&
+                task.status == TaskStatus.Pending &&
                     (task.start != null || task.tags.any { it.equals("ACTIVE", ignoreCase = true) })
             "BLOCKING" -> task.isBlocking
             "BLOCKED" -> task.isBlocked

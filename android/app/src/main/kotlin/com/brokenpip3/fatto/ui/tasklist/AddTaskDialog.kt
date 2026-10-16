@@ -33,6 +33,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,11 +43,16 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.model.RecurrenceRule
+import com.brokenpip3.fatto.data.model.TaskEditResult
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import uniffi.taskchampion_android.TaskAddProps
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
@@ -63,7 +69,12 @@ fun AddTaskDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>, Boolean) -> Unit,
     firstDayOfWeek: Int = Calendar.MONDAY,
+    onCreate: (suspend (TaskAddProps, RecurrenceRule?, Boolean) -> TaskEditResult)? = null,
 ) {
+    val scope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
+    var rule by remember { mutableStateOf<RecurrenceRule?>(null) }
     var description by remember(initialDescription) { mutableStateOf(initialDescription) }
     var project by remember { mutableStateOf(initialProject ?: "") }
     var tags by remember { mutableStateOf(initialTags) }
@@ -101,19 +112,21 @@ fun AddTaskDialog(
         }
 
     val resetAndDismiss = {
-        description = ""
-        project = ""
-        tags = emptyList()
-        priority = null
-        waitDate = null
-        dueDate = null
-        scheduledDate = null
-        openEditorAfterCreate = false
-        onDismiss()
+        if (!saving) {
+            description = ""
+            project = ""
+            tags = emptyList()
+            priority = null
+            waitDate = null
+            dueDate = null
+            scheduledDate = null
+            openEditorAfterCreate = false
+            onDismiss()
+        }
     }
 
     val addTag = {
-        if (newTag.isNotBlank() && !tags.contains(newTag.trim())) {
+        if (!saving && newTag.isNotBlank() && !tags.contains(newTag.trim())) {
             tags = tags + newTag.trim()
             newTag = ""
         }
@@ -134,22 +147,25 @@ fun AddTaskDialog(
                             .verticalScroll(rememberScrollState()),
                 ) {
                     TextField(
+                        enabled = !saving,
                         value = description,
-                        onValueChange = { description = it },
+                        onValueChange = { if (!saving) description = it },
                         label = { Text("Description") },
                         modifier = Modifier.fillMaxWidth().testTag("DescriptionInput"),
                         colors = FattoFieldDefaults.filledColors(),
                     )
 
                     TextField(
+                        enabled = !saving,
                         value = project,
-                        onValueChange = { project = it },
+                        onValueChange = { if (!saving) project = it },
                         label = { Text("Project") },
                         modifier = Modifier.fillMaxWidth().testTag("ProjectInput"),
                         colors = FattoFieldDefaults.filledColors(),
                         trailingIcon = {
                             IconButton(
                                 onClick = { showProjectPicker = true },
+                                enabled = !saving,
                                 modifier = Modifier.testTag("SelectProjectButton"),
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select project")
@@ -157,7 +173,7 @@ fun AddTaskDialog(
                         },
                     )
 
-                    if (filteredProjects.isNotEmpty()) {
+                    if (!saving && filteredProjects.isNotEmpty()) {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth(),
@@ -168,23 +184,47 @@ fun AddTaskDialog(
                         }
                     }
 
+                    TaskDateAndPriorityControls(
+                        enabled = !saving,
+                        priority = priority,
+                        due = dueDate,
+                        scheduled = scheduledDate,
+                        wait = waitDate,
+                        onPriorityChange = { priority = it },
+                        onDateClick = { activePicker = it },
+                        trailingControl = {
+                            RecurrenceFields(rule, dueDate, { rule = it }, rule?.creationError(dueDate), enabled = !saving)
+                        },
+                    )
+                    RecurrenceSummary(rule?.interval)
+                    RecurrenceValidationMessage(rule, dueDate)
                     if (tags.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             items(tags) { tag ->
-                                TagChip(tag = tag, onRemove = { tags = tags - tag })
+                                TagChip(
+                                    tag = tag,
+                                    onRemove =
+                                        if (saving) {
+                                            null
+                                        } else {
+                                            { tags = tags - tag }
+                                        },
+                                )
                             }
                         }
                     }
 
                     TextField(
+                        enabled = !saving,
                         value = newTag,
-                        onValueChange = { newTag = it },
+                        onValueChange = { if (!saving) newTag = it },
                         label = { Text("Add Tag") },
                         modifier = Modifier.fillMaxWidth().semantics { contentDescription = "TagInput" },
                         singleLine = true,
                         colors = FattoFieldDefaults.filledColors(),
                         trailingIcon = {
                             TaskTagActions(
+                                enabled = !saving,
                                 onAdd = addTag,
                                 addContentDescription = "AddTagButton",
                                 onSelect = { showTagPicker = true },
@@ -192,7 +232,7 @@ fun AddTaskDialog(
                         },
                     )
 
-                    if (filteredTags.isNotEmpty()) {
+                    if (!saving && filteredTags.isNotEmpty()) {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth(),
@@ -211,14 +251,12 @@ fun AddTaskDialog(
                         }
                     }
 
-                    TaskDateAndPriorityControls(
-                        priority = priority,
-                        due = dueDate,
-                        scheduled = scheduledDate,
-                        wait = waitDate,
-                        onPriorityChange = { priority = it },
-                        onDateClick = { activePicker = it },
-                    )
+                    if (saveError !=
+                        null
+                    ) {
+                        Text(saveError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (saving) Text("Saving…", style = MaterialTheme.typography.bodyMedium)
 
                     Row(
                         modifier =
@@ -228,8 +266,9 @@ fun AddTaskDialog(
                                 .testTag("OpenEditorAfterCreateSwitch")
                                 .toggleable(
                                     value = openEditorAfterCreate,
+                                    enabled = !saving,
                                     role = Role.Switch,
-                                    onValueChange = { openEditorAfterCreate = it },
+                                    onValueChange = { if (!saving) openEditorAfterCreate = it },
                                 ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -241,29 +280,46 @@ fun AddTaskDialog(
         },
         confirmButton = {
             Button(
+                enabled = !saving && description.isNotBlank() && (rule == null || rule?.creationError(dueDate) == null),
                 onClick = {
-                    if (description.isNotBlank()) {
-                        val proj = if (project.isNotBlank()) project.trim() else null
+                    if (onCreate != null) {
+                        saving = true
+                        val props =
+                            TaskAddProps(
+                                description,
+                                project.trim().takeIf {
+                                    it.isNotEmpty()
+                                },
+                                tags, dueDate, waitDate, scheduledDate, null, priority, emptyList(),
+                            )
+                        val capturedRule = rule
+                        val capturedOpenEditor = openEditorAfterCreate
+                        scope.launch {
+                            try {
+                                when (val result = onCreate(props, capturedRule, capturedOpenEditor)) {
+                                    TaskEditResult.Success -> onDismiss()
+                                    is TaskEditResult.Failure -> saveError = result.message
+                                }
+                            } catch (
+                                e: CancellationException,
+                            ) {
+                                throw e
+                            } catch (
+                                e: Exception,
+                            ) {
+                                saveError = "Could not create task: ${e.message}"
+                            } finally {
+                                saving = false
+                            }
+                        }
+                    } else if (description.isNotBlank()) {
                         onConfirm(
                             description,
-                            proj,
-                            tags,
-                            waitDate,
-                            dueDate,
-                            scheduledDate,
-                            null,
-                            priority,
-                            emptyList(),
-                            openEditorAfterCreate,
+                            project.trim().takeIf {
+                                it.isNotEmpty()
+                            },
+                            tags, waitDate, dueDate, scheduledDate, null, priority, emptyList(), openEditorAfterCreate,
                         )
-                        description = ""
-                        project = ""
-                        tags = emptyList()
-                        priority = null
-                        waitDate = null
-                        dueDate = null
-                        scheduledDate = null
-                        openEditorAfterCreate = false
                     }
                 },
                 shape = MaterialTheme.shapes.medium,
@@ -285,7 +341,7 @@ fun AddTaskDialog(
         shape = MaterialTheme.shapes.extraLarge,
     )
 
-    if (showProjectPicker) {
+    if (showProjectPicker && !saving) {
         ProjectPickerDialog(
             projects = (availableProjects + project).toSet().toList(),
             selectedProject = project.ifBlank { null },
@@ -297,7 +353,7 @@ fun AddTaskDialog(
         )
     }
 
-    if (showTagPicker) {
+    if (showTagPicker && !saving) {
         TagPickerDialog(
             tags = (availableTags + tags).toSet().toList(),
             selectedTags = tags.toSet(),
@@ -309,7 +365,7 @@ fun AddTaskDialog(
         )
     }
 
-    if (activePicker != null) {
+    if (activePicker != null && !saving) {
         DatePickerDialog(
             onDismissRequest = { activePicker = null },
             confirmButton = {
@@ -353,4 +409,13 @@ fun AddTaskDialog(
             }
         }
     }
+}
+
+@Composable
+private fun RecurrenceValidationMessage(
+    rule: RecurrenceRule?,
+    due: String?,
+) {
+    val message = rule?.creationError(due) ?: return
+    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
 }

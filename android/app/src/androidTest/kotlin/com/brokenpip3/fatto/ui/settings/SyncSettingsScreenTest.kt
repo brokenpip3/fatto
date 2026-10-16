@@ -180,9 +180,9 @@ class SyncSettingsScreenTest {
         composeTestRule.waitUntil(5_000) { viewModel.syncTestState.value is com.brokenpip3.fatto.vm.SyncTestState.Failed }
 
         composeTestRule.onNodeWithTag("SyncConnectionStatusText").assertTextEquals("Sync failed")
-        composeTestRule.waitUntil(5_000) {
-            composeTestRule.onAllNodesWithText("Settings saved, but sync failed").fetchSemanticsNodes().isEmpty()
-        }
+        composeTestRule.mainClock.advanceTimeBy(5_000)
+        composeTestRule.waitForIdle()
+        composeTestRule.onAllNodesWithText("Settings saved, but sync failed").assertCountEquals(0)
         composeTestRule.onNodeWithTag("ViewDiagnosticsButton").performScrollTo().assertIsDisplayed().performClick()
         composeTestRule.onNodeWithTag("DiagnosticsView").assertIsDisplayed()
         composeTestRule.onAllNodesWithText("connection failed with [redacted]", substring = true).assertCountEquals(2)

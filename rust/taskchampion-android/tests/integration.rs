@@ -1,5 +1,7 @@
 use std::env;
-use taskchampion_android::{ReplicaWrapper, TaskAddProps, TaskStatus, TaskUpdateProps};
+use taskchampion_android::{
+    ReplicaWrapper, StringEdit, StringSetEdit, TaskAddProps, TaskEditPatch, TaskStatus,
+};
 
 #[test]
 fn test_sync_integration() {
@@ -265,18 +267,48 @@ fn test_task_properties_integration() {
         .unwrap();
 
     // Link them: blocked depends on blocking
-    rep.update_task(TaskUpdateProps {
-        uuid: task_blocked.uuid.clone(),
-        description: task_blocked.description.clone(),
-        status: task_blocked.status,
-        project: None,
-        tags: vec![],
-        wait: None,
-        due: None,
-        scheduled: None,
-        start: None,
-        priority: None,
-        dependencies: vec![task_blocking.uuid.clone()],
+    rep.update_task({
+        let current = rep.get_task(task_blocked.uuid.clone()).unwrap().unwrap();
+        TaskEditPatch {
+            uuid: task_blocked.uuid.clone(),
+            expected_status: current.status.clone(),
+            description: StringEdit::Replace {
+                expected: Some(current.description.clone()),
+                value: Some(task_blocked.description.clone()),
+            },
+            project: StringEdit::Replace {
+                expected: current.project.clone(),
+                value: None,
+            },
+            priority: StringEdit::Replace {
+                expected: current.priority.clone(),
+                value: None,
+            },
+            due: StringEdit::Replace {
+                expected: current.due.clone(),
+                value: None,
+            },
+            wait: StringEdit::Replace {
+                expected: current.wait.clone(),
+                value: None,
+            },
+            scheduled: StringEdit::Replace {
+                expected: current.scheduled.clone(),
+                value: None,
+            },
+            start: StringEdit::Replace {
+                expected: current.start.clone(),
+                value: None,
+            },
+            tags: StringSetEdit::Replace {
+                expected: current.tags.clone(),
+                value: vec![],
+            },
+            dependencies: StringSetEdit::Replace {
+                expected: current.dependencies.clone(),
+                value: vec![task_blocking.uuid.clone()],
+            },
+        }
     })
     .unwrap();
 

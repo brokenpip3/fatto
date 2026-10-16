@@ -58,7 +58,7 @@ class BlockedTaskCompletionTest {
     ) = Task(
         uuid = "uuid-$description",
         description = description,
-        status = TaskStatus.PENDING,
+        status = TaskStatus.Pending,
         tags = emptyList(), due = null, entry = null, project = null,
         wait = null, scheduled = null, start = null, priority = null,
         urgency = 0f, isBlocked = isBlocked, isBlocking = false,
