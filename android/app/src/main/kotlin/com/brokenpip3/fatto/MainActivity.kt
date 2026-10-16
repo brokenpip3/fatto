@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -43,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -68,6 +71,8 @@ import com.brokenpip3.fatto.ui.projects.ProjectsScreen
 import com.brokenpip3.fatto.ui.settings.SettingsScreen
 import com.brokenpip3.fatto.ui.tags.TagsScreen
 import com.brokenpip3.fatto.ui.tasklist.AddTaskDialog
+import com.brokenpip3.fatto.ui.tasklist.RecurrenceTemplateSheet
+import com.brokenpip3.fatto.ui.tasklist.SeriesEditorActions
 import com.brokenpip3.fatto.ui.tasklist.TaskDetailBottomSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskListScreen
 import com.brokenpip3.fatto.ui.theme.FattoElevation
@@ -102,6 +107,11 @@ class MainActivity : ComponentActivity() {
         val taskRepository = TaskRepository(applicationContext, settingsRepository)
 
         val taskViewModel = TaskViewModel(taskRepository)
+        lifecycle.addObserver(
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) taskViewModel.reloadTasks()
+            },
+        )
         val diagnosticsRepository = SyncDiagnosticsRepositoryImpl(applicationContext)
         val settingsViewModel =
             SettingsViewModel(
@@ -244,10 +254,14 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 ) { innerPadding ->
-                    NavHost(navController, startDestination = "tasks", Modifier.padding(innerPadding)) {
+                    NavHost(
+                        navController, startDestination = "tasks",
+                        Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
+                    ) {
                         composable("tasks") {
                             var showAddTaskDialog by remember { mutableStateOf(false) }
                             var selectedTask by remember { mutableStateOf<Task?>(null) }
+                            var selectedSeries by remember { mutableStateOf<Task?>(null) }
                             var dialogInitialDescription by remember { mutableStateOf<String?>(null) }
                             val availableTags by taskViewModel.availableTags.collectAsState()
                             val selectableProjects by taskViewModel.selectableProjects.collectAsState()
@@ -279,6 +293,7 @@ class MainActivity : ComponentActivity() {
                                     showAddTaskDialog = true
                                 },
                                 onTaskClick = { selectedTask = it },
+                                onSeriesClick = { selectedSeries = it },
                                 onManageContexts = {
                                     navController.navigate("settings?section=contexts") {
                                         popUpTo(navController.graph.findStartDestination().id) {
@@ -307,6 +322,16 @@ class MainActivity : ComponentActivity() {
                                         showAddTaskDialog = false
                                     },
                                     firstDayOfWeek = firstDayOfWeek,
+                                    onCreate = { props, rule, openEditor -> taskViewModel.createTask(props, rule, openEditor) },
+                                )
+                            }
+
+                            selectedSeries?.let { series ->
+                                RecurrenceTemplateSheet(
+                                    series, allTasks, onDismiss = { selectedSeries = null },
+                                    onSave = { patch, rule, replace -> taskViewModel.saveSeries(patch, rule, replace) },
+                                    onStop = { taskViewModel.stopSeries(series.uuid) },
+                                    showInternalTags = showInternalTags,
                                 )
                             }
 
@@ -314,8 +339,14 @@ class MainActivity : ComponentActivity() {
                                 TaskDetailBottomSheet(
                                     task = task,
                                     onDismiss = { selectedTask = null },
+                                    seriesActions =
+                                        SeriesEditorActions(
+                                            save = { patch, rule, replace -> taskViewModel.saveSeries(patch, rule, replace) },
+                                            stop = { uuid -> taskViewModel.stopSeries(uuid) },
+                                        ),
+                                    autoWaiting = taskViewModel.autoWaiting.collectAsState().value,
                                     onSave = { updatedTask ->
-                                        taskViewModel.updateTask(updatedTask)
+                                        taskViewModel.saveTask(updatedTask)
                                     },
                                     availableProjects = selectableProjects,
                                     availableTags = availableTags.toList(),
@@ -328,6 +359,7 @@ class MainActivity : ComponentActivity() {
                                         taskViewModel.removeAnnotation(uuid, entry)
                                     },
                                     allTasks = allTasks,
+                                    recurrenceDiagnostics = taskViewModel.recurrenceDiagnostics.collectAsState().value,
                                     showCompleted = showCompleted,
                                     onAddDependencies = { uuid, deps ->
                                         taskViewModel.addDependencies(uuid, deps)

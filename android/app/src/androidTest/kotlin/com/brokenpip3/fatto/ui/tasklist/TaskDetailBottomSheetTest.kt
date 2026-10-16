@@ -32,7 +32,7 @@ class TaskDetailBottomSheetTest {
             TaskDetailBottomSheet(
                 task = task(tags = listOf("home")),
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = listOf("urgent", "work", "home"),
             )
@@ -50,12 +50,15 @@ class TaskDetailBottomSheetTest {
 
     @Test
     fun tagPickerKeepsHiddenInternalTagsWhenReplacingVisibleTags() {
-        var savedTask: Task? = null
+        var savedTask: uniffi.taskchampion_android.TaskEditPatch? = null
         composeTestRule.setContent {
             TaskDetailBottomSheet(
                 task = task(tags = listOf("home", "BLOCKING")),
                 onDismiss = {},
-                onSave = { savedTask = it },
+                onSave = {
+                    savedTask = it
+                    com.brokenpip3.fatto.data.model.TaskEditResult.Success
+                },
                 availableProjects = emptyList(),
                 availableTags = listOf("home", "urgent"),
                 showInternalTags = false,
@@ -73,18 +76,24 @@ class TaskDetailBottomSheetTest {
             .performClick()
 
         composeTestRule.runOnIdle {
-            assertEquals(setOf("BLOCKING", "urgent"), savedTask?.tags?.toSet())
+            assertEquals(
+                setOf("BLOCKING", "urgent"),
+                (savedTask?.tags as? uniffi.taskchampion_android.StringSetEdit.Replace)?.value?.toSet(),
+            )
         }
     }
 
     @Test
     fun tagPickerKeepsHiddenInternalTagsWhenClearingVisibleTags() {
-        var savedTask: Task? = null
+        var savedTask: uniffi.taskchampion_android.TaskEditPatch? = null
         composeTestRule.setContent {
             TaskDetailBottomSheet(
                 task = task(tags = listOf("home", "BLOCKING")),
                 onDismiss = {},
-                onSave = { savedTask = it },
+                onSave = {
+                    savedTask = it
+                    com.brokenpip3.fatto.data.model.TaskEditResult.Success
+                },
                 availableProjects = emptyList(),
                 availableTags = listOf("home", "urgent"),
                 showInternalTags = false,
@@ -101,7 +110,7 @@ class TaskDetailBottomSheetTest {
             .performClick()
 
         composeTestRule.runOnIdle {
-            assertEquals(setOf("BLOCKING"), savedTask?.tags?.toSet())
+            assertEquals(setOf("BLOCKING"), (savedTask?.tags as? uniffi.taskchampion_android.StringSetEdit.Replace)?.value?.toSet())
         }
     }
 
@@ -115,7 +124,7 @@ class TaskDetailBottomSheetTest {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, blocker),
@@ -156,7 +165,7 @@ class TaskDetailBottomSheetTest {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, blocker),
@@ -185,7 +194,7 @@ class TaskDetailBottomSheetTest {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, blocker, other),
@@ -224,7 +233,7 @@ class TaskDetailBottomSheetTest {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, dependent),
@@ -251,13 +260,13 @@ class TaskDetailBottomSheetTest {
     @Test
     fun blockedByPickerExcludesCompletedWhenShowCompletedIsFalse() {
         val open = task()
-        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.COMPLETED)
+        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.Completed)
         val other = task(uuid = "task-3", description = "Open task")
         composeTestRule.setContent {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, completed, other),
@@ -285,12 +294,12 @@ class TaskDetailBottomSheetTest {
     @Test
     fun blockedByPickerShowsCompletedWhenShowCompletedIsTrue() {
         val open = task()
-        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.COMPLETED)
+        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.Completed)
         composeTestRule.setContent {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, completed),
@@ -312,13 +321,13 @@ class TaskDetailBottomSheetTest {
     @Test
     fun blockingPickerExcludesCompletedWhenShowCompletedIsFalse() {
         val open = task()
-        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.COMPLETED)
+        val completed = task(uuid = "task-2", description = "Done task", status = TaskStatus.Completed)
         val other = task(uuid = "task-3", description = "Open task")
         composeTestRule.setContent {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, completed, other),
@@ -352,7 +361,7 @@ class TaskDetailBottomSheetTest {
             TaskDetailBottomSheet(
                 task = open,
                 onDismiss = {},
-                onSave = {},
+                onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 allTasks = listOf(open, candidate),
@@ -383,7 +392,7 @@ class TaskDetailBottomSheetTest {
         description: String = "Edit me",
         tags: List<String> = emptyList(),
         dependencies: List<String> = emptyList(),
-        status: TaskStatus = TaskStatus.PENDING,
+        status: TaskStatus = TaskStatus.Pending,
     ): Task =
         Task(
             uuid = uuid,

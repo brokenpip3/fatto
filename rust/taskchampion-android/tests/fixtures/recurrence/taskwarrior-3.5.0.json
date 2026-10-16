@@ -1,0 +1,426 @@
+[
+  {
+    "description": "Dependency fixture",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000100"
+  },
+  {
+    "description": "Series 2weeks",
+    "due": "20300101T000000Z",
+    "fixture": "preserve-me",
+    "mask": "WWW",
+    "project": "acceptance",
+    "recur": "2weeks",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "recurring",
+    "uuid": "10000000-0000-4000-8000-000000000101",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series 2weeks",
+    "due": "20300101T000000Z",
+    "fixture": "preserve-me",
+    "imask": 0,
+    "parent": "10000000-0000-4000-8000-000000000101",
+    "project": "acceptance",
+    "recur": "2weeks",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000102",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series 2weeks",
+    "due": "20300115T000000Z",
+    "fixture": "preserve-me",
+    "imask": 1,
+    "parent": "10000000-0000-4000-8000-000000000101",
+    "project": "acceptance",
+    "recur": "2weeks",
+    "rtype": "periodic",
+    "scheduled": "20300113T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000103",
+    "wait": "20300112T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series 2weeks",
+    "due": "20300129T000000Z",
+    "fixture": "preserve-me",
+    "imask": 2,
+    "parent": "10000000-0000-4000-8000-000000000101",
+    "project": "acceptance",
+    "recur": "2weeks",
+    "rtype": "periodic",
+    "scheduled": "20300127T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000104",
+    "wait": "20300126T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series daily",
+    "due": "20300101T000000Z",
+    "fixture": "preserve-me",
+    "mask": "WWW",
+    "project": "acceptance",
+    "recur": "daily",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "recurring",
+    "uuid": "10000000-0000-4000-8000-000000000105",
+    "wait": "20291229T000000Z",
+    "annotations": [
+      {
+        "entry": "20200101T000000Z",
+        "description": "Inherited annotation"
+      }
+    ],
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series daily",
+    "due": "20300101T000000Z",
+    "fixture": "preserve-me",
+    "imask": 0,
+    "parent": "10000000-0000-4000-8000-000000000105",
+    "project": "acceptance",
+    "recur": "daily",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000106",
+    "wait": "20291229T000000Z",
+    "annotations": [
+      {
+        "entry": "20200101T000000Z",
+        "description": "Inherited annotation"
+      }
+    ],
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series daily",
+    "due": "20300102T000000Z",
+    "fixture": "preserve-me",
+    "imask": 1,
+    "parent": "10000000-0000-4000-8000-000000000105",
+    "project": "acceptance",
+    "recur": "daily",
+    "rtype": "periodic",
+    "scheduled": "20291231T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000107",
+    "wait": "20291230T000000Z",
+    "annotations": [
+      {
+        "entry": "20200101T000000Z",
+        "description": "Inherited annotation"
+      }
+    ],
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series daily",
+    "due": "20300103T000000Z",
+    "fixture": "preserve-me",
+    "imask": 2,
+    "parent": "10000000-0000-4000-8000-000000000105",
+    "project": "acceptance",
+    "recur": "daily",
+    "rtype": "periodic",
+    "scheduled": "20300101T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000108",
+    "wait": "20291231T000000Z",
+    "annotations": [
+      {
+        "entry": "20200101T000000Z",
+        "description": "Inherited annotation"
+      }
+    ],
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series monthly",
+    "due": "20300131T000000Z",
+    "fixture": "preserve-me",
+    "mask": "WWW",
+    "project": "acceptance",
+    "recur": "monthly",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "recurring",
+    "uuid": "10000000-0000-4000-8000-000000000109",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series monthly",
+    "due": "20300131T000000Z",
+    "fixture": "preserve-me",
+    "imask": 0,
+    "parent": "10000000-0000-4000-8000-000000000109",
+    "project": "acceptance",
+    "recur": "monthly",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-00000000010a",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series monthly",
+    "due": "20300228T000000Z",
+    "fixture": "preserve-me",
+    "imask": 1,
+    "parent": "10000000-0000-4000-8000-000000000109",
+    "project": "acceptance",
+    "recur": "monthly",
+    "rtype": "periodic",
+    "scheduled": "20300127T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-00000000010b",
+    "wait": "20300126T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series monthly",
+    "due": "20300328T000000Z",
+    "fixture": "preserve-me",
+    "imask": 2,
+    "parent": "10000000-0000-4000-8000-000000000109",
+    "project": "acceptance",
+    "recur": "monthly",
+    "rtype": "periodic",
+    "scheduled": "20300224T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-00000000010c",
+    "wait": "20300223T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekdays",
+    "due": "20300104T000000Z",
+    "fixture": "preserve-me",
+    "mask": "WWW",
+    "project": "acceptance",
+    "recur": "weekdays",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "recurring",
+    "uuid": "10000000-0000-4000-8000-00000000010d",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekdays",
+    "due": "20300104T000000Z",
+    "fixture": "preserve-me",
+    "imask": 0,
+    "parent": "10000000-0000-4000-8000-00000000010d",
+    "project": "acceptance",
+    "recur": "weekdays",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-00000000010e",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekdays",
+    "due": "20300107T000000Z",
+    "fixture": "preserve-me",
+    "imask": 1,
+    "parent": "10000000-0000-4000-8000-00000000010d",
+    "project": "acceptance",
+    "recur": "weekdays",
+    "rtype": "periodic",
+    "scheduled": "20300102T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-00000000010f",
+    "wait": "20300101T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekdays",
+    "due": "20300108T000000Z",
+    "fixture": "preserve-me",
+    "imask": 2,
+    "parent": "10000000-0000-4000-8000-00000000010d",
+    "project": "acceptance",
+    "recur": "weekdays",
+    "rtype": "periodic",
+    "scheduled": "20300103T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000110",
+    "wait": "20300102T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekly",
+    "due": "20300101T000000Z",
+    "fixture": "preserve-me",
+    "mask": "WWW",
+    "project": "acceptance",
+    "recur": "weekly",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "recurring",
+    "uuid": "10000000-0000-4000-8000-000000000111",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekly",
+    "due": "20300101T000000Z",
+    "fixture": "preserve-me",
+    "imask": 0,
+    "parent": "10000000-0000-4000-8000-000000000111",
+    "project": "acceptance",
+    "recur": "weekly",
+    "rtype": "periodic",
+    "scheduled": "20291230T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000112",
+    "wait": "20291229T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekly",
+    "due": "20300108T000000Z",
+    "fixture": "preserve-me",
+    "imask": 1,
+    "parent": "10000000-0000-4000-8000-000000000111",
+    "project": "acceptance",
+    "recur": "weekly",
+    "rtype": "periodic",
+    "scheduled": "20300106T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000113",
+    "wait": "20300105T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  },
+  {
+    "description": "Series weekly",
+    "due": "20300115T000000Z",
+    "fixture": "preserve-me",
+    "imask": 2,
+    "parent": "10000000-0000-4000-8000-000000000111",
+    "project": "acceptance",
+    "recur": "weekly",
+    "rtype": "periodic",
+    "scheduled": "20300113T000000Z",
+    "status": "pending",
+    "uuid": "10000000-0000-4000-8000-000000000114",
+    "wait": "20300112T000000Z",
+    "tags": [
+      "fixture"
+    ],
+    "depends": [
+      "10000000-0000-4000-8000-000000000100"
+    ]
+  }
+]

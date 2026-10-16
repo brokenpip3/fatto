@@ -41,7 +41,7 @@ class DailyNotificationWorker(
 
             val tasksToNotify =
                 taskRepository.tasks.value.filter { task ->
-                    if (task.status != TaskStatus.PENDING) return@filter false
+                    if (task.status != TaskStatus.Pending || !task.isActionableStatus) return@filter false
 
                     val isDueToday = includeDue && com.brokenpip3.fatto.data.DateTimeUtils.isToday(task.due)
                     val isScheduledToday = includeScheduled && com.brokenpip3.fatto.data.DateTimeUtils.isToday(task.scheduled)
@@ -56,6 +56,8 @@ class DailyNotificationWorker(
             }
 
             Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("DailyNotificationWorker", "Failed to generate daily notification", e)
             Result.failure()

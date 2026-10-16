@@ -1,0 +1,47 @@
+[
+  {
+    "period": "monthly",
+    "timezone": "UTC",
+    "due_dates": [
+      "20320131T000000Z",
+      "20320229T000000Z",
+      "20320329T000000Z"
+    ]
+  },
+  {
+    "period": "2months",
+    "timezone": "UTC",
+    "due_dates": [
+      "20300131T000000Z",
+      "20300401T000000Z",
+      "20300531T000000Z"
+    ]
+  },
+  {
+    "period": "2years",
+    "timezone": "UTC",
+    "due_dates": [
+      "20320229T000000Z",
+      "20340228T000000Z",
+      "20360228T000000Z"
+    ]
+  },
+  {
+    "period": "daily",
+    "timezone": "Europe/Rome",
+    "due_dates": [
+      "20300330T090000Z",
+      "20300331T090000Z",
+      "20300401T090000Z"
+    ]
+  },
+  {
+    "period": "daily",
+    "timezone": "Europe/Rome",
+    "due_dates": [
+      "20301026T080000Z",
+      "20301027T080000Z",
+      "20301028T080000Z"
+    ]
+  }
+]

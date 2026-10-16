@@ -39,11 +39,11 @@ class TaskContextMatcherTest {
 
     @Test
     fun `virtual tags use task state`() {
-        assertTrue(TaskContextMatcher.matches(task(status = TaskStatus.PENDING), context("+PENDING"), now))
-        assertFalse(TaskContextMatcher.matches(task(status = TaskStatus.COMPLETED), context("+PENDING"), now))
+        assertTrue(TaskContextMatcher.matches(task(status = TaskStatus.Pending), context("+PENDING"), now))
+        assertFalse(TaskContextMatcher.matches(task(status = TaskStatus.Completed), context("+PENDING"), now))
 
-        assertTrue(TaskContextMatcher.matches(task(status = TaskStatus.COMPLETED), context("+COMPLETED"), now))
-        assertFalse(TaskContextMatcher.matches(task(status = TaskStatus.PENDING), context("+COMPLETED"), now))
+        assertTrue(TaskContextMatcher.matches(task(status = TaskStatus.Completed), context("+COMPLETED"), now))
+        assertFalse(TaskContextMatcher.matches(task(status = TaskStatus.Pending), context("+COMPLETED"), now))
 
         assertTrue(TaskContextMatcher.matches(task(due = "2026-07-05T12:00:00Z"), context("+DUE"), now))
         assertFalse(TaskContextMatcher.matches(task(), context("+DUE"), now))
@@ -53,7 +53,7 @@ class TaskContextMatcherTest {
         assertFalse(
             TaskContextMatcher.matches(
                 task(
-                    status = TaskStatus.COMPLETED,
+                    status = TaskStatus.Completed,
                     wait = "2026-07-04T12:05:00Z",
                 ),
                 context("+WAITING"),
@@ -67,7 +67,7 @@ class TaskContextMatcherTest {
         assertFalse(
             TaskContextMatcher.matches(
                 task(
-                    status = TaskStatus.COMPLETED,
+                    status = TaskStatus.Completed,
                     start = "2026-07-04T11:00:00Z",
                     tags = listOf("active"),
                 ),
@@ -190,7 +190,7 @@ class TaskContextMatcherTest {
 
     private fun task(
         description: String = "task",
-        status: TaskStatus = TaskStatus.PENDING,
+        status: TaskStatus = TaskStatus.Pending,
         project: String? = null,
         tags: List<String> = emptyList(),
         due: String? = null,

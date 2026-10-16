@@ -88,32 +88,53 @@ fun TaskDateAndPriorityControls(
     onPriorityChange: (String?) -> Unit,
     onDateClick: (DatePickerType) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    trailingControl: (@Composable () -> Unit)? = null,
 ) {
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = dateControlArrangement,
-        verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
-        maxItemsInEachRow = 4,
-    ) {
-        PriorityIconButton(priority = priority, onPriorityChange = onPriorityChange)
-        DatePickerIconButton(
-            label = "Due",
-            date = due,
-            icon = Icons.Default.Event,
-            onClick = { onDateClick(DatePickerType.DUE) },
-        )
-        DatePickerIconButton(
-            label = "Sch",
-            date = scheduled,
-            icon = Icons.Default.Schedule,
-            onClick = { onDateClick(DatePickerType.SCHEDULED) },
-        )
-        DatePickerIconButton(
-            label = "Wait",
-            date = wait,
-            icon = Icons.Default.CalendarMonth,
-            onClick = { onDateClick(DatePickerType.WAIT) },
-        )
+    val compact = trailingControl != null
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = dateControlArrangement,
+            verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
+            maxItemsInEachRow = if (trailingControl == null) 4 else 5,
+        ) {
+            PriorityIconButton(priority = priority, onPriorityChange = onPriorityChange, enabled = enabled, compact = compact)
+            DatePickerIconButton(
+                label = "Due",
+                date = due,
+                icon = Icons.Default.Event,
+                enabled = enabled,
+                compact = compact,
+                onClick = { onDateClick(DatePickerType.DUE) },
+            )
+            DatePickerIconButton(
+                label = "Sch",
+                date = scheduled,
+                icon = Icons.Default.Schedule,
+                enabled = enabled,
+                compact = compact,
+                onClick = { onDateClick(DatePickerType.SCHEDULED) },
+            )
+            DatePickerIconButton(
+                label = "Wait",
+                date = wait,
+                icon = Icons.Default.CalendarMonth,
+                enabled = enabled,
+                compact = compact,
+                onClick = { onDateClick(DatePickerType.WAIT) },
+            )
+            trailingControl?.invoke()
+        }
+        if (compact) {
+            val dates =
+                listOfNotNull(
+                    due?.let { "Due: ${readableDate(it)}" },
+                    scheduled?.let { "Scheduled: ${readableDate(it)}" },
+                    wait?.let { "Wait: ${readableDate(it)}" },
+                )
+            if (dates.isNotEmpty()) Text(dates.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
@@ -124,6 +145,7 @@ fun TaskTagActions(
     modifier: Modifier = Modifier,
     addActionModifier: Modifier = Modifier,
     addContentDescription: String = "Add tag",
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier,
@@ -132,6 +154,7 @@ fun TaskTagActions(
     ) {
         TextButton(
             onClick = onAdd,
+            enabled = enabled,
             modifier =
                 addActionModifier.heightIn(min = FattoMetrics.minTouchTarget).semantics {
                     contentDescription = addContentDescription
@@ -143,7 +166,7 @@ fun TaskTagActions(
                 Text("Add", style = MaterialTheme.typography.labelLarge)
             }
         }
-        IconButton(onClick = onSelect, modifier = Modifier.testTag("SelectTagsButton")) {
+        IconButton(onClick = onSelect, enabled = enabled, modifier = Modifier.testTag("SelectTagsButton")) {
             Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Select tags")
         }
     }
@@ -153,12 +176,17 @@ fun TaskTagActions(
 fun PriorityIconButton(
     priority: String?,
     onPriorityChange: (String?) -> Unit,
+    enabled: Boolean = true,
+    compact: Boolean = false,
 ) {
+    val controlWidth = if (compact) FattoMetrics.minTouchTarget else FattoMetrics.dateControlMinWidth
     var expanded by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.widthIn(min = FattoMetrics.dateControlMinWidth), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier = Modifier.widthIn(min = controlWidth), horizontalAlignment = Alignment.CenterHorizontally) {
         Box {
-            IconButton(onClick = { expanded = true }, modifier = Modifier.size(FattoMetrics.dateControlMinWidth)) {
+            IconButton(onClick = {
+                expanded = true
+            }, enabled = enabled, modifier = Modifier.size(controlWidth)) {
                 Icon(
                     imageVector = Icons.Outlined.Flag,
                     contentDescription = "Set Priority",
@@ -172,7 +200,7 @@ fun PriorityIconButton(
                 )
             }
             DropdownMenu(
-                expanded = expanded,
+                expanded = expanded && enabled,
                 onDismissRequest = { expanded = false },
             ) {
                 DropdownMenuItem(
@@ -253,7 +281,7 @@ fun PriorityIconButton(
                     "L" -> "Low"
                     else -> "Priority"
                 },
-            style = MaterialTheme.typography.bodyMedium,
+            style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
             color =
                 if (priority != null) {
                     MaterialTheme.colorScheme.primary
@@ -270,16 +298,19 @@ fun DatePickerIconButton(
     date: String?,
     icon: ImageVector,
     onClick: () -> Unit,
+    enabled: Boolean = true,
+    compact: Boolean = false,
 ) {
+    val controlWidth = if (compact) FattoMetrics.minTouchTarget else FattoMetrics.dateControlMinWidth
     val formattedDate = DateTimeUtils.formatLocalDate(date)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier =
-            Modifier.widthIn(min = FattoMetrics.dateControlMinWidth).semantics(mergeDescendants = true) {
+            Modifier.widthIn(min = controlWidth).semantics(mergeDescendants = true) {
                 contentDescription = if (formattedDate == null) label else "$label, $formattedDate"
             },
     ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(FattoMetrics.dateControlMinWidth)) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(controlWidth)) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
@@ -293,8 +324,8 @@ fun DatePickerIconButton(
             )
         }
         Text(
-            text = formattedDate ?: label,
-            style = MaterialTheme.typography.bodyMedium,
+            text = if (compact) label else formattedDate ?: label,
+            style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
             color = if (date != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

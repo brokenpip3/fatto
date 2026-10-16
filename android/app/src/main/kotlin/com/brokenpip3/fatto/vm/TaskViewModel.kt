@@ -9,7 +9,10 @@ import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.data.model.TaskEditResult
 import com.brokenpip3.fatto.data.model.isSynthetic
+import com.brokenpip3.fatto.data.model.toEditPatch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +24,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import uniffi.taskchampion_android.TaskEditPatch
+import uniffi.taskchampion_android.TaskException
 import uniffi.taskchampion_android.TaskStatus
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -154,7 +159,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 val matchesActiveState =
                     !filters.showOnlyActive ||
                         (
-                            task.status == TaskStatus.PENDING &&
+                            task.status == TaskStatus.Pending &&
                                 (task.start != null || task.tags.any { it.equals("ACTIVE", ignoreCase = true) })
                         )
                 matchesContext && matchesUuid && matchesQuery && matchesTags && matchesProject && matchesActiveState
@@ -195,7 +200,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                 if (filters.direction == SortDirection.DESCENDING) -result else result
             }
         }.combine(repository.showCompleted) { tasks, showCompleted ->
-            if (showCompleted) tasks else tasks.filter { it.status != TaskStatus.COMPLETED }
+            if (showCompleted) tasks else tasks.filter { it.status != TaskStatus.Completed }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val activeTasks: StateFlow<List<Task>> =
@@ -206,14 +211,14 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             MutableStateFlow(Instant.now()),
         ) { tasks, allTasks, hideBlocked, now ->
             tasks.filter { task ->
-                if (task.status != TaskStatus.PENDING) return@filter false
+                if (task.status != TaskStatus.Pending || !task.isActionableStatus) return@filter false
                 if (DateTimeUtils.parseToInstant(task.wait)?.isAfter(now) == true) return@filter false
 
                 if (hideBlocked && task.isBlocked) {
                     val blockingDeps =
                         task.dependencies.mapNotNull { depUuid ->
                             allTasks.find { it.uuid == depUuid }
-                        }.filter { it.status != TaskStatus.COMPLETED }
+                        }.filter { it.status != TaskStatus.Completed }
 
                     if (blockingDeps.isNotEmpty()) {
                         val hasDepsWait = blockingDeps.all { DateTimeUtils.parseToInstant(it.wait)?.isAfter(now) == true }
@@ -233,20 +238,29 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         ) { tasks, showWaiting, now ->
             if (!showWaiting) return@combine emptyList()
             tasks.filter { task ->
-                task.status == TaskStatus.PENDING && DateTimeUtils.parseToInstant(task.wait)?.isAfter(now) == true
+                task.status == TaskStatus.Pending &&
+                    task.isActionableStatus &&
+                    DateTimeUtils.parseToInstant(task.wait)?.isAfter(now) == true
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val completedTasks: StateFlow<List<Task>> =
         baseFilteredTasks
             .combine(MutableStateFlow(Unit)) { tasks, _ ->
-                tasks.filter { it.status == TaskStatus.COMPLETED }
+                tasks.filter { it.status == TaskStatus.Completed && !it.isRecurrenceTemplate }
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val showInternalTags: StateFlow<Boolean> = repository.showInternalTags
     val showPriorityBadge: StateFlow<Boolean> = repository.showPriorityBadge
     val showUrgencyBar: StateFlow<Boolean> = repository.showUrgencyBar
     val allTasks: StateFlow<List<Task>> = repository.tasks
+    val recurrenceDiagnostics = repository.recurrenceDiagnostics
+    val syncTransportError = repository.syncTransportError
+    val autoWaiting = repository.autoWaiting
+    val recurringTemplates: StateFlow<List<Task>> =
+        repository.tasks
+            .map { tasks -> tasks.filter { it.status == TaskStatus.Recurring } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val maxUrgency: StateFlow<Float> =
         repository.tasks
             .map { tasks -> tasks.maxOfOrNull { it.urgency } ?: 0.0f }
@@ -255,7 +269,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     val availableTags: StateFlow<Set<String>> =
         repository.tasks
             .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
-                tasks.filter { it.status == TaskStatus.PENDING }
+                tasks.filter { it.status == TaskStatus.Pending }
                     .flatMap { it.tags }
                     .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
                     .toSet()
@@ -274,8 +288,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
 
                 allProjectNames.map { fullName ->
                     val relatedTasks = allProjects.filter { it.project == fullName || it.project?.startsWith("$fullName.") == true }
-                    val pendingCount = relatedTasks.count { it.status == TaskStatus.PENDING }
-                    val completedCount = relatedTasks.count { it.status == TaskStatus.COMPLETED }
+                    val pendingCount = relatedTasks.count { it.status == TaskStatus.Pending }
+                    val completedCount = relatedTasks.count { it.status == TaskStatus.Completed }
 
                     ProjectNode(
                         name = fullName.split('.').last(),
@@ -327,7 +341,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     val tagCounts: StateFlow<Map<String, Int>> =
         repository.tasks
             .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
-                tasks.filter { it.status == TaskStatus.PENDING }
+                tasks.filter { it.status == TaskStatus.Pending }
                     .flatMap { it.tags }
                     .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
                     .groupingBy { it }
@@ -341,7 +355,7 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             .combine(MutableStateFlow(Unit)) { tasks, _ ->
                 val map = mutableMapOf<java.time.LocalDate, MutableList<Task>>()
                 tasks.forEach { task ->
-                    if (task.status == TaskStatus.COMPLETED) return@forEach
+                    if (task.status != TaskStatus.Pending) return@forEach
 
                     val dates =
                         listOfNotNull(task.due, task.scheduled).mapNotNull { dateStr ->
@@ -476,22 +490,97 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                         dependencies,
                     )
                 _taskCreatedEvent.emit(TaskCreatedEvent(createdTask, openEditor))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to add task: ${e.message}")
             }
         }
     }
 
-    fun updateTask(task: Task) {
+    suspend fun saveTask(patch: TaskEditPatch): TaskEditResult =
+        try {
+            repository.updateTask(patch)
+            TaskEditResult.Success
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: TaskException.EditConflict) {
+            try {
+                repository.loadTasks()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+            }
+            TaskEditResult.Failure("Changed elsewhere: ${e.fields.joinToString()}. Reload to review the latest task.", e.fields)
+        } catch (e: Exception) {
+            TaskEditResult.Failure("Could not save task: ${e.message}")
+        }
+
+    private suspend fun checkedSeriesAction(
+        errorPrefix: String = "Could not save series",
+        action: suspend () -> Unit,
+    ): TaskEditResult =
+        try {
+            action()
+            TaskEditResult.Success
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: TaskException.EditConflict) {
+            try {
+                repository.loadTasks()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+            }
+            TaskEditResult.Failure("Changed elsewhere: ${e.fields.joinToString()}. Reload to review the latest series.", e.fields)
+        } catch (e: Exception) {
+            TaskEditResult.Failure("$errorPrefix: ${e.message}")
+        }
+
+    suspend fun createTask(
+        props: uniffi.taskchampion_android.TaskAddProps,
+        rule: com.brokenpip3.fatto.data.model.RecurrenceRule?,
+        openEditor: Boolean,
+    ): TaskEditResult =
+        checkedSeriesAction(errorPrefix = "Failed to add task") {
+            val adjusted = props.copy(wait = autoWait(props.wait, props.due, props.scheduled))
+            val created =
+                if (rule ==
+                    null
+                ) {
+                    repository.addTask(
+                        adjusted.description, adjusted.project, adjusted.tags, adjusted.wait, adjusted.due,
+                        adjusted.scheduled, adjusted.start, adjusted.priority, adjusted.dependencies,
+                    )
+                } else {
+                    repository.addRecurringTask(adjusted.copy(start = null), rule)
+                }
+            // Snackbar consumers may remain suspended while another task is created.
+            // Delivery must not hold the checked creation form open after commit.
+            viewModelScope.launch { _taskCreatedEvent.emit(TaskCreatedEvent(created, openEditor)) }
+        }
+
+    suspend fun saveSeries(
+        patch: TaskEditPatch,
+        rule: uniffi.taskchampion_android.RecurrenceRulePatch,
+        replace: Boolean,
+    ): TaskEditResult =
+        checkedSeriesAction {
+            if (replace) repository.replaceRecurrence(patch, rule) else repository.updateRecurrenceTemplate(patch, rule)
+        }
+
+    suspend fun stopSeries(uuid: String): TaskEditResult = checkedSeriesAction { repository.stopRecurrence(uuid) }
+
+    fun reloadTasks() {
         viewModelScope.launch {
             try {
-                repository.updateTask(
-                    task.copy(
-                        wait = autoWait(wait = task.wait, due = task.due, scheduled = task.scheduled),
-                    ),
-                )
+                repository.init()
+            } catch (
+                e: CancellationException,
+            ) {
+                throw e
             } catch (e: Exception) {
-                _uiEvent.emit("Failed to update task: ${e.message}")
+                _uiEvent.emit("Could not reload tasks: ${e.message}")
             }
         }
     }
@@ -502,8 +591,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     ) {
         try {
             repository.addDependencies(uuid, deps)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _uiEvent.emit("Failed to update task: ${e.message}")
+            throw e
         }
     }
 
@@ -513,8 +605,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     ) {
         try {
             repository.removeDependency(uuid, depUuid)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _uiEvent.emit("Failed to update task: ${e.message}")
+            throw e
         }
     }
 
@@ -545,6 +640,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.completeTask(uuid)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to complete task: ${e.message}")
             }
@@ -555,6 +652,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.restoreTask(uuid)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to restore task: ${e.message}")
             }
@@ -565,6 +664,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 repository.deleteTask(uuid)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to delete task: ${e.message}")
             }
@@ -576,27 +677,24 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         description: String,
     ): Annotation = repository.addAnnotation(uuid, description)
 
-    fun removeAnnotation(
+    suspend fun removeAnnotation(
         uuid: String,
         entry: String,
     ) {
-        viewModelScope.launch {
-            try {
-                repository.removeAnnotation(uuid, entry)
-            } catch (e: Exception) {
-                _uiEvent.emit("Failed to remove annotation: ${e.message}")
-            }
-        }
+        repository.removeAnnotation(uuid, entry)
     }
 
     fun toggleTaskActive(task: Task) {
         viewModelScope.launch {
             try {
+                if (task.status != TaskStatus.Pending) return@launch
                 val updatedTask =
                     task.copy(
                         start = if (task.start == null) Instant.now().truncatedTo(ChronoUnit.SECONDS).toString() else null,
                     )
-                repository.updateTask(updatedTask)
+                repository.updateTask(updatedTask.toEditPatch(task))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiEvent.emit("Failed to toggle task active state: ${e.message}")
             }
@@ -628,6 +726,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             try {
                 repository.sync()
                 _uiEvent.emit("Sync successful")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiEvent.emit("Sync failed: ${repository.safeSyncError(e)}")
             } finally {

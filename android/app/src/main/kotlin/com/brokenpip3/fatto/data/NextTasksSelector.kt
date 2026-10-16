@@ -18,7 +18,7 @@ object NextTasksSelector {
         limit: Int,
     ): List<Task> =
         tasks
-            .filter { it.status == TaskStatus.PENDING }
+            .filter { it.status == TaskStatus.Pending && it.isActionableStatus }
             .filterNot { isInFuture(it.wait) }
             .mapNotNull { task -> DateTimeUtils.parseToInstant(task.due)?.let { task to it } }
             .sortedBy { (_, due) -> due }

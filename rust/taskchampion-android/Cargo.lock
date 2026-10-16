@@ -2696,11 +2696,12 @@ dependencies = [
 
 [[package]]
 name = "taskchampion-android"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "chrono",
  "rusqlite",
+ "serde_json",
  "taskchampion",
  "tempfile",
  "thiserror 2.0.21",

@@ -299,7 +299,7 @@ class TaskFormLayoutTest {
                         Task(
                             uuid = "layout-test",
                             description = "Review layout",
-                            status = TaskStatus.PENDING,
+                            status = TaskStatus.Pending,
                             tags = emptyList(),
                             due = null,
                             entry = null,
@@ -315,7 +315,7 @@ class TaskFormLayoutTest {
                             udas = emptyMap(),
                         ),
                     onDismiss = {},
-                    onSave = {},
+                    onSave = { com.brokenpip3.fatto.data.model.TaskEditResult.Success },
                     availableProjects = emptyList(),
                     availableTags = emptyList(),
                 )

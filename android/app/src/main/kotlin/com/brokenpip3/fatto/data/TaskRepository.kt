@@ -5,17 +5,15 @@ import android.util.Log
 import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.data.model.toEditPatch
 import com.brokenpip3.fatto.data.model.toModel
 import com.brokenpip3.fatto.widget.WidgetRefreshReceiver
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
 import uniffi.taskchampion_android.ReplicaWrapper
 import uniffi.taskchampion_android.TaskAddProps
 import uniffi.taskchampion_android.TaskStatus
-import uniffi.taskchampion_android.TaskUpdateProps
 import java.io.File
 
 class TaskRepository(
@@ -65,30 +63,68 @@ class TaskRepository(
         settingsRepository.setActiveTaskContextId(id)
     }
 
-    suspend fun init() =
-        withContext(Dispatchers.IO) {
-            val path = File(baseDir, "taskchampion").absolutePath
-            Log.d("TaskRepository", "Initializing replica at $path")
-            replica = ReplicaWrapper.newOnDisk(path)
-            loadTasks()
-        }
+    private val databasePath = File(baseDir, "taskchampion").absolutePath
+    private val _recurrenceDiagnostics = MutableStateFlow<List<uniffi.taskchampion_android.RecurrenceDiagnostic>>(emptyList())
+    val recurrenceDiagnostics = _recurrenceDiagnostics.asStateFlow()
 
-    suspend fun loadTasks() =
-        withContext(Dispatchers.IO) {
-            replica?.let { r ->
-                try {
-                    val taskData = r.allTaskData()
-                    _tasks.value = taskData.map { it.toModel() }
-                    Log.d("TaskRepository", "Loaded ${taskData.size} tasks")
-                } catch (e: Exception) {
-                    Log.e("TaskRepository", "Failed to load tasks", e)
-                }
+    private var snapshotSequence = 0L // accessed under the database coordinator
+    private var publishedSequence = 0L
+    private val publicationLock = Any()
+    private val _syncTransportError = MutableStateFlow<String?>(null)
+    val syncTransportError = _syncTransportError.asStateFlow()
+
+    private data class Snapshot(
+        val sequence: Long,
+        val tasks: List<Task>,
+        val diagnostics: List<uniffi.taskchampion_android.RecurrenceDiagnostic>,
+    )
+
+    private fun readUnlocked(r: ReplicaWrapper) =
+        Snapshot(
+            ++snapshotSequence, r.allTaskData().map { it.toModel() }, r.recurrenceDiagnostics(),
+        )
+
+    private suspend fun <T> database(block: suspend () -> T): T {
+        val (result, snapshot) =
+            TaskDatabaseCoordinator.withDatabase(databasePath) {
+                val result = block()
+                result to readUnlocked(requireReplica())
+            }
+        // The coordinator has finished native work and checked caller cancellation.
+        synchronized(publicationLock) {
+            if (snapshot.sequence > publishedSequence) {
+                publishedSequence = snapshot.sequence
+                _recurrenceDiagnostics.value = snapshot.diagnostics
+                _tasks.value = snapshot.tasks
             }
         }
+        return result
+    }
 
-    /** Notifies the home-screen widget that task data changed. */
-    private fun notifyWidgetRefresh() {
-        WidgetRefreshReceiver.sendRefresh(context)
+    private fun requireReplica(): ReplicaWrapper = replica ?: error("Replica not initialized")
+
+    suspend fun init() =
+        database {
+            if (replica == null) replica = ReplicaWrapper.newOnDisk(databasePath)
+        }
+
+    suspend fun loadTasks() = database { Unit }
+
+    private fun notifyWidgetRefresh() = WidgetRefreshReceiver.sendRefresh(context)
+
+    private suspend fun <T> mutate(
+        sync: Boolean = true,
+        block: (ReplicaWrapper) -> T,
+    ): T {
+        val result =
+            database {
+                val r = requireReplica()
+                val result = block(r)
+                if (sync) triggerSyncUnlocked(r)
+                result
+            }
+        notifyWidgetRefresh()
+        return result
     }
 
     suspend fun addTask(
@@ -102,208 +138,112 @@ class TaskRepository(
         priority: String? = null,
         dependencies: List<String> = emptyList(),
     ): Task =
-        withContext(Dispatchers.IO) {
-            val r = replica ?: throw Exception("Replica not initialized")
-            try {
-                val resolvedProject =
-                    resolveProject(
-                        explicitProject = project,
-                        defaultProjectEnabled = settingsRepository.defaultProjectEnabled.value,
-                        defaultProject = settingsRepository.defaultProject.value,
-                    )
-                val props =
-                    TaskAddProps(
-                        description = description,
-                        project = resolvedProject,
-                        tags = tags,
-                        due = due,
-                        wait = wait,
-                        scheduled = scheduled,
-                        start = start,
-                        priority = priority,
-                        dependencies = dependencies,
-                    )
-                val createdTask = r.addTask(props).toModel()
-                loadTasks()
-                notifyWidgetRefresh()
-                triggerSync()
-                createdTask
-            } catch (e: Exception) {
-                Log.e("TaskRepository", "Failed to add task", e)
-                throw e
-            }
+        mutate { r ->
+            r.addTask(
+                TaskAddProps(
+                    description = description,
+                    project =
+                        resolveProject(
+                            project,
+                            settingsRepository.defaultProjectEnabled.value,
+                            settingsRepository.defaultProject.value,
+                        ),
+                    tags = tags, wait = wait, due = due, scheduled = scheduled, start = start,
+                    priority = priority, dependencies = dependencies,
+                ),
+            ).toModel()
         }
 
-    suspend fun updateTask(task: Task) =
-        withContext(Dispatchers.IO) {
-            val r = replica ?: throw Exception("Replica not initialized")
-            try {
-                r.updateTask(task.toUpdateProps())
-                loadTasks()
-                notifyWidgetRefresh()
-                triggerSync()
-            } catch (e: Exception) {
-                Log.e("TaskRepository", "Failed to update task", e)
-                throw e
-            }
+    suspend fun addRecurringTask(
+        props: TaskAddProps,
+        rule: com.brokenpip3.fatto.data.model.RecurrenceRule,
+    ): Task =
+        mutate { r ->
+            val resolved =
+                props.copy(
+                    project =
+                        resolveProject(
+                            props.project, settingsRepository.defaultProjectEnabled.value, settingsRepository.defaultProject.value,
+                        ),
+                )
+            r.addRecurringTask(resolved, rule.toNative()).toModel()
         }
+
+    suspend fun updateRecurrenceTemplate(
+        patch: uniffi.taskchampion_android.TaskEditPatch,
+        rule: uniffi.taskchampion_android.RecurrenceRulePatch,
+    ) = mutate { it.updateRecurrenceTemplate(patch, rule) }
+
+    suspend fun replaceRecurrence(
+        patch: uniffi.taskchampion_android.TaskEditPatch,
+        rule: uniffi.taskchampion_android.RecurrenceRulePatch,
+    ): Task = mutate { it.replaceRecurrence(patch.uuid, patch, rule).toModel() }
+
+    suspend fun stopRecurrence(uuid: String) = mutate { it.stopRecurrence(uuid) }
+
+    suspend fun updateTask(patch: uniffi.taskchampion_android.TaskEditPatch) = mutate { it.updateTask(patch) }
 
     suspend fun addDependencies(
         uuid: String,
         depUuids: List<String>,
-    ) = withContext(Dispatchers.IO) {
-        val current = _tasks.value.find { it.uuid == uuid } ?: throw Exception("Task not found")
-        val merged = (current.dependencies + depUuids).distinct()
-        updateTask(current.copy(dependencies = merged))
+    ) = mutate { r ->
+        val current = r.getTask(uuid)?.toModel() ?: error("Task not found")
+        r.updateTask(current.copy(dependencies = (current.dependencies + depUuids).distinct()).toEditPatch(current))
     }
 
     suspend fun removeDependency(
         uuid: String,
         depUuid: String,
-    ) = withContext(Dispatchers.IO) {
-        val current = _tasks.value.find { it.uuid == uuid } ?: throw Exception("Task not found")
-        updateTask(current.copy(dependencies = current.dependencies - depUuid))
+    ) = mutate { r ->
+        val current = r.getTask(uuid)?.toModel() ?: error("Task not found")
+        r.updateTask(current.copy(dependencies = current.dependencies - depUuid).toEditPatch(current))
     }
 
     suspend fun completeTask(
         uuid: String,
         sync: Boolean = true,
-    ) = withContext(Dispatchers.IO) {
-        val r = replica ?: throw Exception("Replica not initialized")
-        try {
-            val taskToComplete =
-                if (settingsRepository.autoStopActiveOnComplete.value) {
-                    r.getTask(uuid)?.toModel()
-                } else {
-                    null
-                }
-            if (taskToComplete?.start != null) {
-                r.updateTask(taskToComplete.copy(status = TaskStatus.COMPLETED, start = null).toUpdateProps())
-            } else {
-                r.updateTaskStatus(uuid, TaskStatus.COMPLETED)
-            }
-            loadTasks()
-            notifyWidgetRefresh()
-            if (sync) {
-                triggerSync()
-            }
-        } catch (e: Exception) {
-            Log.e("TaskRepository", "Failed to complete task", e)
-            throw e
-        }
+    ) = mutate(sync) {
+        it.transitionOccurrence(uuid, TaskStatus.Completed, settingsRepository.autoStopActiveOnComplete.value)
     }
 
-    private fun Task.toUpdateProps() =
-        TaskUpdateProps(
-            uuid = uuid,
-            description = description,
-            status = status,
-            project = project,
-            tags = tags,
-            due = due,
-            wait = wait,
-            scheduled = scheduled,
-            start = start,
-            priority = priority,
-            dependencies = dependencies,
-        )
+    suspend fun restoreTask(uuid: String) = mutate { it.transitionOccurrence(uuid, TaskStatus.Pending, false) }
 
-    suspend fun restoreTask(uuid: String) =
-        withContext(Dispatchers.IO) {
-            val r = replica ?: throw Exception("Replica not initialized")
-            try {
-                r.updateTaskStatus(uuid, TaskStatus.PENDING)
-                loadTasks()
-                notifyWidgetRefresh()
-                triggerSync()
-            } catch (e: Exception) {
-                Log.e("TaskRepository", "Failed to restore task", e)
-                throw e
-            }
-        }
-
-    suspend fun deleteTask(uuid: String) =
-        withContext(Dispatchers.IO) {
-            val r = replica ?: throw Exception("Replica not initialized")
-            try {
-                r.updateTaskStatus(uuid, TaskStatus.DELETED)
-                loadTasks()
-                notifyWidgetRefresh()
-                triggerSync()
-            } catch (e: Exception) {
-                Log.e("TaskRepository", "Failed to delete task", e)
-                throw e
-            }
-        }
+    suspend fun deleteTask(uuid: String) = mutate { it.transitionOccurrence(uuid, TaskStatus.Deleted, false) }
 
     suspend fun addAnnotation(
         uuid: String,
         description: String,
     ): Annotation =
-        withContext(Dispatchers.IO) {
-            val r = replica ?: throw Exception("Replica not initialized")
-            try {
-                val uniffiAnn = r.addAnnotation(uuid, description)
-                loadTasks()
-                notifyWidgetRefresh()
-                triggerSync()
-                Annotation(entry = uniffiAnn.entry, description = uniffiAnn.description)
-            } catch (e: Exception) {
-                Log.e("TaskRepository", "Failed to add annotation", e)
-                throw e
-            }
+        mutate {
+            val ann = it.addAnnotation(uuid, description)
+            Annotation(ann.entry, ann.description)
         }
 
     suspend fun removeAnnotation(
         uuid: String,
         entry: String,
-    ) = withContext(Dispatchers.IO) {
-        val r = replica ?: throw Exception("Replica not initialized")
-        try {
-            r.removeAnnotation(uuid, entry)
-            loadTasks()
-            notifyWidgetRefresh()
-            triggerSync()
-        } catch (e: Exception) {
-            Log.e("TaskRepository", "Failed to remove annotation", e)
-            throw e
+    ) = mutate { it.removeAnnotation(uuid, entry) }
+
+    suspend fun sync() {
+        database {
+            check(settingsRepository.hasCredentials()) { "No sync credentials configured" }
+            Syncer.sync(requireReplica(), settingsRepository)
         }
+        notifyWidgetRefresh()
     }
 
-    suspend fun sync() =
-        withContext(Dispatchers.IO) {
-            if (!settingsRepository.hasCredentials()) {
-                Log.w("TaskRepository", "Cannot sync: No credentials found")
-                throw Exception("No sync credentials configured")
-            }
-
-            replica?.let { r ->
-                Log.d("TaskRepository", "Starting manual sync")
-                try {
-                    Syncer.sync(r, settingsRepository)
-                    Log.d("TaskRepository", "Manual sync successful")
-                    loadTasks()
-                    notifyWidgetRefresh()
-                } catch (e: Exception) {
-                    Log.e("TaskRepository", "Manual sync failed: ${safeSyncError(e)}")
-                    throw e
-                }
-            } ?: run {
-                Log.e("TaskRepository", "Cannot sync: Replica not initialized")
-                throw Exception("Replica not initialized")
-            }
-        }
-
-    private suspend fun triggerSync() {
+    private fun triggerSyncUnlocked(r: ReplicaWrapper) {
         if (!settingsRepository.hasCredentials()) return
-        replica?.let { r ->
-            try {
-                Log.d("TaskRepository", "Triggering reactive sync...")
-                Syncer.sync(r, settingsRepository)
-                loadTasks()
-            } catch (e: Exception) {
-                Log.e("TaskRepository", "Reactive sync failed: ${safeSyncError(e)}")
-            }
+        try {
+            Syncer.sync(r, settingsRepository)
+            _syncTransportError.value = null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Local changes remain committed. Recurrence diagnostics are refreshed
+            // from storage independently of this transport failure.
+            _syncTransportError.value = "Local changes saved; sync failed: ${safeSyncError(e)}"
+            Log.e("TaskRepository", _syncTransportError.value!!)
         }
     }
 
@@ -312,11 +252,8 @@ class TaskRepository(
         val s3Credentials = settingsRepository.getS3Credentials()
         val sensitiveValues =
             setOfNotNull(
-                serverCredentials?.clientId,
-                serverCredentials?.secret,
-                s3Credentials?.accessKeyId,
-                s3Credentials?.secretAccessKey,
-                s3Credentials?.secret,
+                serverCredentials?.clientId, serverCredentials?.secret,
+                s3Credentials?.accessKeyId, s3Credentials?.secretAccessKey, s3Credentials?.secret,
             )
         return SyncDiagnosticsFormatter.safeError(error, sensitiveValues)
     }

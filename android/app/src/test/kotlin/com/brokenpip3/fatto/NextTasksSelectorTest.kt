@@ -11,7 +11,7 @@ class NextTasksSelectorTest {
     private fun createTask(
         desc: String,
         due: String?,
-        status: TaskStatus = TaskStatus.PENDING,
+        status: TaskStatus = TaskStatus.Pending,
         wait: String? = null,
         scheduled: String? = null,
     ): Task =
@@ -62,8 +62,8 @@ class NextTasksSelectorTest {
     @Test
     fun testExcludesNonPendingTasks() {
         val pending = createTask("Pending", day(1))
-        val completed = createTask("Completed", day(1), TaskStatus.COMPLETED)
-        val deleted = createTask("Deleted", day(1), TaskStatus.DELETED)
+        val completed = createTask("Completed", day(1), TaskStatus.Completed)
+        val deleted = createTask("Deleted", day(1), TaskStatus.Deleted)
 
         val result = NextTasksSelector.nextTasks(listOf(completed, pending, deleted), 8)
 

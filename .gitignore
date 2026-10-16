@@ -21,7 +21,6 @@ rust/taskchampion-android/.cargo/config.toml
 android/app/*.jks
 *.jks
 .secret*
-docs
 .idea/
 *.iml
 .vscode/
@@ -31,3 +30,4 @@ local.properties
 .gradle-home/
 docs/superpowers
 result
+/tools/

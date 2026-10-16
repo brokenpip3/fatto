@@ -36,7 +36,7 @@ class SwipeableTaskRowTest {
         Task(
             uuid = "completed-task",
             description = "Completed task",
-            status = TaskStatus.COMPLETED,
+            status = TaskStatus.Completed,
             tags = emptyList(),
             due = null,
             entry = null,
@@ -56,7 +56,7 @@ class SwipeableTaskRowTest {
         completedTask.copy(
             uuid = "pending-task",
             description = "Pending task",
-            status = TaskStatus.PENDING,
+            status = TaskStatus.Pending,
         )
 
     private val activeTask = pendingTask.copy(start = "2026-09-16T10:00:00Z")

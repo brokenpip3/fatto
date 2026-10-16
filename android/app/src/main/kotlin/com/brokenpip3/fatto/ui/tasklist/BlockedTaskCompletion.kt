@@ -11,7 +11,7 @@ fun unresolvedDependencyUuids(
     tasks: List<Task>,
 ): List<String> =
     task.dependencies.filter { dependencyUuid ->
-        tasks.any { it.uuid == dependencyUuid && it.status == TaskStatus.PENDING }
+        tasks.any { it.uuid == dependencyUuid && it.status == TaskStatus.Pending }
     }.distinct()
 
 fun completionConfirmationMessage(

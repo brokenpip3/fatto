@@ -24,7 +24,7 @@ class AnnotationModelTest {
             TaskData(
                 uuid = "test-uuid",
                 description = "Test task",
-                status = TaskStatus.PENDING,
+                status = TaskStatus.Pending,
                 tags = emptyList(),
                 due = null,
                 entry = null,
@@ -38,6 +38,8 @@ class AnnotationModelTest {
                 isBlocking = false,
                 dependencies = emptyList(),
                 udas = emptyList(),
+                recurrence = null,
+                nativeDates = emptyList(),
                 annotations =
                     listOf(
                         UniAnnotation(entry = "2026-06-04T10:00:00Z", description = "First note"),
@@ -57,7 +59,7 @@ class AnnotationModelTest {
             TaskData(
                 uuid = "test-uuid",
                 description = "Test task",
-                status = TaskStatus.PENDING,
+                status = TaskStatus.Pending,
                 tags = emptyList(),
                 due = null,
                 entry = null,
@@ -71,6 +73,8 @@ class AnnotationModelTest {
                 isBlocking = false,
                 dependencies = emptyList(),
                 udas = emptyList(),
+                recurrence = null,
+                nativeDates = emptyList(),
                 annotations = emptyList(),
             )
 
@@ -84,7 +88,7 @@ class AnnotationModelTest {
             Task(
                 uuid = "test-uuid",
                 description = "Test",
-                status = TaskStatus.PENDING,
+                status = TaskStatus.Pending,
                 tags = emptyList(),
                 due = null,
                 entry = null,

@@ -4,11 +4,16 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.brokenpip3.fatto.BuildConfig
 import com.brokenpip3.fatto.data.SettingsRepository
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
+import com.brokenpip3.fatto.data.SyncDiagnosticEvent
 import com.brokenpip3.fatto.data.SyncDiagnosticsFormatter
+import com.brokenpip3.fatto.data.SyncDiagnosticsRepositoryImpl
 import com.brokenpip3.fatto.data.Syncer
+import com.brokenpip3.fatto.data.TaskDatabaseCoordinator
 import com.brokenpip3.fatto.widget.WidgetRefreshReceiver
+import kotlinx.coroutines.CancellationException
 import uniffi.taskchampion_android.ReplicaWrapper
 import java.io.File
 
@@ -22,16 +27,40 @@ class SyncWorker(
 
         return try {
             val path = File(applicationContext.filesDir, "taskchampion").absolutePath
-            val replica = ReplicaWrapper.newOnDisk(path)
-
-            Log.d("SyncWorker", "Starting background sync...")
-            Syncer.sync(replica, settingsRepository)
-            Log.d("SyncWorker", "Background sync completed successfully.")
+            TaskDatabaseCoordinator.withDatabase(path) {
+                val replica = ReplicaWrapper.newOnDisk(path)
+                try {
+                    Log.d("SyncWorker", "Starting background sync...")
+                    Syncer.sync(replica, settingsRepository)
+                    val diagnostics = replica.recurrenceDiagnostics()
+                    SyncDiagnosticsRepositoryImpl(applicationContext).append(
+                        SyncDiagnosticEvent(
+                            timestampEpochMillis = System.currentTimeMillis(),
+                            stage = "background_recurrence",
+                            outcome = if (diagnostics.isEmpty()) "success" else "needs_attention",
+                            summary =
+                                if (diagnostics.isEmpty()) {
+                                    "Sync completed; recurrence metadata is consistent."
+                                } else {
+                                    "Sync completed with ${diagnostics.size} recurrence diagnostics: ${diagnostics.map {
+                                        it.code
+                                    }.distinct().joinToString()}"
+                                },
+                            serverOrigin = null, elapsedMillis = null,
+                            appVersion = BuildConfig.VERSION_NAME, backend = settingsRepository.getSyncType(),
+                        ),
+                    )
+                } finally {
+                    replica.destroy()
+                }
+            }
 
             // Task data may have changed: refresh the home-screen widget.
             WidgetRefreshReceiver.sendRefresh(applicationContext)
 
             Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("SyncWorker", "Background sync failed: ${safeSyncError(settingsRepository, e)}")
             Result.retry()
