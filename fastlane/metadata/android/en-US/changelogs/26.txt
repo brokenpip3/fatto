@@ -1,0 +1,4 @@
+first Fatto stable release!
+
+- add support for recurring task (with limitations)
+- add task review feature
