@@ -1,4 +1,7 @@
 mod recurrence;
+mod review;
+#[cfg(test)]
+mod review_tests;
 use chrono::{DateTime, Utc};
 pub use recurrence::{RecurrenceData, RecurrenceDiagnostic, RecurrenceRule, RecurrenceRulePatch};
 use std::str::FromStr;
@@ -104,6 +107,7 @@ pub struct TaskData {
     pub annotations: Vec<Annotation>,
     pub recurrence: Option<RecurrenceData>,
     pub native_dates: Vec<UdaPair>,
+    pub modified: Option<String>,
 }
 
 #[derive(uniffi::Enum, Debug, Clone)]
@@ -939,6 +943,7 @@ fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
         udas,
         annotations,
         recurrence: recurrence::read_recurrence(&task),
+        modified: recurrence::timestamp(&task, "modified").map(|d| d.to_rfc3339()),
         native_dates: ["due", "wait", "scheduled", "start"]
             .iter()
             .filter_map(|key| {

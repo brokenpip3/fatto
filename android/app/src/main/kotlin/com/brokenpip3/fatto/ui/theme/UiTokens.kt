@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.dp
 /** Shared component dimensions. Keep view-specific measurements in the component only when no token fits. */
 object FattoMetrics {
     val minTouchTarget = 48.dp
+    val largeTouchTarget = 56.dp
     val icon = 24.dp
     val dateControlIcon = 32.dp
     val dateControlMinWidth = 56.dp

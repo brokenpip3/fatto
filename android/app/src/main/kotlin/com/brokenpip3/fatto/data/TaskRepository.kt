@@ -7,6 +7,8 @@ import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.data.model.toEditPatch
 import com.brokenpip3.fatto.data.model.toModel
+import com.brokenpip3.fatto.data.review.ReviewPolicy
+import com.brokenpip3.fatto.data.review.ReviewTaskStore
 import com.brokenpip3.fatto.widget.WidgetRefreshReceiver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,10 +22,10 @@ class TaskRepository(
     private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val baseDir: File = context.filesDir,
-) {
+) : ReviewTaskStore {
     private var replica: ReplicaWrapper? = null
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
-    val tasks: StateFlow<List<Task>> = _tasks.asStateFlow()
+    override val tasks: StateFlow<List<Task>> = _tasks.asStateFlow()
     val showCompleted: StateFlow<Boolean> = settingsRepository.showCompleted
     val showInternalTags: StateFlow<Boolean> = settingsRepository.showInternalTags
     val showEmptyProjects: StateFlow<Boolean> = settingsRepository.showEmptyProjects
@@ -110,6 +112,8 @@ class TaskRepository(
 
     suspend fun loadTasks() = database { Unit }
 
+    override suspend fun refresh() = init()
+
     private fun notifyWidgetRefresh() = WidgetRefreshReceiver.sendRefresh(context)
 
     private suspend fun <T> mutate(
@@ -182,6 +186,48 @@ class TaskRepository(
     suspend fun stopRecurrence(uuid: String) = mutate { it.stopRecurrence(uuid) }
 
     suspend fun updateTask(patch: uniffi.taskchampion_android.TaskEditPatch) = mutate { it.updateTask(patch) }
+
+    override suspend fun markReviewed(uuid: String) = mutate { it.markReviewed(uuid) }
+
+    override suspend fun saveReviewEdit(patch: uniffi.taskchampion_android.TaskEditPatch) = mutate { it.updateTaskForReview(patch) }
+
+    override suspend fun saveReviewDependencies(
+        reviewedUuid: String,
+        patch: uniffi.taskchampion_android.TaskEditPatch,
+    ) = mutate { it.updateDependenciesForReview(reviewedUuid, patch) }
+
+    private fun requireReviewPending(
+        r: ReplicaWrapper,
+        uuid: String,
+    ) {
+        check(r.getTask(uuid)?.toModel()?.let(ReviewPolicy::isPending) == true) { "Task changed elsewhere; reload the review" }
+    }
+
+    override suspend fun complete(uuid: String) =
+        mutate { r ->
+            requireReviewPending(r, uuid)
+            r.transitionOccurrence(uuid, TaskStatus.Completed, settingsRepository.autoStopActiveOnComplete.value)
+        }
+
+    override suspend fun delete(uuid: String) =
+        mutate { r ->
+            requireReviewPending(r, uuid)
+            r.transitionOccurrence(uuid, TaskStatus.Deleted, false)
+        }
+
+    override suspend fun addReviewAnnotation(
+        uuid: String,
+        description: String,
+    ): Annotation =
+        mutate {
+            val annotation = it.addAnnotationForReview(uuid, description)
+            Annotation(annotation.entry, annotation.description)
+        }
+
+    override suspend fun removeReviewAnnotation(
+        uuid: String,
+        entry: String,
+    ) = mutate { it.removeAnnotationForReview(uuid, entry) }
 
     suspend fun addDependencies(
         uuid: String,

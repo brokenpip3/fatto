@@ -515,6 +515,30 @@ class SettingsViewModelTest {
     }
 
     private class FakeSettingsRepository : SettingsRepository {
+        override val reviewSettings = MutableStateFlow(com.brokenpip3.fatto.data.review.ReviewSettings())
+
+        override fun readReviewSettings() = reviewSettings.value
+
+        override fun setReviewSettings(value: com.brokenpip3.fatto.data.review.ReviewSettings) {
+            reviewSettings.value = value
+        }
+
+        private var reviewConsent = false
+
+        override fun getReviewConsentAccepted() = reviewConsent
+
+        override fun setReviewConsentAccepted(value: Boolean) {
+            reviewConsent = value
+        }
+
+        private var reviewReminder = com.brokenpip3.fatto.data.review.ReviewReminderState()
+
+        override fun getReviewReminderState() = reviewReminder
+
+        override fun setReviewReminderState(value: com.brokenpip3.fatto.data.review.ReviewReminderState) {
+            reviewReminder = value
+        }
+
         override val showCompleted = MutableStateFlow(true)
         override val showInternalTags = MutableStateFlow(false)
         override val showEmptyProjects = MutableStateFlow(false)
