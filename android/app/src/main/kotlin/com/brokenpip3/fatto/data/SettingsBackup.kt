@@ -1,6 +1,7 @@
 package com.brokenpip3.fatto.data
 
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.data.review.ReviewSettings
 import com.brokenpip3.fatto.ui.theme.FontSize
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import org.json.JSONArray
@@ -50,6 +51,7 @@ data class SettingsBackupSettings(
     val taskContexts: List<TaskContext>,
     val activeTaskContextId: String?,
     val fontSizePercent: Int = FontSize.DEFAULT_PERCENT,
+    val review: ReviewSettings = ReviewSettings(),
 )
 
 sealed class SettingsBackupError(message: String) : IllegalArgumentException(message) {
@@ -141,11 +143,13 @@ class SettingsBackupCodec(
             .put("swipeEndToStartAction", settings.swipeEndToStartAction.persistedValue)
             .put("themeMode", settings.themeMode.storedValue)
             .put("fontSizePercent", settings.fontSizePercent)
+            .put("review", settings.review.toJson())
             .put("taskContexts", JSONArray(settings.taskContexts.map(::encodeTaskContext)))
             .putNullable("activeTaskContextId", settings.activeTaskContextId)
 
     private fun decodeSettings(json: JSONObject): SettingsBackupSettings =
         SettingsBackupSettings(
+            review = if (json.has("review")) ReviewSettings.fromJson(json.getJSONObject("review")) else ReviewSettings(),
             syncType =
                 SyncType.entries.firstOrNull { it.value == json.requiredString("syncType") }
                     ?: throw JSONException("Invalid syncType"),
@@ -300,12 +304,14 @@ class SettingsBackupService(
             repository.setSwipeEndToStartAction(settings.swipeEndToStartAction)
             repository.setThemeMode(settings.themeMode)
             repository.setFontSizePercent(settings.fontSizePercent)
+            repository.setReviewSettings(settings.review)
             repository.replaceTaskContexts(settings.taskContexts)
             repository.setActiveTaskContextId(settings.activeTaskContextId)
         }
 
     private fun SettingsRepository.readBackupSettings(): SettingsBackupSettings =
         SettingsBackupSettings(
+            review = readReviewSettings(),
             syncType = getSyncType(),
             serverCredentials = getCredentials(),
             s3Credentials = getS3Credentials(),

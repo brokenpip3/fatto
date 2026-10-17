@@ -13,6 +13,23 @@ import java.util.Calendar
 
 class SettingsBackupTest {
     @Test
+    fun `review settings round trip and old backups use defaults`() {
+        val source = FakeSettingsRepository()
+        source.setReviewSettings(com.brokenpip3.fatto.data.review.ReviewSettings(intervalDays = 12, reminderDays = 30))
+        val json = JSONObject(backupService(source).exportJson().getOrThrow())
+        val target = FakeSettingsRepository()
+        val service = backupService(target)
+        service.applyImport(service.parseImport(json.toString()).getOrThrow()).getOrThrow()
+        assertEquals(12, target.readReviewSettings().intervalDays)
+        assertEquals(30, target.readReviewSettings().reminderDays)
+        json.getJSONObject("settings").remove("review")
+        service.applyImport(service.parseImport(json.toString()).getOrThrow()).getOrThrow()
+        assertEquals(6, target.readReviewSettings().intervalDays)
+        assertEquals(null, target.readReviewSettings().reminderDays)
+        assertFalse(json.getJSONObject("settings").has("reviewConsent"))
+    }
+
+    @Test
     fun `older backups restore the default font size`() {
         val json = JSONObject(backupService().exportJson().getOrThrow())
         json.getJSONObject("settings").remove("fontSizePercent")
@@ -194,6 +211,30 @@ class SettingsBackupTest {
         )
 
     private class FakeSettingsRepository : SettingsRepository {
+        override val reviewSettings = MutableStateFlow(com.brokenpip3.fatto.data.review.ReviewSettings())
+
+        override fun readReviewSettings() = reviewSettings.value
+
+        override fun setReviewSettings(value: com.brokenpip3.fatto.data.review.ReviewSettings) {
+            reviewSettings.value = value
+        }
+
+        private var reviewConsent = false
+
+        override fun getReviewConsentAccepted() = reviewConsent
+
+        override fun setReviewConsentAccepted(value: Boolean) {
+            reviewConsent = value
+        }
+
+        private var reviewReminder = com.brokenpip3.fatto.data.review.ReviewReminderState()
+
+        override fun getReviewReminderState() = reviewReminder
+
+        override fun setReviewReminderState(value: com.brokenpip3.fatto.data.review.ReviewReminderState) {
+            reviewReminder = value
+        }
+
         override val showCompleted = MutableStateFlow(true)
         override val showInternalTags = MutableStateFlow(false)
         override val showEmptyProjects = MutableStateFlow(false)

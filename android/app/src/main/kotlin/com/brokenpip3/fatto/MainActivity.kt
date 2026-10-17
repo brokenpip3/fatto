@@ -46,6 +46,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -66,12 +68,14 @@ import com.brokenpip3.fatto.data.SyncDiagnosticsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.notification.NotificationNavigation
+import com.brokenpip3.fatto.notification.ReviewReminderScheduler
 import com.brokenpip3.fatto.ui.calendar.CalendarScreen
 import com.brokenpip3.fatto.ui.projects.ProjectsScreen
 import com.brokenpip3.fatto.ui.settings.SettingsScreen
 import com.brokenpip3.fatto.ui.tags.TagsScreen
 import com.brokenpip3.fatto.ui.tasklist.AddTaskDialog
 import com.brokenpip3.fatto.ui.tasklist.RecurrenceTemplateSheet
+import com.brokenpip3.fatto.ui.tasklist.ReviewSheet
 import com.brokenpip3.fatto.ui.tasklist.SeriesEditorActions
 import com.brokenpip3.fatto.ui.tasklist.TaskDetailBottomSheet
 import com.brokenpip3.fatto.ui.tasklist.TaskListScreen
@@ -80,6 +84,8 @@ import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.NordicTheme
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.ui.theme.effectiveFontScale
+import com.brokenpip3.fatto.vm.ReviewStage
+import com.brokenpip3.fatto.vm.ReviewViewModel
 import com.brokenpip3.fatto.vm.SettingsViewModel
 import com.brokenpip3.fatto.vm.TaskViewModel
 import com.brokenpip3.fatto.worker.DailyNotificationWorker
@@ -92,6 +98,7 @@ import java.util.concurrent.TimeUnit
 class MainActivity : ComponentActivity() {
     private var notificationTaskUuid by mutableStateOf<String?>(null)
     private var pendingShareDescription by mutableStateOf<String?>(null)
+    private var notificationOpenReview by mutableStateOf(false)
 
     private val requestPermissionLauncher =
         registerForActivityResult(
@@ -105,6 +112,24 @@ class MainActivity : ComponentActivity() {
 
         val settingsRepository = SettingsRepositoryImpl(applicationContext)
         val taskRepository = TaskRepository(applicationContext, settingsRepository)
+        val reviewScheduler = ReviewReminderScheduler(applicationContext, settingsRepository)
+        val reviewViewModel =
+            ViewModelProvider(
+                this,
+                object : ViewModelProvider.Factory {
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ReviewViewModel(
+                            taskRepository, settingsRepository,
+                            onProductiveSessionEnded = reviewScheduler::onProductiveSessionEnded,
+                        ) as T
+                    }
+                },
+            )[ReviewViewModel::class.java]
+        lifecycleScope.launch {
+            reviewViewModel.attach(taskRepository, settingsRepository, reviewScheduler::onProductiveSessionEnded)
+        }
+        lifecycleScope.launch { settingsRepository.reviewSettings.collect { reviewScheduler.reconcile() } }
 
         val taskViewModel = TaskViewModel(taskRepository)
         lifecycle.addObserver(
@@ -120,6 +145,8 @@ class MainActivity : ComponentActivity() {
                 diagnosticsRepository = diagnosticsRepository,
             )
         notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
+        notificationOpenReview = intent.getBooleanExtra(NotificationNavigation.EXTRA_OPEN_REVIEW, false)
+        intent.removeExtra(NotificationNavigation.EXTRA_OPEN_REVIEW)
         pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
 
         scheduleSync()
@@ -159,6 +186,13 @@ class MainActivity : ComponentActivity() {
                 val compactNavigation = effectiveFontScale() >= 1.5f
                 val navController = rememberNavController()
                 val taskUuid = notificationTaskUuid
+                LaunchedEffect(notificationOpenReview) {
+                    if (notificationOpenReview) {
+                        navController.navigate("tasks") { launchSingleTop = true }
+                        reviewViewModel.open()
+                        notificationOpenReview = false
+                    }
+                }
 
                 LaunchedEffect(taskUuid) {
                     taskUuid?.let { uuid ->
@@ -261,6 +295,8 @@ class MainActivity : ComponentActivity() {
                         composable("tasks") {
                             var showAddTaskDialog by remember { mutableStateOf(false) }
                             var selectedTask by remember { mutableStateOf<Task?>(null) }
+                            var editingReview by remember { mutableStateOf(false) }
+                            val reviewState by reviewViewModel.state.collectAsState()
                             var selectedSeries by remember { mutableStateOf<Task?>(null) }
                             var dialogInitialDescription by remember { mutableStateOf<String?>(null) }
                             val availableTags by taskViewModel.availableTags.collectAsState()
@@ -292,7 +328,11 @@ class MainActivity : ComponentActivity() {
                                     dialogInitialDescription = null
                                     showAddTaskDialog = true
                                 },
-                                onTaskClick = { selectedTask = it },
+                                onTaskClick = {
+                                    editingReview = false
+                                    selectedTask = it
+                                },
+                                onReviewClick = reviewViewModel::open,
                                 onSeriesClick = { selectedSeries = it },
                                 onManageContexts = {
                                     navController.navigate("settings?section=contexts") {
@@ -306,6 +346,18 @@ class MainActivity : ComponentActivity() {
                                 swipeStartToEndAction = swipeStartToEndAction,
                                 swipeEndToStartAction = swipeEndToStartAction,
                             )
+
+                            if (reviewState.stage != ReviewStage.CLOSED && !(editingReview && selectedTask != null)) {
+                                ReviewSheet(
+                                    reviewState, reviewViewModel::perform, reviewViewModel::acceptNotice,
+                                    reviewViewModel::start, onEdit = {
+                                        editingReview = true
+                                        selectedTask = it
+                                    },
+                                    onSettings = { navController.navigate("settings?section=review") { launchSingleTop = true } },
+                                    onDismiss = reviewViewModel::finish,
+                                )
+                            }
 
                             if (showAddTaskDialog) {
                                 val initialProject =
@@ -346,26 +398,42 @@ class MainActivity : ComponentActivity() {
                                         ),
                                     autoWaiting = taskViewModel.autoWaiting.collectAsState().value,
                                     onSave = { updatedTask ->
-                                        taskViewModel.saveTask(updatedTask)
+                                        if (editingReview) reviewViewModel.saveEdit(updatedTask) else taskViewModel.saveTask(updatedTask)
                                     },
                                     availableProjects = selectableProjects,
                                     availableTags = availableTags.toList(),
                                     showInternalTags = showInternalTags,
                                     firstDayOfWeek = firstDayOfWeek,
                                     onAddAnnotation = { uuid, desc ->
-                                        taskViewModel.addAnnotation(uuid, desc)
+                                        if (editingReview) {
+                                            reviewViewModel.addAnnotation(uuid, desc)
+                                        } else {
+                                            taskViewModel.addAnnotation(uuid, desc)
+                                        }
                                     },
                                     onRemoveAnnotation = { uuid, entry ->
-                                        taskViewModel.removeAnnotation(uuid, entry)
+                                        if (editingReview) {
+                                            reviewViewModel.removeAnnotation(uuid, entry)
+                                        } else {
+                                            taskViewModel.removeAnnotation(uuid, entry)
+                                        }
                                     },
                                     allTasks = allTasks,
                                     recurrenceDiagnostics = taskViewModel.recurrenceDiagnostics.collectAsState().value,
                                     showCompleted = showCompleted,
                                     onAddDependencies = { uuid, deps ->
-                                        taskViewModel.addDependencies(uuid, deps)
+                                        if (editingReview) {
+                                            reviewViewModel.addDependencies(task.uuid, uuid, deps)
+                                        } else {
+                                            taskViewModel.addDependencies(uuid, deps)
+                                        }
                                     },
                                     onRemoveDependency = { uuid, dep ->
-                                        taskViewModel.removeDependency(uuid, dep)
+                                        if (editingReview) {
+                                            reviewViewModel.removeDependency(task.uuid, uuid, dep)
+                                        } else {
+                                            taskViewModel.removeDependency(uuid, dep)
+                                        }
                                     },
                                 )
                             }
@@ -413,6 +481,7 @@ class MainActivity : ComponentActivity() {
                             SettingsScreen(
                                 viewModel = settingsViewModel,
                                 openContexts = entry.arguments?.getString("section") == "contexts",
+                                openReview = entry.arguments?.getString("section") == "review",
                                 availableProjects = selectableProjects,
                                 availableTags = availableTags,
                             )
@@ -427,6 +496,8 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
+        notificationOpenReview = intent.getBooleanExtra(NotificationNavigation.EXTRA_OPEN_REVIEW, false)
+        intent.removeExtra(NotificationNavigation.EXTRA_OPEN_REVIEW)
         pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
     }
 

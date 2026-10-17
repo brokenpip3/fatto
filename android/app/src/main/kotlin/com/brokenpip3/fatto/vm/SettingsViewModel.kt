@@ -47,6 +47,19 @@ class SettingsViewModel(
     private val diagnosticsRepository: SyncDiagnosticsRepository? = null,
     settingsBackupService: SettingsBackupService? = null,
 ) : ViewModel() {
+    val reviewSettings = repository.reviewSettings
+    private val _reviewSettingsError = MutableStateFlow<String?>(null)
+    val reviewSettingsError = _reviewSettingsError.asStateFlow()
+
+    fun onReviewSettingsChange(value: com.brokenpip3.fatto.data.review.ReviewSettings) {
+        try {
+            repository.setReviewSettings(value)
+            _reviewSettingsError.value = null
+        } catch (e: Exception) {
+            _reviewSettingsError.value = e.message ?: "Could not save review settings"
+        }
+    }
+
     private val settingsBackupService =
         settingsBackupService
             ?: SettingsBackupService(
@@ -727,6 +740,7 @@ class SettingsViewModel(
         if (syncTestInProgress) return
         Log.d("SettingsViewModel", "Clearing settings")
         repository.clearCredentials()
+        onReviewSettingsChange(com.brokenpip3.fatto.data.review.ReviewSettings())
         _syncType.value = SyncType.SERVER
         _syncUrl.value = ""
         _clientId.value = ""

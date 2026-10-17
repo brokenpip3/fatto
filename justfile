@@ -131,18 +131,18 @@ test-ci-rust: sync-up
     just sync-down
 
 # run rust unit tests
-test-rust:
-    cd rust/taskchampion-android && cargo test --lib
+test-rust *args:
+    cd rust/taskchampion-android && cargo test --lib {{args}}
 
 # run kotlin jvm unit tests
-test-kotlin:
-    cd android && ./gradlew testDebugUnitTest
+test-kotlin *args:
+    cd android && ./gradlew testDebugUnitTest {{args}}
 
 # run kotlin instrumented tests (requires connected device/emulator)
-test-android:
+test-android *args:
     @command -v adb >/dev/null 2>&1 || { echo >&2 "adb is required but not installed."; exit 1; }
     adb shell pm grant com.brokenpip3.fatto android.permission.POST_NOTIFICATIONS || true
-    cd android && ./gradlew connectedDebugAndroidTest
+    cd android && ./gradlew connectedDebugAndroidTest {{args}}
 
 # run rust integration tests against local tss and minio
 test-integration:
@@ -219,9 +219,14 @@ run-emulator-stop:
     adb emu kill
 
 # start local sync server
-sync-up:
+sync-up *services:
     @command -v docker >/dev/null 2>&1 || { echo >&2 "docker is required but not installed."; exit 1; }
-    docker compose up -d
+    docker compose up -d {{services}}
+
+# stop selected sync services while preserving their data
+sync-stop *services:
+    @command -v docker >/dev/null 2>&1 || { echo >&2 "docker is required but not installed."; exit 1; }
+    docker compose stop {{services}}
 
 # stop local sync server
 sync-down:

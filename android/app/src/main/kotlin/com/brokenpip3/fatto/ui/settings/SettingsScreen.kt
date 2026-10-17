@@ -127,6 +127,7 @@ private enum class SettingsTab(
     TASKRC("Taskrc", "SettingsTabTaskrc"),
     DISPLAY("Display", "SettingsTabDisplay"),
     NOTIFICATIONS("Notifications", "SettingsTabNotifications"),
+    REVIEW("Review", "SettingsTabReview"),
     HOOKS("Hooks", "SettingsTabHooks"),
     BACKUP("Backup", "SettingsTabBackup"),
     ABOUT("About", "SettingsTabAbout"),
@@ -238,6 +239,7 @@ fun SettingsScreen(
     availableProjects: List<String>,
     availableTags: Set<String>,
     openContexts: Boolean = false,
+    openReview: Boolean = false,
 ) {
     val syncType by viewModel.syncType.collectAsState()
     val validationErrors by viewModel.validationErrors.collectAsState()
@@ -280,7 +282,20 @@ fun SettingsScreen(
     val taskrcImportText by viewModel.taskrcImportText.collectAsState()
     val taskrcImportPreview by viewModel.taskrcImportPreview.collectAsState()
 
-    var selectedTab by rememberSaveable { mutableStateOf(if (openContexts) SettingsTab.TASKRC else SettingsTab.SYNC) }
+    var selectedTab by rememberSaveable {
+        mutableStateOf(
+            if (openReview) {
+                SettingsTab.REVIEW
+            } else if (openContexts) {
+                SettingsTab.TASKRC
+            } else {
+                SettingsTab.SYNC
+            },
+        )
+    }
+    val reviewSettings by viewModel.reviewSettings.collectAsState()
+    val reviewSettingsError by viewModel.reviewSettingsError.collectAsState()
+    val reviewScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var contextsScrollPending by rememberSaveable { mutableStateOf(openContexts) }
     val syncScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     val taskrcScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
@@ -560,6 +575,14 @@ fun SettingsScreen(
                                     onIncludeOverdueChange = viewModel::onIncludeOverdueChange,
                                 ),
                         )
+
+                    SettingsTab.REVIEW ->
+                        SettingsSection(scrollState = reviewScrollState) {
+                            ReviewSettingsSection(
+                                reviewSettings, availableProjects, availableTags.toList(),
+                                viewModel::onReviewSettingsChange, reviewSettingsError,
+                            )
+                        }
 
                     SettingsTab.BACKUP ->
                         BackupSettingsSection(

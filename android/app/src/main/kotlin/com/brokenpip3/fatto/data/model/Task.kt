@@ -23,6 +23,7 @@ data class Task(
     val annotations: List<Annotation> = emptyList(),
     val recurrence: uniffi.taskchampion_android.RecurrenceData? = null,
     val nativeDates: Map<String, String> = emptyMap(),
+    val modified: String? = null,
 ) {
     val isRecurrenceTemplate: Boolean get() =
         status == TaskStatus.Recurring ||
@@ -70,6 +71,7 @@ fun TaskData.toModel(): Task =
         udas = udas.associate { it.key to it.value },
         recurrence = recurrence,
         nativeDates = nativeDates.associate { it.key to it.value },
+        modified = modified,
         annotations = annotations.map { Annotation(entry = it.entry, description = it.description) },
     )
 

@@ -6,11 +6,17 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.data.review.ReviewPreferenceLock
+import com.brokenpip3.fatto.data.review.ReviewReminderPolicy
+import com.brokenpip3.fatto.data.review.ReviewReminderState
+import com.brokenpip3.fatto.data.review.ReviewSettings
 import com.brokenpip3.fatto.ui.theme.FontSize
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONObject
+import java.time.Instant
 import java.util.Calendar
 import java.util.Locale
 
@@ -42,6 +48,20 @@ enum class SyncType(val value: String) {
 
 @Suppress("TooManyFunctions")
 interface SettingsRepository {
+    val reviewSettings: StateFlow<ReviewSettings>
+
+    fun readReviewSettings(): ReviewSettings
+
+    fun setReviewSettings(value: ReviewSettings)
+
+    fun getReviewConsentAccepted(): Boolean
+
+    fun setReviewConsentAccepted(value: Boolean)
+
+    fun getReviewReminderState(): ReviewReminderState
+
+    fun setReviewReminderState(value: ReviewReminderState)
+
     val showCompleted: StateFlow<Boolean>
     val showInternalTags: StateFlow<Boolean>
     val showEmptyProjects: StateFlow<Boolean>
@@ -241,6 +261,51 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         }
 
     private val themeModeSettings = ThemeModeSettings(sharedPreferences)
+
+    private val _reviewSettings = MutableStateFlow(readReviewSettings())
+    override val reviewSettings: StateFlow<ReviewSettings> = _reviewSettings.asStateFlow()
+
+    override fun readReviewSettings(): ReviewSettings =
+        runCatching {
+            sharedPreferences?.getString("review_settings", null)?.let { ReviewSettings.fromJson(JSONObject(it)) }
+                ?: ReviewSettings()
+        }.getOrDefault(ReviewSettings())
+
+    override fun setReviewSettings(value: ReviewSettings) =
+        synchronized(ReviewPreferenceLock.lock) {
+            val previous = readReviewSettings()
+            val editor =
+                checkNotNull(sharedPreferences) { "Settings storage unavailable" }.edit()
+                    .putString("review_settings", value.toJson().toString())
+            if (previous.reminderDays != value.reminderDays) {
+                val state = getReviewReminderState()
+                val due = value.reminderDays?.let { ReviewReminderPolicy.nextDue(Instant.now(), it).toEpochMilli() }
+                editor.putLong("review_reminder_due", due ?: -1L)
+                    .putLong("review_reminder_generation", state.generation + 1)
+            }
+            check(editor.commit()) { "Could not save review settings" }
+            _reviewSettings.value = value
+        }
+
+    override fun getReviewConsentAccepted(): Boolean = sharedPreferences?.getBoolean("review_consent", false) ?: false
+
+    override fun setReviewConsentAccepted(value: Boolean) {
+        check(checkNotNull(sharedPreferences).edit().putBoolean("review_consent", value).commit()) { "Could not save review consent" }
+    }
+
+    override fun getReviewReminderState(): ReviewReminderState =
+        ReviewReminderState(
+            sharedPreferences?.getLong("review_reminder_due", -1L)?.takeIf { it >= 0 },
+            sharedPreferences?.getLong("review_reminder_generation", 0L) ?: 0L,
+        )
+
+    override fun setReviewReminderState(value: ReviewReminderState) =
+        synchronized(ReviewPreferenceLock.lock) {
+            check(
+                checkNotNull(sharedPreferences).edit().putLong("review_reminder_due", value.nextDueEpochMillis ?: -1L)
+                    .putLong("review_reminder_generation", value.generation).commit(),
+            ) { "Could not save review reminder" }
+        }
 
     private val _showCompleted = MutableStateFlow(getShowCompleted())
     override val showCompleted: StateFlow<Boolean> = _showCompleted.asStateFlow()

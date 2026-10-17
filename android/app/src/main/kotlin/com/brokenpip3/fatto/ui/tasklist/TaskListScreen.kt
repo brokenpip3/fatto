@@ -118,6 +118,7 @@ fun TaskListScreen(
     swipeStartToEndAction: TaskSwipeAction,
     swipeEndToStartAction: TaskSwipeAction,
     onSeriesClick: (Task) -> Unit = onTaskClick,
+    onReviewClick: () -> Unit = {},
 ) {
     val largeFontScale = effectiveFontScale() >= 1.5f
     val tasks by viewModel.activeTasks.collectAsState()
@@ -425,6 +426,14 @@ fun TaskListScreen(
                                     onClick = {
                                         viewModel.toggleShowOnlyActiveTasks()
                                         showTaskMenu = false
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Review") },
+                                    leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) },
+                                    onClick = {
+                                        showTaskMenu = false
+                                        onReviewClick()
                                     },
                                 )
                                 DropdownMenuItem(

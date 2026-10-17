@@ -40,6 +40,7 @@ class AnnotationModelTest {
                 udas = emptyList(),
                 recurrence = null,
                 nativeDates = emptyList(),
+                modified = null,
                 annotations =
                     listOf(
                         UniAnnotation(entry = "2026-06-04T10:00:00Z", description = "First note"),
@@ -75,6 +76,7 @@ class AnnotationModelTest {
                 udas = emptyList(),
                 recurrence = null,
                 nativeDates = emptyList(),
+                modified = null,
                 annotations = emptyList(),
             )
 
