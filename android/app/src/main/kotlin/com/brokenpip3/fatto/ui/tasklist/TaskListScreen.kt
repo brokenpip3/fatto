@@ -417,7 +417,7 @@ fun TaskListScreen(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Only active tasks") },
+                                    text = { Text("Active") },
                                     modifier = Modifier.semantics { selected = showOnlyActiveTasks },
                                     leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
                                     trailingIcon = {
@@ -437,7 +437,7 @@ fun TaskListScreen(
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Recurring series") },
+                                    text = { Text("Recurring") },
                                     leadingIcon = { Icon(Icons.Default.Repeat, contentDescription = null) },
                                     onClick = {
                                         showTaskMenu = false
