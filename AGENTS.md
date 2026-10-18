@@ -62,7 +62,7 @@ All new and modified Android UI must follow the shared Nordic theme introduced b
 fully managed by nix (`flake.nix`).
 - **rust**: stable (android targets: aarch64, x86_64)
 - **android**: sdk 34, ndk 26.1, `aapt2` provided via nix
-- **java**: 17
+- **java**: JDK 21 for the Gradle runtime (compilation targets unchanged)
 - **tooling**: `just`, `cargo-ndk`, `uniffi-bindgen`
 
 ### CI/CD optimization
@@ -113,7 +113,8 @@ run-deploy:
 - **ABI support**: intentionally limited to 64-bit (`arm64-v8a` and `x86_64`) for APK size and build speed.
 - **rust bindings**: the rust library name (`taskchampion-android`) and uniffi package (`uniffi.taskchampion_android`) were preserved to minimize build system disruption.
 - always run `just build-bindings` after changing `lib.rs` to ensure kotlin bindings match.
-- **aapt2 path**: nix-provided `aapt2` is forced via `GRADLE_OPTS` in `flake.nix` to ensure compatibility across environments.
+- **Gradle environment**: run `just` inside `nix develop` or direnv. `flake.nix` exports JDK 21 and the JDK/AAPT2 overrides through `GRADLE_OPTS`; the Just recipes call `./gradlew` directly. Shell entry does not rewrite shared Gradle properties.
+- **daemon reuse**: run separate Gradle commands sequentially. Local daemons stay enabled; Nix shells disable persistent daemons when `CI=true` or `CI=1`. Inspect JVM selection with `just gradle-info` and daemon state with `just gradle-status`.
 - **synthetic tags** (PENDING, COMPLETED, etc.) are filtered out in the ui but preserved in the backend.
 - **tests**: instrumented tests are stabilized and run against the `com.brokenpip3.fatto` namespace.
 - **running android tests**: always drive the emulator through the `justfile` recipes. Start a headless emulator with
