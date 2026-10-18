@@ -247,6 +247,38 @@ fn absent_children_are_diagnosed_without_read_side_effects() {
 }
 
 #[test]
+fn imported_bare_calendar_units_are_recognized_without_rewriting() {
+    for raw in ["week", "day", "month", "year", "weekly", "1week"] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut records = series("--");
+        for (_, props) in &mut records {
+            for (key, value) in props {
+                if *key == "recur" {
+                    *value = raw;
+                }
+            }
+        }
+        seed(dir.path(), &records);
+        let before = properties(dir.path(), PARENT);
+        let count = operation_count(dir.path());
+        let r = wrapper(dir.path());
+        let diagnostics = r.recurrence_diagnostics().unwrap();
+        assert!(diagnostics.is_empty(), "{raw}: {diagnostics:?}");
+        assert_eq!(properties(dir.path(), PARENT), before);
+        assert_eq!(operation_count(dir.path()), count);
+
+        r.update_task_status(CHILD0.into(), TaskStatus::Completed)
+            .unwrap();
+        assert_eq!(properties(dir.path(), PARENT)["mask"], "+-", "{raw}");
+        for uuid in [PARENT, CHILD0, CHILD1] {
+            assert_eq!(properties(dir.path(), uuid)["recur"], raw);
+        }
+        assert_eq!(r.all_task_data().unwrap().len(), 3);
+        assert!(r.recurrence_diagnostics().unwrap().is_empty());
+    }
+}
+
+#[test]
 fn invalid_imported_intervals_and_relationships_remain_raw_and_diagnostic() {
     for raw in [
         "",

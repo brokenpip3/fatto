@@ -33,3 +33,7 @@ Any report such as `task next` generates the tasks; `task sync` alone does not. 
 - Supported rules: daily, weekdays, weekly, monthly, yearly, or a positive number of days, weeks, months or years. The until date must be on or after the due date.
 - You can keep an imported rule while editing the series’ description, project, priority or tags. To change its schedule, choose a supported rule.
 - Fatto preserves recurrence metadata and updates existing status-mask entries when occurrences change status. It reports missing or duplicate occurrences, but does not recreate missing tasks or remove duplicates (again to avoid duplicates, use the CLI to do that)
+
+## Integration tests
+
+The existing `just test-integration` suite includes live Taskwarrior → TSS → Fatto → Taskwarrior round trips for imported `day`, `week`, `month`, and `year` rules. Start the test containers with `just sync-up` first, or use `just test-ci-rust` to manage their lifecycle. Each case uses its own CLI data directory and sync client ID, leaving the seeded tasks untouched. It checks completion, series masks, metadata preservation, and repeated syncs without duplicate tasks.
