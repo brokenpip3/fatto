@@ -1,4 +1,7 @@
 use std::env;
+#[path = "support/recurrence_cli.rs"]
+mod recurrence_cli;
+
 use taskchampion_android::{
     ReplicaWrapper, StringEdit, StringSetEdit, TaskAddProps, TaskEditPatch, TaskStatus,
 };
