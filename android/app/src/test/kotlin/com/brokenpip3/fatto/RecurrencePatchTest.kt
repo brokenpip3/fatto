@@ -49,7 +49,7 @@ class RecurrencePatchTest {
         val patch = original.copy(due = "2030-01-20T00:00:00Z").toEditPatch(original, autoWaiting = true)
         assertEquals(StringEdit.Replace(null, "2030-01-03T00:00:00Z"), patch.wait)
         assertEquals(StringEdit.Replace("2030-01-01T00:00:00Z", "2030-01-20T00:00:00Z"), patch.due)
-        assertEquals(StringEdit.Replace("2030-01-10T00:00:00Z", "2030-01-10T00:00:00Z"), patch.scheduled)
+        assertEquals(StringEdit.Check("2030-01-10T00:00:00Z"), patch.scheduled)
     }
 
     @Test

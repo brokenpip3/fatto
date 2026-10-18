@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,14 +51,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import com.brokenpip3.fatto.data.DateTimeUtils
+import com.brokenpip3.fatto.data.TaskDateTime
+import com.brokenpip3.fatto.data.TaskDateValue
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.RecurrenceRule
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskEditResult
+import com.brokenpip3.fatto.data.model.forField
 import com.brokenpip3.fatto.data.model.isSynthetic
 import com.brokenpip3.fatto.data.model.toEditPatch
+import com.brokenpip3.fatto.data.model.withField
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
+import com.brokenpip3.fatto.ui.common.readableTaskDate
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
@@ -65,7 +71,6 @@ import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import uniffi.taskchampion_android.RecurrenceRulePatch
-import uniffi.taskchampion_android.StringEdit
 import uniffi.taskchampion_android.TaskEditPatch
 import uniffi.taskchampion_android.TaskStatus
 import java.time.Instant
@@ -96,27 +101,30 @@ fun RecurrenceTemplateSheet(
     embedded: Boolean = false,
     visible: Boolean = true,
     onStateChange: (Boolean, Boolean) -> Unit = { _, _ -> },
+    firstDayOfWeek: Int = java.util.Calendar.MONDAY,
 ) {
-    var baseline by remember(task.uuid) { mutableStateOf(task) }
-    var description by remember(baseline) { mutableStateOf(baseline.description) }
-    var project by remember(baseline) { mutableStateOf(baseline.project.orEmpty()) }
-    var tags by remember(baseline) { mutableStateOf(baseline.userTags) }
-    var newTag by remember(baseline) { mutableStateOf("") }
-    var showTagPicker by remember { mutableStateOf(false) }
-    var priority by remember(baseline) { mutableStateOf(baseline.priority) }
-    var due by remember(baseline) { mutableStateOf(baseline.due) }
-    var wait by remember(baseline) { mutableStateOf(baseline.wait) }
-    var scheduled by remember(baseline) { mutableStateOf(baseline.scheduled) }
-    var dirtyDates by remember(baseline) { mutableStateOf(emptySet<String>()) }
+    var baseline by rememberSaveable(task.uuid, saver = TaskEditorSavedState.taskStateSaver) { mutableStateOf(task) }
+    var description by rememberSaveable(baseline) { mutableStateOf(baseline.description) }
+    var project by rememberSaveable(baseline) { mutableStateOf(baseline.project.orEmpty()) }
+    var tags by rememberSaveable(baseline) { mutableStateOf(baseline.userTags) }
+    var newTag by rememberSaveable(baseline) { mutableStateOf("") }
+    var showTagPicker by rememberSaveable { mutableStateOf(false) }
+    var priority by rememberSaveable(baseline) { mutableStateOf(baseline.priority) }
+    var due by rememberSaveable(baseline) { mutableStateOf(baseline.due) }
+    var wait by rememberSaveable(baseline) { mutableStateOf(baseline.wait) }
+    var scheduled by rememberSaveable(baseline) { mutableStateOf(baseline.scheduled) }
+    var dateModes by rememberSaveable(baseline, saver = TaskEditorSavedState.modesStateSaver) { mutableStateOf(baseline.dateModes) }
+    var explicitDateClears by rememberSaveable(baseline) { mutableStateOf(emptySet<String>()) }
+    var dirtyDates by rememberSaveable(baseline) { mutableStateOf(emptySet<String>()) }
     val originalRule = RecurrenceRule(baseline.recurrence?.recur.orEmpty(), baseline.recurrence?.until ?: baseline.recurrence?.untilRaw)
-    var rule by remember(baseline) { mutableStateOf(originalRule) }
-    var changingSchedule by remember(baseline) { mutableStateOf(false) }
+    var rule by rememberSaveable(baseline, saver = TaskEditorSavedState.ruleStateSaver) { mutableStateOf(originalRule) }
+    var changingSchedule by rememberSaveable(baseline) { mutableStateOf(false) }
     var saving by remember(task.uuid) { mutableStateOf(false) }
-    var error by remember(task.uuid) { mutableStateOf<String?>(null) }
-    var confirmStop by remember { mutableStateOf(false) }
-    var confirmClose by remember { mutableStateOf(false) }
-    var showProjectPicker by remember { mutableStateOf(false) }
-    var picker by remember { mutableStateOf<SeriesDate?>(null) }
+    var error by rememberSaveable(task.uuid) { mutableStateOf<String?>(null) }
+    var confirmStop by rememberSaveable { mutableStateOf(false) }
+    var confirmClose by rememberSaveable { mutableStateOf(false) }
+    var showProjectPicker by rememberSaveable { mutableStateOf(false) }
+    var picker by rememberSaveable { mutableStateOf<SeriesDate?>(null) }
     var refreshAfterSave by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val latest = allTasks.find { it.uuid.equals(task.uuid, ignoreCase = true) } ?: task
@@ -124,14 +132,15 @@ fun RecurrenceTemplateSheet(
         baseline.recurrence?.mask != null ||
             latest.recurrence?.mask != null ||
             allTasks.any { it.recurrence?.parent.equals(baseline.uuid, ignoreCase = true) }
-    val replacement = generated && changingSchedule
     val scheduleChanged = dirtyDates.isNotEmpty() || rule != originalRule
+    val modesChanged = dateModes != baseline.dateModes
+    val replacement = generated && changingSchedule && (!modesChanged || scheduleChanged)
     val contentChanged =
         description != baseline.description ||
             project != baseline.project.orEmpty() ||
             priority != baseline.priority ||
             tags.toSet() != baseline.userTags.toSet()
-    val dirty = contentChanged || scheduleChanged
+    val dirty = contentChanged || scheduleChanged || modesChanged || explicitDateClears.isNotEmpty()
     val active = latest.status == TaskStatus.Recurring
     val validation = if (changingSchedule && (scheduleChanged || replacement)) rule.creationError(due) else null
     SideEffect { onStateChange(saving, dirty) }
@@ -146,6 +155,8 @@ fun RecurrenceTemplateSheet(
         due = snapshot.due
         wait = snapshot.wait
         scheduled = snapshot.scheduled
+        dateModes = baseline.dateModes
+        explicitDateClears = emptySet()
         dirtyDates = emptySet()
         rule = RecurrenceRule(snapshot.recurrence?.recur.orEmpty(), snapshot.recurrence?.until ?: snapshot.recurrence?.untilRaw)
         changingSchedule = false
@@ -165,6 +176,8 @@ fun RecurrenceTemplateSheet(
         due = baseline.due
         wait = baseline.wait
         scheduled = baseline.scheduled
+        dateModes = baseline.dateModes
+        explicitDateClears = emptySet()
         dirtyDates = emptySet()
         rule = originalRule
         changingSchedule = false
@@ -196,6 +209,8 @@ fun RecurrenceTemplateSheet(
         when (result) {
             TaskEditResult.Success -> {
                 refreshAfterSave = true
+                dateModes = baseline.dateModes
+                explicitDateClears = emptySet()
                 dirtyDates = emptySet()
                 error = null
                 changingSchedule = false
@@ -211,29 +226,12 @@ fun RecurrenceTemplateSheet(
         } else if (validation != null) {
             error = validation
         } else {
-            var patch =
+            val patch =
                 baseline.copy(
                     description = description,
                     project = if (project == baseline.project.orEmpty()) baseline.project else project.takeIf { it.isNotBlank() },
-                    priority = priority,
-                    tags = tags,
-                ).toEditPatch(baseline)
-
-            fun edit(
-                key: String,
-                value: String?,
-                original: String?,
-            ) = if (key in dirtyDates) {
-                StringEdit.Replace(baseline.nativeDates[key] ?: original, value)
-            } else {
-                StringEdit.Unchanged
-            }
-            patch =
-                patch.copy(
-                    due = edit("due", due, baseline.due),
-                    wait = edit("wait", wait, baseline.wait),
-                    scheduled = edit("scheduled", scheduled, baseline.scheduled),
-                )
+                    priority = priority, tags = tags, due = due, scheduled = scheduled, wait = wait, dateModes = dateModes,
+                ).toEditPatch(baseline, explicitDateClears = explicitDateClears)
             val rulePatch = rule.toPatch(metadata)
 
             saving = true
@@ -287,9 +285,24 @@ fun RecurrenceTemplateSheet(
                         }
                     }
                     SeriesRuleFields(rule, { rule = it }, enabled = !saving && active)
-                    SeriesDateField(SeriesDate.Due.label, due, !saving && active) { picker = SeriesDate.Due }
-                    SeriesDateField(SeriesDate.Scheduled.label, scheduled, !saving && active) { picker = SeriesDate.Scheduled }
-                    SeriesDateField(SeriesDate.Wait.label, wait, !saving && active) { picker = SeriesDate.Wait }
+                    SeriesDateField(
+                        SeriesDate.Due.label, due ?: baseline.nativeDates["due"].takeUnless { "due" in explicitDateClears },
+                        !saving && active, dateModes.due,
+                    ) { picker = SeriesDate.Due }
+                    SeriesDateField(
+                        SeriesDate.Scheduled.label,
+                        scheduled ?: baseline.nativeDates["scheduled"].takeUnless {
+                            "scheduled" in explicitDateClears
+                        },
+                        !saving && active, dateModes.scheduled,
+                    ) {
+                        picker =
+                            SeriesDate.Scheduled
+                    }
+                    SeriesDateField(
+                        SeriesDate.Wait.label, wait ?: baseline.nativeDates["wait"].takeUnless { "wait" in explicitDateClears },
+                        !saving && active, dateModes.wait,
+                    ) { picker = SeriesDate.Wait }
                     SeriesDateField(SeriesDate.Until.label, rule.until, !saving && active) { picker = SeriesDate.Until }
                     Text(
                         "If you set Until, Taskwarrior deletes unfinished occurrences after that date.",
@@ -322,7 +335,7 @@ fun RecurrenceTemplateSheet(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text("Schedule", style = MaterialTheme.typography.titleMedium)
-                    SeriesScheduleSummary(rule, due, scheduled, wait)
+                    SeriesScheduleSummary(rule, due, scheduled, wait, dateModes)
                     if (active) {
                         TextButton(onClick = { changingSchedule = true }, enabled = !saving) { Text("Change schedule") }
                     }
@@ -446,33 +459,62 @@ fun RecurrenceTemplateSheet(
                 SeriesDate.Scheduled -> scheduled
                 else -> rule.until
             }
-        val state = rememberDatePickerState(initialSelectedDateMillis = DateTimeUtils.parseToInstant(value)?.toEpochMilli())
+        if (picker == SeriesDate.Until) {
+            val state = rememberDatePickerState(initialSelectedDateMillis = DateTimeUtils.parseToInstant(value)?.toEpochMilli())
+            DatePickerDialog(
+                onDismissRequest = { picker = null },
+                confirmButton = {
+                    TextButton(onClick = {
+                        rule = rule.copy(until = state.selectedDateMillis?.let { Instant.ofEpochMilli(it).toString() })
+                        picker = null
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        rule = rule.copy(until = null)
+                        picker = null
+                    }) { Text("Clear") }
+                },
+            ) { DatePicker(state) }
+        } else {
+            val field = picker!!.name.lowercase()
 
-        fun select(value: String?) {
-            when (picker) {
-                SeriesDate.Due -> {
-                    due = value
-                    dirtyDates = dirtyDates + "due"
+            val presentation =
+                TaskDateValue(value ?: baseline.nativeDates[field].takeUnless { field in explicitDateClears }, dateModes.forField(field))
+
+            fun select(
+                selection: TaskDateValue,
+                clear: Boolean,
+            ) {
+                val selected = if (clear) selection else TaskDateTime.confirmEditorSelection(value, presentation, selection)
+                dateModes = dateModes.withField(field, selected.mode)
+                explicitDateClears = if (clear) explicitDateClears + field else explicitDateClears - field
+                when (picker) {
+                    SeriesDate.Due -> due = selected.timestamp
+                    SeriesDate.Scheduled -> scheduled = selected.timestamp
+                    SeriesDate.Wait -> wait = selected.timestamp
+                    else -> Unit
                 }
-                SeriesDate.Wait -> {
-                    wait = value
-                    dirtyDates = dirtyDates + "wait"
-                }
-                SeriesDate.Scheduled -> {
-                    scheduled = value
-                    dirtyDates = dirtyDates + "scheduled"
-                }
-                else -> rule = rule.copy(until = value)
+                val original =
+                    when (field) {
+                        "due" -> baseline.due
+                        "wait" -> baseline.wait
+                        else -> baseline.scheduled
+                    }
+                val changed =
+                    DateTimeUtils.parseToInstant(original) != DateTimeUtils.parseToInstant(selected.timestamp) ||
+                        (clear && baseline.nativeDates[field] != null)
+                dirtyDates = if (changed) dirtyDates + field else dirtyDates - field
+                picker = null
             }
-            picker = null
+            DateTimePickerDialog(
+                presentation,
+                firstDayOfWeek,
+                onConfirm = { select(it, false) },
+                onClear = { select(TaskDateValue(null, uniffi.taskchampion_android.DateDisplayMode.CALENDAR_DATE), true) },
+                onDismiss = { picker = null },
+            )
         }
-        DatePickerDialog(
-            onDismissRequest = { picker = null },
-            confirmButton = {
-                TextButton(onClick = { select(state.selectedDateMillis?.let { Instant.ofEpochMilli(it).toString() }) }) { Text("OK") }
-            },
-            dismissButton = { TextButton(onClick = { select(null) }) { Text("Clear") } },
-        ) { DatePicker(state) }
     }
 }
 
@@ -511,13 +553,14 @@ private fun SeriesScheduleSummary(
     due: String?,
     scheduled: String?,
     wait: String?,
+    dateModes: uniffi.taskchampion_android.DateDisplayModes,
 ) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.medium) {
         Column(Modifier.fillMaxWidth().padding(FattoSpacing.medium), verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
             SeriesSummaryRow("Repeat", recurrenceLabel(rule.interval))
-            SeriesSummaryRow("First due date", readableDate(due))
-            scheduled?.let { SeriesSummaryRow("Scheduled", readableDate(it)) }
-            wait?.let { SeriesSummaryRow("Wait", readableDate(it)) }
+            SeriesSummaryRow("First due date", readableTaskDate(TaskDateValue(due, dateModes.due)))
+            scheduled?.let { SeriesSummaryRow("Scheduled", readableTaskDate(TaskDateValue(it, dateModes.scheduled))) }
+            wait?.let { SeriesSummaryRow("Wait", readableTaskDate(TaskDateValue(it, dateModes.wait))) }
             SeriesSummaryRow("Until", rule.until?.let { readableDate(it) } ?: "None")
         }
     }
@@ -549,6 +592,7 @@ private fun SeriesDateField(
     label: String,
     value: String?,
     enabled: Boolean,
+    mode: uniffi.taskchampion_android.DateDisplayMode? = null,
     onClick: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLowest, shape = MaterialTheme.shapes.medium) {
@@ -559,9 +603,11 @@ private fun SeriesDateField(
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    value?.let {
-                        readableDate(it)
-                    } ?: "None",
+                    if (mode == null) {
+                        value?.let { readableDate(it) } ?: "None"
+                    } else {
+                        readableTaskDate(TaskDateValue(value, mode))
+                    },
                     style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -579,7 +625,7 @@ private fun SeriesChoiceField(
     enabled: Boolean,
     onChange: (String) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Column {
         Surface(color = MaterialTheme.colorScheme.surfaceContainerLowest, shape = MaterialTheme.shapes.medium) {
             TextButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
@@ -618,7 +664,7 @@ private fun SeriesRuleFields(
             "daily" to "Daily", "weekdays" to "Weekdays", "weekly" to "Weekly", "monthly" to "Monthly",
             "yearly" to "Yearly", "custom" to "Custom",
         )
-    var custom by remember(rule.interval) { mutableStateOf(rule.interval !in options) }
+    var custom by rememberSaveable(rule.interval) { mutableStateOf(rule.interval !in options) }
     SeriesChoiceField("Repeat", if (custom) "custom" else rule.interval, options, enabled) {
         custom = it == "custom"
         onChange(rule.copy(interval = if (custom) "" else it))
@@ -644,7 +690,7 @@ private fun SeriesRuleFields(
 
 @Composable
 private fun ImportedSeriesDates(dates: Map<String, String>) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val imported =
         dates.filter { (key, value) ->
             key in listOf("due", "wait", "scheduled", "until") &&

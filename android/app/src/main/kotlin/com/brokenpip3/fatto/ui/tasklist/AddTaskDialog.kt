@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,8 +38,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.TaskDateValue
 import com.brokenpip3.fatto.data.model.RecurrenceRule
 import com.brokenpip3.fatto.data.model.TaskEditResult
+import com.brokenpip3.fatto.data.model.forField
+import com.brokenpip3.fatto.data.model.withField
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
@@ -58,28 +62,32 @@ fun AddTaskDialog(
     initialTags: List<String> = emptyList(),
     initialDescription: String = "",
     onDismiss: () -> Unit,
-    onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>, Boolean) -> Unit,
+    onConfirm: (TaskAddProps, Boolean, Set<String>) -> Unit,
     firstDayOfWeek: Int = Calendar.MONDAY,
-    onCreate: (suspend (TaskAddProps, RecurrenceRule?, Boolean) -> TaskEditResult)? = null,
+    onCreate: (suspend (TaskAddProps, RecurrenceRule?, Boolean, Set<String>) -> TaskEditResult)? = null,
 ) {
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
-    var saveError by remember { mutableStateOf<String?>(null) }
-    var rule by remember { mutableStateOf<RecurrenceRule?>(null) }
-    var description by remember(initialDescription) { mutableStateOf(initialDescription) }
-    var project by remember { mutableStateOf(initialProject ?: "") }
-    var tags by remember { mutableStateOf(initialTags) }
-    var priority by remember { mutableStateOf<String?>(null) }
-    var openEditorAfterCreate by remember { mutableStateOf(false) }
-    var newTag by remember { mutableStateOf("") }
+    var saveError by rememberSaveable { mutableStateOf<String?>(null) }
+    var rule by rememberSaveable(saver = TaskEditorSavedState.nullableRuleStateSaver) { mutableStateOf<RecurrenceRule?>(null) }
+    var description by rememberSaveable(initialDescription) { mutableStateOf(initialDescription) }
+    var project by rememberSaveable { mutableStateOf(initialProject ?: "") }
+    var tags by rememberSaveable { mutableStateOf(initialTags) }
+    var priority by rememberSaveable { mutableStateOf<String?>(null) }
+    var openEditorAfterCreate by rememberSaveable { mutableStateOf(false) }
+    var newTag by rememberSaveable { mutableStateOf("") }
 
-    var waitDate by remember { mutableStateOf<String?>(null) }
-    var dueDate by remember { mutableStateOf<String?>(null) }
-    var scheduledDate by remember { mutableStateOf<String?>(null) }
+    var waitDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var dueDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var scheduledDate by rememberSaveable { mutableStateOf<String?>(null) }
 
-    var activePicker by remember { mutableStateOf<DatePickerType?>(null) }
-    var showProjectPicker by remember { mutableStateOf(false) }
-    var showTagPicker by remember { mutableStateOf(false) }
+    var explicitDateClears by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var dateModes by rememberSaveable(saver = TaskEditorSavedState.modesStateSaver) {
+        mutableStateOf(com.brokenpip3.fatto.data.model.calendarDateModes())
+    }
+    var activePicker by rememberSaveable { mutableStateOf<DatePickerType?>(null) }
+    var showProjectPicker by rememberSaveable { mutableStateOf(false) }
+    var showTagPicker by rememberSaveable { mutableStateOf(false) }
 
     val filteredProjects =
         remember(project) {
@@ -176,6 +184,7 @@ fun AddTaskDialog(
 
                     TaskDateAndPriorityControls(
                         enabled = !saving,
+                        dateModes = dateModes,
                         priority = priority,
                         due = dueDate,
                         scheduled = scheduledDate,
@@ -280,12 +289,13 @@ fun AddTaskDialog(
                                     it.isNotEmpty()
                                 },
                                 tags, dueDate, waitDate, scheduledDate, null, priority, emptyList(),
+                                dateModes = dateModes,
                             )
                         val capturedRule = rule
                         val capturedOpenEditor = openEditorAfterCreate
                         scope.launch {
                             try {
-                                when (val result = onCreate(props, capturedRule, capturedOpenEditor)) {
+                                when (val result = onCreate(props, capturedRule, capturedOpenEditor, explicitDateClears)) {
                                     TaskEditResult.Success -> onDismiss()
                                     is TaskEditResult.Failure -> saveError = result.message
                                 }
@@ -303,11 +313,11 @@ fun AddTaskDialog(
                         }
                     } else if (description.isNotBlank()) {
                         onConfirm(
-                            description,
-                            project.trim().takeIf {
-                                it.isNotEmpty()
-                            },
-                            tags, waitDate, dueDate, scheduledDate, null, priority, emptyList(), openEditorAfterCreate,
+                            TaskAddProps(
+                                description, project.trim().takeIf { it.isNotEmpty() }, tags, dueDate, waitDate, scheduledDate,
+                                null, priority, emptyList(), dateModes,
+                            ),
+                            openEditorAfterCreate, explicitDateClears,
                         )
                     }
                 },
@@ -361,18 +371,23 @@ fun AddTaskDialog(
                 DatePickerType.WAIT -> waitDate
                 DatePickerType.SCHEDULED -> scheduledDate
             }
+        val field = picker.name.lowercase()
         DateTimePickerDialog(
-            current = current,
+            current = TaskDateValue(current, dateModes.forField(field)),
             firstDayOfWeek = firstDayOfWeek,
             onConfirm = { value ->
+                dateModes = dateModes.withField(field, value.mode)
+                explicitDateClears = explicitDateClears - field
                 when (picker) {
-                    DatePickerType.DUE -> dueDate = value
-                    DatePickerType.WAIT -> waitDate = value
-                    DatePickerType.SCHEDULED -> scheduledDate = value
+                    DatePickerType.DUE -> dueDate = value.timestamp
+                    DatePickerType.WAIT -> waitDate = value.timestamp
+                    DatePickerType.SCHEDULED -> scheduledDate = value.timestamp
                 }
                 activePicker = null
             },
             onClear = {
+                dateModes = dateModes.withField(field, uniffi.taskchampion_android.DateDisplayMode.CALENDAR_DATE)
+                explicitDateClears = explicitDateClears + field
                 when (picker) {
                     DatePickerType.DUE -> dueDate = null
                     DatePickerType.WAIT -> waitDate = null

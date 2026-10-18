@@ -60,7 +60,7 @@ class TaskFormLayoutTest {
                     availableProjects = emptyList(),
                     availableTags = emptyList(),
                     onDismiss = {},
-                    onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                    onConfirm = { _, _, _ -> },
                 )
             }
         }
@@ -171,7 +171,7 @@ class TaskFormLayoutTest {
                     availableTags = emptyList(),
                     initialDescription = "Review layout with large text",
                     onDismiss = {},
-                    onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                    onConfirm = { _, _, _ -> },
                 )
             }
         }

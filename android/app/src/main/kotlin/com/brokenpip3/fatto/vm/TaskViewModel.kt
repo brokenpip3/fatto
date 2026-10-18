@@ -10,8 +10,10 @@ import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.data.model.TaskEditResult
+import com.brokenpip3.fatto.data.model.dateValue
 import com.brokenpip3.fatto.data.model.isSynthetic
 import com.brokenpip3.fatto.data.model.toEditPatch
+import com.brokenpip3.fatto.data.model.withResolvedWait
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -67,11 +70,20 @@ private data class TaskListFilterState(
     val project: String?,
     val context: TaskContext?,
     val showOnlyActive: Boolean,
-    val sort: SortOrder,
-    val direction: SortDirection,
 )
 
-class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
+class TaskViewModel(
+    private val repository: TaskRepository,
+    private val timeSource: com.brokenpip3.fatto.data.TaskTimeSource = com.brokenpip3.fatto.data.SystemTaskTimeSource(),
+) : ViewModel() {
+    val taskTime =
+        timeSource.snapshots.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5000),
+            com.brokenpip3.fatto.data.TaskTimeSnapshot(Instant.now(), java.time.ZoneId.systemDefault()),
+        )
+
+    fun refreshTaskTime() = timeSource.refresh()
+
     private val _searchQuery = MutableStateFlow("")
     private val uuidFilter = MutableStateFlow<Set<String>>(emptySet())
     val searchQuery = _searchQuery.asStateFlow()
@@ -125,9 +137,8 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             _activeProject,
             activeTaskContext,
             _showOnlyActiveTasks,
-            combine(_sortOrder, _sortDirection) { order, dir -> order to dir },
-        ) { project, context, showOnlyActive, (sort, direction) ->
-            TaskListFilterState(project, context, showOnlyActive, sort, direction)
+        ) { project, context, showOnlyActive ->
+            TaskListFilterState(project, context, showOnlyActive)
         }
 
     private val baseFilteredTasks: StateFlow<List<Task>> =
@@ -136,16 +147,16 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             _searchQuery,
             _selectedTags,
             uuidFilter,
-            taskListFilterState,
-        ) { tasks, query, tags, uuidFilter, filters ->
+            taskListFilterState.combine(taskTime) { filters, time -> filters to time },
+        ) { tasks, query, tags, uuidFilter, (filters, time) ->
             val parsed = com.brokenpip3.fatto.data.SearchParser.parse(query)
             val effectiveProject = parsed.project ?: filters.project
             val effectiveTags = if (parsed.tags.isNotEmpty()) parsed.tags else tags
             val searchFilter = parsed.description
             val contextExpression = TaskContextMatcher.parseExpression(filters.context).getOrNull()
-            val now = Instant.now()
+            val now = time.now
 
-            tasks.filter { task ->
+            tasks.map { task -> task.withCurrentWaitingTag(now) }.filter { task ->
                 val matchesContext = contextExpression?.let { TaskContextMatcher.matches(task, it, now) } ?: false
                 val matchesUuid =
                     (parsed.uuid == null || task.uuid == parsed.uuid) &&
@@ -163,53 +174,22 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
                                 (task.start != null || task.tags.any { it.equals("ACTIVE", ignoreCase = true) })
                         )
                 matchesContext && matchesUuid && matchesQuery && matchesTags && matchesProject && matchesActiveState
-            }.sortedWith { a, b ->
-                val result =
-                    when (filters.sort) {
-                        SortOrder.DATE_CREATED -> (a.entry ?: "").compareTo(b.entry ?: "")
-                        SortOrder.DUE_DATE -> {
-                            val dueA = a.due ?: "9999"
-                            val dueB = b.due ?: "9999"
-                            dueA.compareTo(dueB)
-                        }
-                        SortOrder.PRIORITY -> {
-                            val pA =
-                                when (a.priority) {
-                                    "H" -> 0
-                                    "M" -> 1
-                                    "L" -> 2
-                                    else -> 3
-                                }
-                            val pB =
-                                when (b.priority) {
-                                    "H" -> 0
-                                    "M" -> 1
-                                    "L" -> 2
-                                    else -> 3
-                                }
-                            pA.compareTo(pB)
-                        }
-                        SortOrder.URGENCY -> a.urgency.compareTo(b.urgency)
-                        SortOrder.ALPHABETICAL -> a.description.lowercase().compareTo(b.description.lowercase())
-                        SortOrder.SCHEDULED_DATE -> {
-                            val schA = a.scheduled ?: "9999"
-                            val schB = b.scheduled ?: "9999"
-                            schA.compareTo(schB)
-                        }
-                    }
-                if (filters.direction == SortDirection.DESCENDING) -result else result
             }
-        }.combine(repository.showCompleted) { tasks, showCompleted ->
-            if (showCompleted) tasks else tasks.filter { it.status != TaskStatus.Completed }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        }.distinctUntilChanged()
+            .combine(combine(_sortOrder, _sortDirection) { order, direction -> order to direction }) { tasks, (order, direction) ->
+                tasks.sortedWith(taskComparator(order, direction))
+            }.combine(repository.showCompleted) { tasks, showCompleted ->
+                if (showCompleted) tasks else tasks.filter { it.status != TaskStatus.Completed }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val activeTasks: StateFlow<List<Task>> =
         combine(
             baseFilteredTasks,
             repository.tasks,
             repository.hideBlockedTasksWaiting,
-            MutableStateFlow(Instant.now()),
-        ) { tasks, allTasks, hideBlocked, now ->
+            taskTime,
+        ) { tasks, allTasks, hideBlocked, time ->
+            val now = time.now
             tasks.filter { task ->
                 if (task.status != TaskStatus.Pending || !task.isActionableStatus) return@filter false
                 if (DateTimeUtils.parseToInstant(task.wait)?.isAfter(now) == true) return@filter false
@@ -234,8 +214,9 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         combine(
             baseFilteredTasks,
             repository.showWaitingTasks,
-            MutableStateFlow(Instant.now()),
-        ) { tasks, showWaiting, now ->
+            taskTime,
+        ) { tasks, showWaiting, time ->
+            val now = time.now
             if (!showWaiting) return@combine emptyList()
             tasks.filter { task ->
                 task.status == TaskStatus.Pending &&
@@ -267,13 +248,12 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0f)
 
     val availableTags: StateFlow<Set<String>> =
-        repository.tasks
-            .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
-                tasks.filter { it.status == TaskStatus.Pending }
-                    .flatMap { it.tags }
-                    .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
-                    .toSet()
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+        combine(repository.tasks, repository.showInternalTags, taskTime) { tasks, showInternal, time ->
+            tasks.filter { it.status == TaskStatus.Pending }
+                .flatMap { it.withCurrentWaitingTag(time.now).tags }
+                .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
+                .toSet()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val hierarchicalProjects: StateFlow<List<ProjectNode>> =
         repository.tasks
@@ -339,27 +319,26 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf(Breadcrumb("Home", null)))
 
     val tagCounts: StateFlow<Map<String, Int>> =
-        repository.tasks
-            .combine(repository.showInternalTags) { tasks: List<Task>, showInternal: Boolean ->
-                tasks.filter { it.status == TaskStatus.Pending }
-                    .flatMap { it.tags }
-                    .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
-                    .groupingBy { it }
-                    .eachCount()
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+        combine(repository.tasks, repository.showInternalTags, taskTime) { tasks, showInternal, time ->
+            tasks.filter { it.status == TaskStatus.Pending }
+                .flatMap { it.withCurrentWaitingTag(time.now).tags }
+                .filter { tag -> !isSynthetic(tag) && (showInternal || !INTERNAL_TAGS.contains(tag.uppercase())) }
+                .groupingBy { it }
+                .eachCount()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val tagsPerLine: StateFlow<Int> = repository.tagsPerLine
 
     val tasksByDate: StateFlow<Map<java.time.LocalDate, List<Task>>> =
         repository.tasks
-            .combine(MutableStateFlow(Unit)) { tasks, _ ->
+            .combine(taskTime) { tasks, time ->
                 val map = mutableMapOf<java.time.LocalDate, MutableList<Task>>()
                 tasks.forEach { task ->
                     if (task.status != TaskStatus.Pending) return@forEach
 
                     val dates =
-                        listOfNotNull(task.due, task.scheduled).mapNotNull { dateStr ->
-                            com.brokenpip3.fatto.data.DateTimeUtils.parseToLocalDate(dateStr)
+                        listOf("due", "scheduled").mapNotNull { field ->
+                            com.brokenpip3.fatto.data.TaskDateTime.localDate(task.dateValue(field), time.zone)
                         }.distinct()
 
                     dates.forEach { date ->
@@ -541,17 +520,16 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
         props: uniffi.taskchampion_android.TaskAddProps,
         rule: com.brokenpip3.fatto.data.model.RecurrenceRule?,
         openEditor: Boolean,
+        explicitDateClears: Set<String> = emptySet(),
     ): TaskEditResult =
         checkedSeriesAction(errorPrefix = "Failed to add task") {
-            val adjusted = props.copy(wait = autoWait(props.wait, props.due, props.scheduled))
+            val adjustedWait = if ("wait" in explicitDateClears) props.wait else autoWait(props.wait, props.due, props.scheduled)
+            val adjusted = props.withResolvedWait(adjustedWait)
             val created =
                 if (rule ==
                     null
                 ) {
-                    repository.addTask(
-                        adjusted.description, adjusted.project, adjusted.tags, adjusted.wait, adjusted.due,
-                        adjusted.scheduled, adjusted.start, adjusted.priority, adjusted.dependencies,
-                    )
+                    repository.addTask(adjusted)
                 } else {
                     repository.addRecurringTask(adjusted.copy(start = null), rule)
                 }
@@ -745,4 +723,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
     private companion object {
         const val AUTO_WAIT_LEAD_DAYS = 7L
     }
+}
+
+/** Project the transient native WAITING tag from the same clock used by task sections. */
+private fun Task.withCurrentWaitingTag(now: Instant): Task {
+    val waiting = status == TaskStatus.Pending && DateTimeUtils.parseToInstant(wait)?.isAfter(now) == true
+    if (waiting == ("WAITING" in tags)) return this
+    return copy(tags = if (waiting) tags + "WAITING" else tags.filterNot { it == "WAITING" })
 }

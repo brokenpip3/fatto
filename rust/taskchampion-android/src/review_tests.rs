@@ -3,6 +3,7 @@ use super::*;
 fn pending(wrapper: &ReplicaWrapper) -> TaskData {
     wrapper
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Review me".into(),
             project: None,
             tags: vec![],
@@ -18,6 +19,7 @@ fn pending(wrapper: &ReplicaWrapper) -> TaskData {
 
 fn patch(task: &TaskData) -> TaskEditPatch {
     TaskEditPatch {
+        date_modes: Default::default(),
         uuid: task.uuid.clone(),
         expected_status: TaskStatus::Pending,
         description: StringEdit::Replace {

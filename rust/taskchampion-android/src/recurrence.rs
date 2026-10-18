@@ -460,7 +460,9 @@ pub fn apply_rule_patch(
 ) -> Result<()> {
     let mut conflicts = Vec::new();
     for (key, edit) in [("recur", &patch.interval), ("until", &patch.until)] {
-        if let crate::StringEdit::Replace { expected, .. } = edit {
+        if let crate::StringEdit::Check { expected } | crate::StringEdit::Replace { expected, .. } =
+            edit
+        {
             if task.get_value(key) != expected.as_deref() {
                 conflicts.push(key.to_owned());
             }

@@ -8,6 +8,7 @@ use taskchampion_android::{
 
 fn props() -> TaskAddProps {
     TaskAddProps {
+        date_modes: Default::default(),
         description: "New series".into(),
         project: Some("test".into()),
         tags: vec!["home".into()],

@@ -41,6 +41,7 @@ class AnnotationModelTest {
                 recurrence = null,
                 nativeDates = emptyList(),
                 modified = null,
+                dateModes = com.brokenpip3.fatto.data.model.calendarDateModes(),
                 annotations =
                     listOf(
                         UniAnnotation(entry = "2026-06-04T10:00:00Z", description = "First note"),
@@ -77,6 +78,7 @@ class AnnotationModelTest {
                 recurrence = null,
                 nativeDates = emptyList(),
                 modified = null,
+                dateModes = com.brokenpip3.fatto.data.model.calendarDateModes(),
                 annotations = emptyList(),
             )
 

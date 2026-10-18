@@ -85,6 +85,7 @@ impl ReplicaWrapper {
         .iter()
         .any(|field| !matches!(field, StringEdit::Unchanged))
             || !matches!(patch.tags, StringSetEdit::Unchanged)
+            || patch.date_modes.has_changes()
         {
             return Err(TaskError::Internal(
                 "Only dependencies may change in this review operation".into(),

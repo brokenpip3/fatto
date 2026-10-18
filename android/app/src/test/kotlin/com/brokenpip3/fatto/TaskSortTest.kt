@@ -47,9 +47,34 @@ class TaskSortTest {
     }
 
     @Test
+    fun timedAndCalendarDatesKeepInstantOrderingAcrossZoneChanges() =
+        runTest {
+            val source = FixedTaskTimeSource(zone = java.time.ZoneId.of("Europe/Rome"))
+            val earlier =
+                createTask("Timed", null, 0f).copy(
+                    due = "2030-04-28T22:30:00Z",
+                    dateModes =
+                        com.brokenpip3.fatto.data.model.calendarDateModes().copy(
+                            due = uniffi.taskchampion_android.DateDisplayMode.LOCAL_DATE_TIME,
+                        ),
+                )
+            val later = createTask("Calendar", null, 0f).copy(due = "2030-04-29T00:00:00Z")
+            tasksFlow.value = listOf(later, earlier)
+            val viewModel = TaskViewModel(repository, source)
+            viewModel.setSortOrder(SortOrder.DUE_DATE)
+            val job = launch { viewModel.activeTasks.collect {} }
+            advanceUntilIdle()
+            assertEquals(listOf("Timed", "Calendar"), viewModel.activeTasks.value.map { it.description })
+            source.snapshots.value = source.snapshots.value.copy(zone = java.time.ZoneId.of("America/New_York"))
+            advanceUntilIdle()
+            assertEquals(listOf("Timed", "Calendar"), viewModel.activeTasks.value.map { it.description })
+            job.cancel()
+        }
+
+    @Test
     fun testPrioritySorting() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val taskH = createTask("High", "H", 10f)
             val taskM = createTask("Medium", "M", 5f)
@@ -75,7 +100,7 @@ class TaskSortTest {
     @Test
     fun testUrgencySorting() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val task1 = createTask("Urgent", null, 20f)
             val task2 = createTask("Normal", null, 5f)

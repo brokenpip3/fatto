@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,17 +54,23 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.TaskDateTime
+import com.brokenpip3.fatto.data.TaskDateValue
 import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.RecurrenceRule
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskEditResult
+import com.brokenpip3.fatto.data.model.forField
 import com.brokenpip3.fatto.data.model.toEditPatch
+import com.brokenpip3.fatto.data.model.visibleUdas
+import com.brokenpip3.fatto.data.model.withField
 import com.brokenpip3.fatto.ui.common.LinkedTaskText
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
 import com.brokenpip3.fatto.ui.common.TaskEditorLinks
 import com.brokenpip3.fatto.ui.common.TaskPickerDialog
+import com.brokenpip3.fatto.ui.common.readableTaskDate
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
@@ -98,37 +105,43 @@ fun TaskDetailBottomSheet(
     onAddDependencies: suspend (String, List<String>) -> Unit = { _, _ -> },
     onRemoveDependency: suspend (String, String) -> Unit = { _, _ -> },
 ) {
-    var baseline by remember(task.uuid) { mutableStateOf(task) }
-    var saveError by remember(task.uuid) { mutableStateOf<String?>(null) }
+    var baseline by rememberSaveable(task.uuid, saver = TaskEditorSavedState.taskStateSaver) { mutableStateOf(task) }
+    var saveError by rememberSaveable(task.uuid) { mutableStateOf<String?>(null) }
     var saving by remember(task.uuid) { mutableStateOf(false) }
-    var showSeries by remember(task.uuid) { mutableStateOf(false) }
+    var showSeries by rememberSaveable(task.uuid) { mutableStateOf(false) }
     var seriesSaving by remember(task.uuid) { mutableStateOf(false) }
     var seriesDirty by remember(task.uuid) { mutableStateOf(false) }
-    var confirmDiscard by remember(task.uuid) { mutableStateOf(false) }
+    var confirmDiscard by rememberSaveable(task.uuid) { mutableStateOf(false) }
     var refreshAfterSave by remember(task.uuid) { mutableStateOf(false) }
     val parentSeries = allTasks.find { it.uuid.equals(task.recurrence?.parent, ignoreCase = true) }
     val largeFontScale = effectiveFontScale() >= 1.5f
-    var description by remember(baseline) { mutableStateOf(baseline.description) }
-    var project by remember(baseline) { mutableStateOf(baseline.project ?: "") }
-    var tags by remember(baseline) { mutableStateOf(baseline.userTags) }
-    var due by remember(baseline) { mutableStateOf(baseline.due) }
-    var wait by remember(baseline) { mutableStateOf(baseline.wait) }
-    var scheduled by remember(baseline) { mutableStateOf(baseline.scheduled) }
-    var start by remember(baseline) { mutableStateOf(baseline.start) }
-    var priority by remember(baseline) { mutableStateOf(baseline.priority) }
-    var newRecurrence by remember(baseline) { mutableStateOf<RecurrenceRule?>(null) }
-    var newTag by remember(baseline) { mutableStateOf("") }
-    var annotations by remember(baseline) { mutableStateOf(baseline.annotations) }
-    var dependencies by remember(baseline) { mutableStateOf(baseline.dependencies) }
-    var newAnnotation by remember(baseline) { mutableStateOf("") }
-    var showAnnotations by remember(baseline) { mutableStateOf(baseline.annotations.isNotEmpty()) }
-    var showDependencies by remember(baseline) { mutableStateOf(baseline.dependencies.isNotEmpty()) }
-    var showDetails by remember(baseline) { mutableStateOf(false) }
-    var showBlocking by remember(baseline) { mutableStateOf(false) }
-    var showBlockedByPicker by remember { mutableStateOf(false) }
-    var showBlockingPicker by remember { mutableStateOf(false) }
-    var showProjectPicker by remember { mutableStateOf(false) }
-    var showTagPicker by remember { mutableStateOf(false) }
+    var description by rememberSaveable(baseline) { mutableStateOf(baseline.description) }
+    var project by rememberSaveable(baseline) { mutableStateOf(baseline.project ?: "") }
+    var tags by rememberSaveable(baseline) { mutableStateOf(baseline.userTags) }
+    var due by rememberSaveable(baseline) { mutableStateOf(baseline.due) }
+    var wait by rememberSaveable(baseline) { mutableStateOf(baseline.wait) }
+    var scheduled by rememberSaveable(baseline) { mutableStateOf(baseline.scheduled) }
+    var dateModes by rememberSaveable(baseline, saver = TaskEditorSavedState.modesStateSaver) { mutableStateOf(baseline.dateModes) }
+    var explicitDateClears by rememberSaveable(baseline) { mutableStateOf(emptySet<String>()) }
+    var start by rememberSaveable(baseline) { mutableStateOf(baseline.start) }
+    var priority by rememberSaveable(baseline) { mutableStateOf(baseline.priority) }
+    var newTag by rememberSaveable(baseline) { mutableStateOf("") }
+    var annotations by rememberSaveable(baseline, saver = TaskEditorSavedState.annotationsStateSaver) {
+        mutableStateOf(baseline.annotations)
+    }
+    var dependencies by rememberSaveable(baseline) { mutableStateOf(baseline.dependencies) }
+    var newAnnotation by rememberSaveable(baseline) { mutableStateOf("") }
+    var showAnnotations by rememberSaveable(baseline) { mutableStateOf(baseline.annotations.isNotEmpty()) }
+    var showDependencies by rememberSaveable(baseline) { mutableStateOf(baseline.dependencies.isNotEmpty()) }
+    var showDetails by rememberSaveable(baseline) { mutableStateOf(false) }
+    var showBlocking by rememberSaveable(baseline) { mutableStateOf(false) }
+    var showBlockedByPicker by rememberSaveable { mutableStateOf(false) }
+    var showBlockingPicker by rememberSaveable { mutableStateOf(false) }
+    var showProjectPicker by rememberSaveable { mutableStateOf(false) }
+    var showTagPicker by rememberSaveable { mutableStateOf(false) }
+    var newRecurrence by rememberSaveable(baseline, saver = TaskEditorSavedState.nullableRuleStateSaver) {
+        mutableStateOf<RecurrenceRule?>(null)
+    }
 
     val blockingTasks =
         allTasks.filter {
@@ -162,7 +175,7 @@ fun TaskDetailBottomSheet(
             }
         }
 
-    var activePicker by remember { mutableStateOf<DatePickerType?>(null) }
+    var activePicker by rememberSaveable { mutableStateOf<DatePickerType?>(null) }
     val visibleTags =
         if (showInternalTags) tags else tags.filterNot { INTERNAL_TAGS.contains(it.uppercase()) }
     val hiddenInternalTags =
@@ -187,11 +200,11 @@ fun TaskDetailBottomSheet(
                                 },
                             tags = tags,
                             due = due, wait = wait, scheduled = scheduled, start = start,
-                            priority = priority,
+                            priority = priority, dateModes = dateModes,
                         )
                     // Dependency/annotation controls save independently; do not send
                     // their possibly old local snapshot with an unrelated content edit.
-                    val patch = draft.toEditPatch(baseline, autoWaiting)
+                    val patch = draft.toEditPatch(baseline, autoWaiting, explicitDateClears)
                     val result =
                         if (draftRecurrence == null) {
                             onSave(patch)
@@ -236,7 +249,9 @@ fun TaskDetailBottomSheet(
             scheduled != baseline.scheduled ||
             start != baseline.start ||
             priority != baseline.priority ||
-            newRecurrence != null
+            newRecurrence != null ||
+            dateModes != baseline.dateModes ||
+            explicitDateClears.isNotEmpty()
     val requestClose: () -> Unit = {
         if (!saving && !seriesSaving) {
             if ((task.recurrence != null || newRecurrence != null) &&
@@ -271,7 +286,7 @@ fun TaskDetailBottomSheet(
             RecurrenceTemplateSheet(
                 parentSeries, allTasks, onDismiss = { showSeries = false },
                 onSave = seriesActions.save, onStop = { seriesActions.stop(parentSeries.uuid) },
-                showInternalTags = showInternalTags, embedded = true, visible = showSeries,
+                showInternalTags = showInternalTags, embedded = true, visible = showSeries, firstDayOfWeek = firstDayOfWeek,
                 onStateChange = { busy, dirty ->
                     seriesSaving = busy
                     seriesDirty = dirty
@@ -438,17 +453,19 @@ fun TaskDetailBottomSheet(
                 if (task.isRecurrenceTemplate) {
                     PriorityIconButton(priority = priority, onPriorityChange = { if (!saving) priority = it }, enabled = !saving)
                     Text(
-                        "Due: ${due ?: "None"} · Scheduled: ${scheduled ?: "None"}" +
-                            " · Wait: ${wait ?: "None"}",
+                        "Due: ${readableTaskDate(TaskDateValue(due, dateModes.due))} · " +
+                            "Scheduled: ${readableTaskDate(TaskDateValue(scheduled, dateModes.scheduled))} · " +
+                            "Wait: ${readableTaskDate(TaskDateValue(wait, dateModes.wait))}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
                     TaskDateAndPriorityControls(
                         enabled = !saving,
+                        dateModes = dateModes,
                         priority = priority,
-                        due = due,
-                        scheduled = scheduled,
-                        wait = wait,
+                        due = due ?: baseline.nativeDates["due"].takeUnless { "due" in explicitDateClears },
+                        scheduled = scheduled ?: baseline.nativeDates["scheduled"].takeUnless { "scheduled" in explicitDateClears },
+                        wait = wait ?: baseline.nativeDates["wait"].takeUnless { "wait" in explicitDateClears },
                         onPriorityChange = { if (!saving) priority = it },
                         onDateClick = { if (!saving && !task.isRecurrenceTemplate) activePicker = it },
                         trailingControl = {
@@ -707,9 +724,9 @@ fun TaskDetailBottomSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (task.udas.isNotEmpty()) {
+                    if (task.visibleUdas.isNotEmpty()) {
                         Text("Extra Attributes (UDAs)", style = MaterialTheme.typography.labelLarge)
-                        for ((key, value) in task.udas) {
+                        for ((key, value) in task.visibleUdas) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall),
@@ -784,18 +801,28 @@ fun TaskDetailBottomSheet(
                 DatePickerType.SCHEDULED -> scheduled
                 DatePickerType.WAIT -> wait
             }
+        val field = picker.name.lowercase()
+        val presentation =
+            TaskDateValue(
+                current ?: baseline.nativeDates[field].takeUnless { field in explicitDateClears }, dateModes.forField(field),
+            )
         DateTimePickerDialog(
-            current = current,
+            current = presentation,
             firstDayOfWeek = firstDayOfWeek,
-            onConfirm = { value ->
+            onConfirm = { selected ->
+                val value = TaskDateTime.confirmEditorSelection(current, presentation, selected)
+                dateModes = dateModes.withField(field, value.mode)
+                explicitDateClears = explicitDateClears - field
                 when (picker) {
-                    DatePickerType.DUE -> due = value
-                    DatePickerType.SCHEDULED -> scheduled = value
-                    DatePickerType.WAIT -> wait = value
+                    DatePickerType.DUE -> due = value.timestamp
+                    DatePickerType.SCHEDULED -> scheduled = value.timestamp
+                    DatePickerType.WAIT -> wait = value.timestamp
                 }
                 activePicker = null
             },
             onClear = {
+                dateModes = dateModes.withField(field, uniffi.taskchampion_android.DateDisplayMode.CALENDAR_DATE)
+                explicitDateClears = explicitDateClears + field
                 when (picker) {
                     DatePickerType.DUE -> due = null
                     DatePickerType.SCHEDULED -> scheduled = null

@@ -105,113 +105,81 @@ class CalendarDateTest {
 
     private val berlin = ZoneId.of("Europe/Berlin")
     private val newYork = ZoneId.of("America/New_York")
+    private val timed = uniffi.taskchampion_android.DateDisplayMode.LOCAL_DATE_TIME
+    private val calendar = uniffi.taskchampion_android.DateDisplayMode.CALENDAR_DATE
 
-    @Test
-    fun toStoredTimestampWithoutTimeIsLocalMidnight() {
-        // Taskwarrior: due:2026-04-28 is local midnight.
-        assertEquals(
-            "2026-04-27T22:00:00Z",
-            DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), null, berlin),
-        )
-        assertEquals(
-            "2026-04-28T04:00:00Z",
-            DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), null, newYork),
-        )
-    }
+    private fun decode(
+        raw: String,
+        zone: ZoneId,
+    ) = com.brokenpip3.fatto.data.TaskDateTime.decode(com.brokenpip3.fatto.data.TaskDateValue(raw, timed), zone)!!
 
-    @Test
-    fun toStoredTimestampWithTimeUsesZone() {
-        assertEquals(
-            "2026-04-28T07:30:00Z",
-            DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), LocalTime.of(9, 30), berlin),
-        )
-    }
+    private fun store(
+        date: LocalDate,
+        time: LocalTime?,
+        zone: ZoneId,
+    ) = com.brokenpip3.fatto.data.TaskDateTime.resolve(com.brokenpip3.fatto.data.TaskDateSelection(date, time), zone).getOrThrow()
 
-    @Test
-    fun hasTimeIsFalseOnlyAtLocalMidnight() {
-        assertEquals(false, DateTimeUtils.hasTime("2026-04-27T22:00:00Z", berlin))
-        assertEquals(false, DateTimeUtils.hasTime(null, berlin))
-        assertEquals(true, DateTimeUtils.hasTime("2026-04-28T07:30:00Z", berlin))
-        // UTC midnight is just an instant, not a date-only marker.
-        assertEquals(true, DateTimeUtils.hasTime("2026-04-28T00:00:00Z", berlin))
-    }
-
-    @Test
-    fun timedValueResolvesDateAndTimeInZone() {
-        assertEquals(LocalDate.of(2026, 4, 29), DateTimeUtils.parseToLocalDate("2026-04-28T22:30:00Z", berlin))
-        assertEquals(LocalTime.of(0, 30), DateTimeUtils.parseToLocalTime("2026-04-28T22:30:00Z", berlin))
-        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate("2026-04-28T22:30:00Z", newYork))
-    }
-
-    @Test
-    fun taskwarriorLocalMidnightResolvesToLocalDate() {
-        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate("2026-04-27T22:00:00Z", berlin))
-        assertNull(DateTimeUtils.parseToLocalTime("2026-04-27T22:00:00Z", berlin))
-    }
-
-    @Test
-    fun formatLocalDateTimeAppendsTimeOnlyWhenSet() {
-        assertEquals("2026-04-28", DateTimeUtils.formatLocalDateTime("2026-04-27T22:00:00Z", berlin))
-        assertEquals("2026-04-28 09:30", DateTimeUtils.formatLocalDateTime("2026-04-28T07:30:00Z", berlin))
-    }
-
-    @Test
-    fun dateOnlyRoundTripsInAnyZone() {
-        for (zone in listOf(berlin, newYork, utc, ZoneId.of("Asia/Tokyo"))) {
-            val stored = DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), null, zone)
-            assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, zone))
-            assertNull(DateTimeUtils.parseToLocalTime(stored, zone))
+    @Test fun dateOnlyRoundTripsInEveryZoneIncludingMidnightDstAndSkippedDay() {
+        val date = LocalDate.of(2026, 4, 28)
+        for (zone in listOf(berlin, newYork, utc, ZoneId.of("Asia/Tokyo"), ZoneId.of("America/Santiago"))) {
+            val stored = store(date, null, zone)
+            assertEquals("2026-04-28T00:00:00Z", stored.timestamp)
+            assertEquals(calendar, stored.mode)
+            assertEquals(date, com.brokenpip3.fatto.data.TaskDateTime.localDate(stored, zone))
         }
     }
 
-    @Test
-    fun pickedTimeRoundTrips() {
-        val stored = DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), LocalTime.of(23, 15), newYork)
-        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, newYork))
-        assertEquals(LocalTime.of(23, 15), DateTimeUtils.parseToLocalTime(stored, newYork))
+    @Test fun timeUsesSelectedZoneAndExplicitMidnightKeepsTimeEnabled() {
+        assertEquals("2026-04-28T07:30:00Z", store(LocalDate.of(2026, 4, 28), LocalTime.of(9, 30), berlin).timestamp)
+        val midnight = store(LocalDate.of(2026, 4, 28), LocalTime.MIDNIGHT, berlin)
+        assertEquals(timed, midnight.mode)
+        assertEquals(LocalTime.MIDNIGHT, decode(midnight.timestamp!!, berlin).time)
     }
 
-    @Test
-    fun timeAtUtcMidnightKeepsItsLocalDateAndTime() {
-        // 20:00 in New York is 00:00Z the next day; it must stay April 28 20:00.
-        val stored = DateTimeUtils.toStoredTimestamp(LocalDate.of(2026, 4, 28), LocalTime.of(20, 0), newYork)
-        assertEquals(LocalDate.of(2026, 4, 28), DateTimeUtils.parseToLocalDate(stored, newYork))
-        assertEquals(LocalTime.of(20, 0), DateTimeUtils.parseToLocalTime(stored, newYork))
+    @Test fun timedValueResolvesDateAndTimeInZone() {
+        val raw = "2026-04-28T22:30:00Z"
+        assertEquals(LocalDate.of(2026, 4, 29), decode(raw, berlin).date)
+        assertEquals(LocalTime.of(0, 30), decode(raw, berlin).time)
+        assertEquals(LocalDate.of(2026, 4, 28), decode(raw, newYork).date)
     }
 
-    @Test
-    fun dateOnlyRoundTripsWhenDstSkipsMidnight() {
-        // Santiago springs forward at midnight, so the day starts at 01:00.
-        val santiago = ZoneId.of("America/Santiago")
-        val date = LocalDate.of(2026, 9, 6)
-        val stored = DateTimeUtils.toStoredTimestamp(date, null, santiago)
-        assertEquals(false, DateTimeUtils.hasTime(stored, santiago))
-        assertNull(DateTimeUtils.parseToLocalTime(stored, santiago))
-        assertEquals(date, DateTimeUtils.parseToLocalDate(stored, santiago))
+    @Test fun pickedTimeAndUtcMidnightRoundTripInNewYork() {
+        for (time in listOf(LocalTime.of(23, 15), LocalTime.of(20, 0))) {
+            val stored = store(LocalDate.of(2026, 4, 28), time, newYork)
+            assertEquals(LocalDate.of(2026, 4, 28), decode(stored.timestamp!!, newYork).date)
+            assertEquals(time, decode(stored.timestamp!!, newYork).time)
+        }
     }
 
-    @Test
-    fun confirmingUnchangedSelectionKeepsStoredValueInDstOverlap() {
-        // 06:30Z on 2026-11-01 is 01:30 EST, the second 01:30 of the day in New York.
-        val current = "2026-11-01T06:30:00Z"
-        val date = DateTimeUtils.parseToLocalDate(current, newYork)!!
-        val time = DateTimeUtils.parseToLocalTime(current, newYork)
-        assertEquals(LocalTime.of(1, 30), time)
-        assertEquals(current, DateTimeUtils.confirmedTimestamp(current, date, time, newYork))
-        // Rebuilding from local fields alone would pick the earlier offset.
-        assertEquals("2026-11-01T05:30:00Z", DateTimeUtils.toStoredTimestamp(date, time, newYork))
+    @Test fun confirmingUnchangedOverlapKeepsOriginalOffsetButNewSelectionUsesEarlierOffset() {
+        val current = com.brokenpip3.fatto.data.TaskDateValue("2026-11-01T06:30:00Z", timed)
+        val selection = decode(current.timestamp!!, newYork)
+        assertEquals(LocalTime.of(1, 30), selection.time)
+        assertEquals(current, com.brokenpip3.fatto.data.TaskDateTime.resolve(selection, newYork, current).getOrThrow())
+        assertEquals("2026-11-01T05:30:00Z", store(selection.date, selection.time, newYork).timestamp)
     }
 
-    @Test
-    fun confirmingChangedSelectionStoresNewValue() {
-        val current = "2026-04-28T07:30:00Z"
+    @Test fun formattingIncludesTimeOnlyForExplicitTimedValues() {
+        val raw = "2026-04-28T07:30:00Z"
         assertEquals(
-            "2026-04-28T08:00:00Z",
-            DateTimeUtils.confirmedTimestamp(current, LocalDate.of(2026, 4, 28), LocalTime.of(10, 0), berlin),
+            "2026-04-28 09:30",
+            com.brokenpip3.fatto.data.TaskDateTime.format(
+                com.brokenpip3.fatto.data.TaskDateValue(
+                    raw,
+                    timed,
+                ),
+                berlin,
+            ),
         )
         assertEquals(
-            "2026-04-27T22:00:00Z",
-            DateTimeUtils.confirmedTimestamp(null, LocalDate.of(2026, 4, 28), null, berlin),
+            "2026-04-28",
+            com.brokenpip3.fatto.data.TaskDateTime.format(
+                com.brokenpip3.fatto.data.TaskDateValue(
+                    raw,
+                    calendar,
+                ),
+                berlin,
+            ),
         )
     }
 }

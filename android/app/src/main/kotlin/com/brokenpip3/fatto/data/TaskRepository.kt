@@ -18,6 +18,8 @@ import uniffi.taskchampion_android.TaskAddProps
 import uniffi.taskchampion_android.TaskStatus
 import java.io.File
 
+// The props overload preserves existing string-based callers.
+@Suppress("TooManyFunctions")
 class TaskRepository(
     private val context: Context,
     private val settingsRepository: SettingsRepository,
@@ -142,18 +144,21 @@ class TaskRepository(
         priority: String? = null,
         dependencies: List<String> = emptyList(),
     ): Task =
+        addTask(
+            TaskAddProps(
+                description, project, tags, due, wait, scheduled, start, priority, dependencies,
+                com.brokenpip3.fatto.data.model.calendarDateModes(),
+            ),
+        )
+
+    suspend fun addTask(props: TaskAddProps): Task =
         mutate { r ->
             r.addTask(
-                TaskAddProps(
-                    description = description,
+                props.copy(
                     project =
                         resolveProject(
-                            project,
-                            settingsRepository.defaultProjectEnabled.value,
-                            settingsRepository.defaultProject.value,
+                            props.project, settingsRepository.defaultProjectEnabled.value, settingsRepository.defaultProject.value,
                         ),
-                    tags = tags, wait = wait, due = due, scheduled = scheduled, start = start,
-                    priority = priority, dependencies = dependencies,
                 ),
             ).toModel()
         }

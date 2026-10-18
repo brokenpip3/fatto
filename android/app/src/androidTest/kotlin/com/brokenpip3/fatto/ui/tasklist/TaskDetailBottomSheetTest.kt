@@ -3,6 +3,7 @@ package com.brokenpip3.fatto.ui.tasklist
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -25,6 +26,49 @@ import uniffi.taskchampion_android.TaskStatus
 class TaskDetailBottomSheetTest {
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Test
+    fun unchangedRawDateConfirmationDoesNotRepairTheNativeValue() {
+        val original = task().copy(nativeDates = mapOf("due" to "2030-01-02T00:00:00Z"))
+        var saved: uniffi.taskchampion_android.TaskEditPatch? = null
+        composeTestRule.setContent {
+            TaskDetailBottomSheet(original, onDismiss = {}, onSave = {
+                saved = it
+                com.brokenpip3.fatto.data.model.TaskEditResult.Success
+            }, availableProjects = emptyList(), availableTags = emptyList())
+        }
+        composeTestRule.onNode(hasContentDescription("Due") and hasClickAction()).performScrollTo().performClick()
+        composeTestRule.onNodeWithText("OK").performClick()
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true).performScrollTo().performClick()
+        composeTestRule.runOnIdle {
+            assertEquals(uniffi.taskchampion_android.StringEdit.Unchanged, saved?.due)
+            assertEquals(uniffi.taskchampion_android.DateModeEdit.Unchanged, saved?.dateModes?.due)
+        }
+    }
+
+    @Test
+    fun malformedDateClearsSurviveReopenCancelAndFinalSave() {
+        var saved: uniffi.taskchampion_android.TaskEditPatch? = null
+        val original = task().copy(nativeDates = mapOf("due" to "bad-due", "scheduled" to "bad-scheduled", "wait" to "bad-wait"))
+        composeTestRule.setContent {
+            TaskDetailBottomSheet(original, onDismiss = {}, onSave = {
+                saved = it
+                com.brokenpip3.fatto.data.model.TaskEditResult.Success
+            }, availableProjects = emptyList(), availableTags = emptyList())
+        }
+        for (label in listOf("Due", "Sch", "Wait")) {
+            composeTestRule.onNode(hasContentDescription(label) and hasClickAction()).performScrollTo().performClick()
+            composeTestRule.onNodeWithText("Clear").performClick()
+            composeTestRule.onNode(hasContentDescription(label) and hasClickAction()).performScrollTo().performClick()
+            composeTestRule.onNodeWithText("Cancel").performClick()
+        }
+        composeTestRule.onNodeWithTag("CloseButton", useUnmergedTree = true).performScrollTo().performClick()
+        composeTestRule.runOnIdle {
+            assertEquals(uniffi.taskchampion_android.StringEdit.Replace("bad-due", null), saved?.due)
+            assertEquals(uniffi.taskchampion_android.StringEdit.Replace("bad-scheduled", null), saved?.scheduled)
+            assertEquals(uniffi.taskchampion_android.StringEdit.Replace("bad-wait", null), saved?.wait)
+        }
+    }
 
     @Test
     fun tagInputShowsAvailableTagSuggestions() {

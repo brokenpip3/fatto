@@ -29,7 +29,7 @@ class AddTaskDialogTest {
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _ -> },
             )
         }
 
@@ -43,7 +43,7 @@ class AddTaskDialogTest {
                 availableProjects = emptyList(),
                 availableTags = emptyList(),
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _ -> },
             )
         }
 
@@ -61,7 +61,7 @@ class AddTaskDialogTest {
                 availableTags = emptyList(),
                 initialProject = initialProject,
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _ -> },
             )
         }
 
@@ -80,7 +80,7 @@ class AddTaskDialogTest {
                 availableTags = listOf("urgent", "work", "home"),
                 initialTags = initialTags,
                 onDismiss = {},
-                onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                onConfirm = { _, _, _ -> },
             )
         }
 
@@ -100,7 +100,10 @@ class AddTaskDialogTest {
                 availableProjects = listOf("Home", "Work.Client"),
                 availableTags = emptyList(),
                 onDismiss = {},
-                onConfirm = { _, project, _, _, _, _, _, _, _, _ -> submittedProject = project },
+                onConfirm = { props, _, _ ->
+                    val project = props.project
+                    submittedProject = project
+                },
             )
         }
 
@@ -131,7 +134,10 @@ class AddTaskDialogTest {
                 availableProjects = emptyList(),
                 availableTags = listOf("home", "urgent"),
                 onDismiss = {},
-                onConfirm = { _, _, tags, _, _, _, _, _, _, _ -> submittedTags = tags },
+                onConfirm = { props, _, _ ->
+                    val tags = props.tags
+                    submittedTags = tags
+                },
             )
         }
 
@@ -157,7 +163,10 @@ class AddTaskDialogTest {
                 availableTags = emptyList(),
                 initialProject = "Legacy",
                 onDismiss = {},
-                onConfirm = { _, project, _, _, _, _, _, _, _, _ -> submittedProject = project },
+                onConfirm = { props, _, _ ->
+                    val project = props.project
+                    submittedProject = project
+                },
             )
         }
 

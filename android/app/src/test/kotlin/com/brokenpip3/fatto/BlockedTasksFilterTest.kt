@@ -53,7 +53,7 @@ class BlockedTasksFilterTest {
     @Test
     fun `disabled setting shows blocked tasks regardless of dependency wait status`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             hideBlockedFlow.value = false
 
             val depWaiting = createTask(uuid = "dep-wait", desc = "Waiting dep", wait = futureWait)
@@ -87,7 +87,7 @@ class BlockedTasksFilterTest {
     @Test
     fun `enabled setting hides task blocked only by waiting dependencies`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             hideBlockedFlow.value = true
 
             val depWaiting = createTask(uuid = "dep-wait", desc = "Waiting dep", wait = futureWait)
@@ -113,7 +113,7 @@ class BlockedTasksFilterTest {
     @Test
     fun `enabled setting shows task blocked by mix of waiting and pending dependencies`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             hideBlockedFlow.value = true
 
             val depWaiting = createTask(uuid = "dep-wait", desc = "Waiting dep", wait = futureWait)
@@ -140,7 +140,7 @@ class BlockedTasksFilterTest {
     @Test
     fun `enabled setting shows task blocked by pending-only dependencies`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             hideBlockedFlow.value = true
 
             val depPending = createTask(uuid = "dep-pending", desc = "Pending dep")
@@ -166,7 +166,7 @@ class BlockedTasksFilterTest {
     @Test
     fun `enabled setting does not affect non-blocked tasks`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             hideBlockedFlow.value = true
 
             val normalTask =
@@ -186,7 +186,7 @@ class BlockedTasksFilterTest {
     @Test
     fun `enabled setting shows task whose waiting dep has wait already expired`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             hideBlockedFlow.value = true
 
             val depPastWait =
@@ -213,7 +213,7 @@ class BlockedTasksFilterTest {
     @Test
     fun `enabled setting shows non-blocked task with completed dependency that had wait`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             hideBlockedFlow.value = true
 
             val depCompleted =

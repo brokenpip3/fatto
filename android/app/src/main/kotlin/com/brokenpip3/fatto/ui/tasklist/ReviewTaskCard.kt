@@ -28,8 +28,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.model.dateValue
+import com.brokenpip3.fatto.data.model.visibleUdas
 import com.brokenpip3.fatto.data.review.ReviewPolicy
 import com.brokenpip3.fatto.ui.common.LinkedTaskText
+import com.brokenpip3.fatto.ui.common.readableTaskDate
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import com.brokenpip3.fatto.ui.theme.FattoStroke
@@ -98,7 +101,12 @@ private fun ReviewTaskContext(task: Task) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Event, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(task.due?.let { "Due ${readableDate(it)}" } ?: "No due date", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    task.due?.let {
+                        "Due ${readableTaskDate(task.dateValue("due"))}"
+                    } ?: "No due date",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             val priority =
                 when (task.priority) {
@@ -112,7 +120,7 @@ private fun ReviewTaskContext(task: Task) {
                 Icon(Icons.Outlined.Flag, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(priority, style = MaterialTheme.typography.bodyMedium)
             }
-            task.wait?.let { ReviewMetadata("Waiting", "Until ${readableDate(it)}") }
+            task.wait?.let { ReviewMetadata("Waiting", "Until ${readableTaskDate(task.dateValue("wait"))}") }
             val reviewed = task.udas["reviewed"]?.takeIf { it.isNotEmpty() }
             Row(horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -156,10 +164,10 @@ private fun ReviewExpandedMetadata(task: Task) {
             verticalArrangement = Arrangement.spacedBy(FattoSpacing.medium),
         ) {
             if (task.wait == null) ReviewMetadata("Waiting", "Not waiting")
-            ReviewMetadata("Scheduled", readableDate(task.scheduled))
+            ReviewMetadata("Scheduled", readableTaskDate(task.dateValue("scheduled")))
             ReviewMetadata("Started", readableDate(task.start))
             ReviewMetadata("Dependencies", task.dependencies.size.toString())
-            task.udas.filterKeys { it != "reviewed" }.forEach { (key, value) -> ReviewMetadata(key, value) }
+            task.visibleUdas.filterKeys { it != "reviewed" }.forEach { (key, value) -> ReviewMetadata(key, value) }
             Text(task.uuid, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

@@ -57,18 +57,7 @@ class RecurrenceCreationUiTest {
     @Test fun repeatDefaultsToNoneAndRequiresDueBeforeApplyingDaily() {
         compose.setContent {
             NordicTheme {
-                AddTaskDialog(emptyList(), emptyList(), initialDescription = "New series", onDismiss = {}, onConfirm = {
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    ->
+                AddTaskDialog(emptyList(), emptyList(), initialDescription = "New series", onDismiss = {}, onConfirm = { _, _, _ ->
                 })
             }
         }
@@ -83,20 +72,9 @@ class RecurrenceCreationUiTest {
         compose.setContent {
             NordicTheme {
                 AddTaskDialog(
-                    emptyList(), emptyList(), initialDescription = "Draft", onDismiss = {}, onConfirm = {
-                        _,
-                        _,
-                        _,
-                        _,
-                        _,
-                        _,
-                        _,
-                        _,
-                        _,
-                        _,
-                        ->
+                    emptyList(), emptyList(), initialDescription = "Draft", onDismiss = {}, onConfirm = { _, _, _ ->
                     },
-                    onCreate = { _, _, _ -> TaskEditResult.Failure("Storage unavailable") },
+                    onCreate = { _, _, _, _ -> TaskEditResult.Failure("Storage unavailable") },
                 )
             }
         }
@@ -142,7 +120,7 @@ class RecurrenceCreationUiTest {
                 NordicTheme(darkTheme = dark.value, fontSizePercent = 150) {
                     AddTaskDialog(
                         emptyList(), emptyList(), initialDescription = "A long description that wraps across lines",
-                        onDismiss = {}, onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                        onDismiss = {}, onConfirm = { _, _, _ -> },
                     )
                 }
             }
