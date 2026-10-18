@@ -116,8 +116,8 @@ jobs:
           path: |
             .gradle-home/caches
             .gradle-home/wrapper
-          key: v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: v5-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-${{ hashFiles('justfile', 'android/gradle.properties', '**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            v4-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-
+            v5-${{ runner.os }}-gradle-${{ matrix.shell }}-${{ hashFiles('flake.nix', 'flake.lock') }}-
       - name: Run ${{ matrix.command }}
         run: nix develop .#${{ matrix.shell }} --no-update-lock-file --command just ${{ matrix.command }}

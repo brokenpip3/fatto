@@ -49,7 +49,8 @@ build-release-apk:
         export FATTO_KEYSTORE_PATH=release.jks; \
         export FATTO_KEYSTORE_PASSWORD="${FATTO_KEYSTORE_PASSWORD:-}"; \
         export FATTO_KEY_ALIAS="${FATTO_KEY_ALIAS:-}"; \
-        trap 'rm -f android/app/release.jks' EXIT; \
+        KEYSTORE_CLEANUP="$PWD/android/app/release.jks"; \
+        trap 'rm -f "$KEYSTORE_CLEANUP"' EXIT; \
         cd android && ./gradlew assembleRelease; \
     fi
     @mkdir -p dist
@@ -80,7 +81,8 @@ build-beta-apk:
         export FATTO_KEYSTORE_PATH=release.jks; \
         export FATTO_KEYSTORE_PASSWORD="${FATTO_KEYSTORE_PASSWORD:-}"; \
         export FATTO_KEY_ALIAS="${FATTO_KEY_ALIAS:-}"; \
-        trap 'rm -f android/app/release.jks' EXIT; \
+        KEYSTORE_CLEANUP="$PWD/android/app/release.jks"; \
+        trap 'rm -f "$KEYSTORE_CLEANUP"' EXIT; \
         cd android && ./gradlew assembleBeta; \
     fi
     @mkdir -p dist
@@ -135,14 +137,16 @@ test-rust *args:
     cd rust/taskchampion-android && cargo test --lib {{args}}
 
 # run kotlin jvm unit tests
+[positional-arguments]
 test-kotlin *args:
-    cd android && ./gradlew testDebugUnitTest {{args}}
+    cd android && ./gradlew testDebugUnitTest "$@"
 
 # run kotlin instrumented tests (requires connected device/emulator)
+[positional-arguments]
 test-android *args:
     @command -v adb >/dev/null 2>&1 || { echo >&2 "adb is required but not installed."; exit 1; }
     adb shell pm grant com.brokenpip3.fatto android.permission.POST_NOTIFICATIONS || true
-    cd android && ./gradlew connectedDebugAndroidTest {{args}}
+    cd android && ./gradlew connectedDebugAndroidTest "$@"
 
 # run rust integration tests against local tss and minio
 test-integration:
@@ -286,3 +290,16 @@ build-play-store:
     cp "$AAB" "dist/fatto-v$VERSION.aab"; \
     chmod 0644 "dist/fatto-v$VERSION.aab"; \
     echo "Google Play bundle created at: dist/fatto-v$VERSION.aab"
+
+# forward arguments to the Android wrapper in the current Nix shell
+[positional-arguments]
+gradle *args:
+    cd android && ./gradlew "$@"
+
+# display Gradle and JVM versions
+gradle-info:
+    cd android && ./gradlew --version
+
+# list compatible daemon state
+gradle-status:
+    cd android && ./gradlew --status
