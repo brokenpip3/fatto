@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.review.ReviewPolicy
+import com.brokenpip3.fatto.ui.common.LinkedTaskText
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -30,6 +31,7 @@ import com.brokenpip3.fatto.ui.theme.FattoSpacing
 internal fun ReviewTaskCard(task: Task) {
     Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
         Column(Modifier.fillMaxWidth().padding(FattoSpacing.extraLarge), verticalArrangement = Arrangement.spacedBy(FattoSpacing.large)) {
+            LinkedTaskText(task.description, style = MaterialTheme.typography.titleSmall)
             task.project?.let { project ->
                 Row(horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
                     Icon(Icons.Default.Folder, null, tint = MaterialTheme.colorScheme.primary)
@@ -39,7 +41,6 @@ internal fun ReviewTaskCard(task: Task) {
                     }
                 }
             }
-            Text(task.description, style = MaterialTheme.typography.titleSmall)
             if (task.userTags.isNotEmpty()) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
@@ -102,7 +103,7 @@ internal fun ReviewTaskCard(task: Task) {
             }
             task.annotations.forEach { annotation ->
                 HorizontalDivider()
-                Text(annotation.description, style = MaterialTheme.typography.bodyMedium)
+                LinkedTaskText(annotation.description, style = MaterialTheme.typography.bodyMedium)
             }
             var expanded by androidx.compose.runtime.remember(task.uuid) { androidx.compose.runtime.mutableStateOf(false) }
             androidx.compose.material3.TextButton(onClick = {

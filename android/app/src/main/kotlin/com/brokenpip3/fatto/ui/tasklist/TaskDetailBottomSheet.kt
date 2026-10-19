@@ -64,8 +64,10 @@ import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskEditResult
 import com.brokenpip3.fatto.data.model.toEditPatch
+import com.brokenpip3.fatto.ui.common.LinkedTaskText
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
+import com.brokenpip3.fatto.ui.common.TaskEditorLinks
 import com.brokenpip3.fatto.ui.common.TaskPickerDialog
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
@@ -393,6 +395,8 @@ fun TaskDetailBottomSheet(
                     colors = FattoFieldDefaults.filledColors(),
                 )
 
+                TaskEditorLinks(description)
+
                 TextField(
                     value = project,
                     onValueChange = { if (!saving) project = it },
@@ -523,7 +527,7 @@ fun TaskDetailBottomSheet(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
+                                LinkedTaskText(
                                     text = annotation.description,
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
@@ -578,6 +582,7 @@ fun TaskDetailBottomSheet(
                             Text("Add", style = MaterialTheme.typography.labelLarge)
                         }
                     }
+                    TaskEditorLinks(newAnnotation)
                 }
 
                 AccordionSection(

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -104,7 +106,6 @@ private fun ReviewSheetContent(
     val sheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { target ->
             if (target == SheetValue.Hidden && latestState.stage == ReviewStage.ACTIVE) {
-                if (!latestState.busy) confirmEnd = true
                 false
             } else {
                 target != SheetValue.Hidden || !latestState.busy
@@ -114,7 +115,14 @@ private fun ReviewSheetContent(
     var confirmDelete by remember(state.currentTask?.uuid) { mutableStateOf(false) }
     val dispatch: (ReviewAction) -> Unit = { action -> if (action == ReviewAction.DELETE) confirmDelete = true else onAction(action) }
     ModalBottomSheet(
-        onDismissRequest = requestDismiss,
+        onDismissRequest = { if (latestState.stage != ReviewStage.ACTIVE) requestDismiss() },
+        sheetGesturesEnabled = state.stage != ReviewStage.ACTIVE,
+        dragHandle = { if (state.stage != ReviewStage.ACTIVE) BottomSheetDefaults.DragHandle() },
+        properties =
+            ModalBottomSheetProperties(
+                shouldDismissOnBackPress = state.stage != ReviewStage.ACTIVE && !state.busy,
+                shouldDismissOnClickOutside = state.stage != ReviewStage.ACTIVE && !state.busy,
+            ),
         modifier = Modifier.testTag("ReviewSheet"),
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.extraLarge,
@@ -137,7 +145,11 @@ private fun ReviewSheetContent(
                         },
                         Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall,
                     )
-                    IconButton(onClick = requestDismiss, enabled = !state.busy) { Icon(Icons.Default.Close, "Close review") }
+                    if (state.stage == ReviewStage.ACTIVE) {
+                        TextButton(onClick = requestDismiss, enabled = !state.busy) { Text("End review") }
+                    } else {
+                        IconButton(onClick = requestDismiss, enabled = !state.busy) { Icon(Icons.Default.Close, "Close review") }
+                    }
                 }
                 Column(
                     (if (scrollWholeSheet) Modifier else Modifier.weight(1f, fill = active).verticalScroll(detailScroll))
@@ -162,7 +174,6 @@ private fun ReviewSheetContent(
                                     (state.position - 1).toFloat() / state.total
                                 }
                             }, modifier = Modifier.fillMaxWidth())
-                            ReviewSwipeHints(state.settings)
                             state.currentTask?.let { task -> key(task.uuid) { ReviewSwipeCard(task, state, dispatch) } }
                         }
                         ReviewStage.SUMMARY -> ReviewSessionSummary(state)
@@ -258,7 +269,7 @@ private fun ReviewSheetContent(
             title = { Text("End this review?", style = MaterialTheme.typography.headlineSmall) },
             text = {
                 Text(
-                    "Your saved changes will stay. Skipped and unvisited tasks can be reviewed next time.",
+                    "Your changes are already saved.",
                     style = MaterialTheme.typography.bodyLarge,
                 )
             },
