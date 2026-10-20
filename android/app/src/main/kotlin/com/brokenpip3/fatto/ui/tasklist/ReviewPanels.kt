@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
@@ -26,20 +24,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.brokenpip3.fatto.data.review.ReviewSettings
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import com.brokenpip3.fatto.ui.theme.FattoStroke
@@ -135,40 +129,6 @@ private fun ReviewPolicyRow(
 }
 
 @Composable
-internal fun ReviewSwipeHints(settings: ReviewSettings) {
-    // These are physical swipe directions. Keep their positions and arrows fixed in RTL layouts.
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
-            ReviewSwipeHint("Swipe left", settings.leftAction.label, Icons.AutoMirrored.Filled.ArrowBack, Modifier.weight(1f), true)
-            ReviewSwipeHint("Swipe right", settings.rightAction.label, Icons.AutoMirrored.Filled.ArrowForward, Modifier.weight(1f), false)
-        }
-    }
-}
-
-@Composable
-private fun ReviewSwipeHint(
-    direction: String,
-    action: String,
-    icon: ImageVector,
-    modifier: Modifier,
-    left: Boolean,
-) {
-    Surface(modifier, color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = MaterialTheme.shapes.small) {
-        Row(
-            Modifier.padding(FattoSpacing.small), horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (left) Icon(icon, null)
-            Column(Modifier.weight(1f)) {
-                Text(direction, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(action, style = MaterialTheme.typography.bodyMedium)
-            }
-            if (!left) Icon(icon, null)
-        }
-    }
-}
-
-@Composable
 internal fun ReviewSessionSummary(state: ReviewUiState) {
     val processed = state.reviewedActions + state.skipped
     val colors =
@@ -180,7 +140,6 @@ internal fun ReviewSessionSummary(state: ReviewUiState) {
         )
     val counts = listOf(state.reviewed, state.skipped, state.completed, state.deleted)
     Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.large)) {
-        Text(if (processed == 0) "Session ended" else "Your review progress", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(FattoSpacing.large), verticalAlignment = Alignment.CenterVertically) {
             ReviewOutcomeRing(counts, colors)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(FattoSpacing.xSmall)) {
@@ -188,10 +147,6 @@ internal fun ReviewSessionSummary(state: ReviewUiState) {
                 Text("$processed of ${state.total} tasks processed", style = MaterialTheme.typography.bodyMedium)
             }
         }
-        Text(
-            "Reviewed includes marked, completed, and deleted tasks. Task changes save as you go.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             if (effectiveFontScale() >= FattoMetrics.largeFontScale || maxWidth < 320.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
@@ -213,11 +168,6 @@ internal fun ReviewSessionSummary(state: ReviewUiState) {
                 }
             }
         }
-        val unvisited = (state.total - maxOf(state.position, processed + state.omitted)).coerceAtLeast(0)
-        Text(
-            "$unvisited tasks not reached this session. You can start another review whenever you’re ready.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
         if (state.omitted > 0) {
             Text("${state.omitted} tasks changed elsewhere and were omitted.", style = MaterialTheme.typography.bodyMedium)
         }

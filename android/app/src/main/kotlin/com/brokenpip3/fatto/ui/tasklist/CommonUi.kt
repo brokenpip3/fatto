@@ -95,7 +95,7 @@ fun TaskDateAndPriorityControls(
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(FattoSpacing.small)) {
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = dateControlArrangement,
+            horizontalArrangement = if (compact) Arrangement.SpaceBetween else dateControlArrangement,
             verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
             maxItemsInEachRow = if (trailingControl == null) 4 else 5,
         ) {

@@ -1,10 +1,14 @@
 package com.brokenpip3.fatto.ui.tasklist
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -12,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.brokenpip3.fatto.data.model.RecurrenceRule
 import com.brokenpip3.fatto.data.model.TaskEditResult
@@ -24,6 +29,30 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RecurrenceCreationUiTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun creationControlsFitOneRowAt256DpInBothThemes() {
+        val dark = mutableStateOf(false)
+        compose.setContent {
+            NordicTheme(darkTheme = dark.value) {
+                Box(Modifier.width(256.dp)) {
+                    TaskDateAndPriorityControls(
+                        priority = null, due = null, scheduled = null, wait = null,
+                        onPriorityChange = {}, onDateClick = {},
+                        trailingControl = { RecurrenceFields(null, null, {}, null) },
+                    )
+                }
+            }
+        }
+        for (theme in listOf(false, true)) {
+            compose.runOnIdle { dark.value = theme }
+            val repeatTop = compose.onNodeWithText("Repeat", useUnmergedTree = true).getUnclippedBoundsInRoot().top
+            for (label in listOf("Priority", "Due", "Sch", "Wait")) {
+                assertEquals(compose.onNodeWithText(label, useUnmergedTree = true).getUnclippedBoundsInRoot().top, repeatTop)
+            }
+            val repeatBounds = compose.onNodeWithTag("RepeatControl").getUnclippedBoundsInRoot()
+            assertEquals(48.dp, repeatBounds.right - repeatBounds.left)
+        }
+    }
 
     @Test fun repeatDefaultsToNoneAndRequiresDueBeforeApplyingDaily() {
         compose.setContent {
