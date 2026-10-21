@@ -58,7 +58,8 @@ object FattoOpacity {
  * `surfaceContainerLowest`. Shapes map small to badges/chips, medium to cards/fields/buttons/menus,
  * and extra-large to dialogs and top sheet corners. Calendar days and progress rings stay circular.
  * Typography maps screen/dialog/sheet titles to `headlineSmall`, section titles to `titleMedium`,
- * task titles to `titleSmall`, body and field text to `bodyLarge`, supporting text to `bodyMedium`,
+ * task titles to `titleSmall` (focused review descriptions use `titleLarge`), body and field text to
+ * `bodyLarge`, supporting text to `bodyMedium`,
  * metadata to `bodySmall`, buttons to `labelLarge`, and badges to `labelSmall`.
  *
  * For horizontal form and action groups, use a vertical arrangement below 480dp of available width

@@ -64,10 +64,10 @@ services:
       task add project:hobbies.photo tags:creative,outdoors,4h 'golden hour shoot at the botanical gardens' &&
       task add project:hobbies.photo tags:editing,2h scheduled:thursday 'process raw files from the weekend trip' &&
       task add project:fitness tags:health,10min 'register for the local 10k charity run' &&
-      task add project:recurrence tags:recurrence due:today recur:daily 'review the curent tasks' &&
-      task add project:recurrence tags:recurrence due:tomorrow recur:weekly 'review the week and write down 3 notes' &&
-      task add project:recurrence tags:recurrence due:today recur:monthly 'review budget' &&
-      task add project:recurrence tags:recurrence due:today recur:weekdays until:today+14days 'Stand-up notes for my boss' &&
+      task add project:chores tags:verification due:today recur:daily 'review the curent tasks' &&
+      task add project:review tags:notes due:tomorrow recur:weekly 'review the week and write down 3 notes' &&
+      task add project:chores.finance tags:budget due:today recur:monthly 'review budget' &&
+      task add project:chores.work tags:recurrence due:today recur:weekdays until:today+14days 'Stand-up notes for my boss' &&
       task rc.recurrence:on rc.recurrence.limit:3 next &&
       task sync &&
       echo 'Client seeded. Ready to sync.' &&

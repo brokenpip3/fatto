@@ -141,7 +141,15 @@ class ReviewSheetTest {
             CompositionLocalProvider(LocalDensity provides Density(density.density * 2, 1.5f)) {
                 NordicTheme(darkTheme = true, fontSizePercent = 150) {
                     ReviewSheet(
-                        ReviewUiState(stage = ReviewStage.ACTIVE, currentTask = task, total = 1),
+                        ReviewUiState(
+                            stage = ReviewStage.ACTIVE,
+                            currentTask =
+                                task.copy(
+                                    project = "a.long.project.name.that.wraps",
+                                    tags = listOf("a-long-tag-that-needs-to-wrap", "documents", "waiting"),
+                                ),
+                            total = 1,
+                        ),
                         onAction = {}, onAcceptNotice = {}, onStart = {}, onEdit = {}, onSettings = {}, onDismiss = {},
                     )
                 }
@@ -344,7 +352,8 @@ class ReviewSheetTest {
             }
         }
         compose.onNodeWithText("reviewed").assertIsDisplayed()
-        compose.onNodeWithText("UDA key · date").assertIsDisplayed()
+        compose.onNodeWithText("Review tracking").assertIsDisplayed()
+        compose.onNodeWithText("Syncs with your other taskwarrior clients and is compatible with taskshell review.").assertIsDisplayed()
         assertTrue(compose.onNodeWithTag("ReviewSheet").getUnclippedBoundsInRoot().let { it.bottom - it.top } < 650.dp)
         compose.onNodeWithText("Continue").assertIsDisplayed()
     }
