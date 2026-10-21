@@ -395,6 +395,7 @@ class MainActivity : ComponentActivity() {
                                         SeriesEditorActions(
                                             save = { patch, rule, replace -> taskViewModel.saveSeries(patch, rule, replace) },
                                             stop = { uuid -> taskViewModel.stopSeries(uuid) },
+                                            convert = { patch, rule -> taskViewModel.convertTaskToRecurring(patch, rule) },
                                         ),
                                     autoWaiting = taskViewModel.autoWaiting.collectAsState().value,
                                     onSave = { updatedTask ->

@@ -560,6 +560,11 @@ class TaskViewModel(private val repository: TaskRepository) : ViewModel() {
             viewModelScope.launch { _taskCreatedEvent.emit(TaskCreatedEvent(created, openEditor)) }
         }
 
+    suspend fun convertTaskToRecurring(
+        patch: TaskEditPatch,
+        rule: com.brokenpip3.fatto.data.model.RecurrenceRule,
+    ): TaskEditResult = checkedSeriesAction { repository.convertTaskToRecurring(patch, rule) }
+
     suspend fun saveSeries(
         patch: TaskEditPatch,
         rule: uniffi.taskchampion_android.RecurrenceRulePatch,

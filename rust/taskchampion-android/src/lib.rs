@@ -322,6 +322,47 @@ impl ReplicaWrapper {
         Ok(map_task(task, blocked, blocking))
     }
 
+    /// Convert an ordinary pending task in place, committing the draft and rule together.
+    pub fn convert_task_to_recurring(
+        &self,
+        patch: TaskEditPatch,
+        rule: RecurrenceRule,
+    ) -> Result<()> {
+        if !recurrence::creation_interval(&rule.interval) {
+            return Err(TaskError::Internal(
+                "Use a supported positive repeat interval".into(),
+            ));
+        }
+        let mut replica = self.inner.lock().unwrap();
+        let id =
+            Uuid::parse_str(&patch.uuid).map_err(|_| TaskError::Internal("Invalid UUID".into()))?;
+        let mut task = self
+            .rt
+            .block_on(replica.get_task(id))?
+            .ok_or_else(|| TaskError::Internal("Task not found".into()))?;
+        if task.get_status() != taskchampion::Status::Pending
+            || recurrence::read_recurrence(&task).is_some()
+        {
+            return Err(TaskError::Internal(
+                "Only ordinary pending tasks can be converted to a recurring series".into(),
+            ));
+        }
+        let mut ops = Operations::new();
+        apply_edit_patch(&mut task, patch, false, &mut ops)?;
+        task.set_status(taskchampion::Status::Recurring, &mut ops)?;
+        task.set_value("rtype", Some("periodic".into()), &mut ops)?;
+        task.set_value("recur", Some(rule.interval), &mut ops)?;
+        task.set_value(
+            "until",
+            parse_rfc3339(rule.until)?.map(|d| d.timestamp().to_string()),
+            &mut ops,
+        )?;
+        task.set_timestamp("start", None, &mut ops)?;
+        recurrence::validate_schedule(&task)?;
+        self.rt.block_on(replica.commit_operations(ops))?;
+        Ok(())
+    }
+
     pub fn update_recurrence_template(
         &self,
         patch: TaskEditPatch,

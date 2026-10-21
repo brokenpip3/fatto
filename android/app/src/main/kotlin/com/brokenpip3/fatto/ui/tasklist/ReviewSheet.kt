@@ -136,12 +136,10 @@ private fun ReviewSheetContent(
             Column(contentSize.then(if (scrollWholeSheet) Modifier.verticalScroll(wholeScroll) else Modifier)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = FattoSpacing.extraLarge), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (state.stage ==
-                            ReviewStage.SUMMARY
-                        ) {
-                            "Session summary"
-                        } else {
-                            "Review"
+                        when (state.stage) {
+                            ReviewStage.NOTICE -> "Review tracking"
+                            ReviewStage.SUMMARY -> "Session summary"
+                            else -> "Review"
                         },
                         Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall,
                     )

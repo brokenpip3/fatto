@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,36 +38,17 @@ import com.brokenpip3.fatto.ui.theme.FattoStroke
 import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import com.brokenpip3.fatto.vm.ReviewUiState
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ReviewNotice() {
     Column(verticalArrangement = Arrangement.spacedBy(FattoSpacing.large)) {
-        Text("Before your first review", style = MaterialTheme.typography.titleMedium)
-        Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = MaterialTheme.shapes.small) {
-            FlowRow(
-                Modifier.padding(FattoSpacing.large),
-                horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
-                verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
-            ) {
-                Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.primary)
-                Text("reviewed", style = MaterialTheme.typography.titleLarge)
-                Text("UDA key · date", style = MaterialTheme.typography.bodyMedium)
-            }
+        Text("Fatto saves each task’s review date in this UDA:", style = MaterialTheme.typography.bodyLarge)
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.small) {
+            Text("reviewed", Modifier.fillMaxWidth().padding(FattoSpacing.large), style = MaterialTheme.typography.titleLarge)
         }
-        val noticeStyle =
-            MaterialTheme.typography.bodyLarge.let {
-                it.copy(
-                    fontSize = it.fontSize * 1.125f,
-                    lineHeight =
-                        it.lineHeight * 1.125f,
-                )
-            }
         Text(
-            "Fatto writes the review time to this UDA key when you mark a task reviewed or save an edit during review.",
-            style = noticeStyle,
+            "Syncs with your other taskwarrior clients and is compatible with taskshell review.",
+            style = MaterialTheme.typography.bodyMedium,
         )
-        Text("The saved timestamp syncs with your other Taskwarrior clients.", style = noticeStyle)
-        Text("Skipping leaves this UDA unchanged. Existing review timestamps are reused.", style = MaterialTheme.typography.bodyMedium)
     }
 }
 

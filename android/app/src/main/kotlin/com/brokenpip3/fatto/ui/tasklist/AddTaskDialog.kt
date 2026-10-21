@@ -196,7 +196,6 @@ fun AddTaskDialog(
                             RecurrenceFields(rule, dueDate, { rule = it }, rule?.creationError(dueDate), enabled = !saving)
                         },
                     )
-                    RecurrenceSummary(rule?.interval)
                     RecurrenceValidationMessage(rule, dueDate)
                     if (tags.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

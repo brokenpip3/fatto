@@ -126,15 +126,6 @@ fun TaskDateAndPriorityControls(
             )
             trailingControl?.invoke()
         }
-        if (compact) {
-            val dates =
-                listOfNotNull(
-                    due?.let { "Due: ${readableDate(it)}" },
-                    scheduled?.let { "Scheduled: ${readableDate(it)}" },
-                    wait?.let { "Wait: ${readableDate(it)}" },
-                )
-            if (dates.isNotEmpty()) Text(dates.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
-        }
     }
 }
 
@@ -281,7 +272,7 @@ fun PriorityIconButton(
                     "L" -> "Low"
                     else -> "Priority"
                 },
-            style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color =
                 if (priority != null) {
                     MaterialTheme.colorScheme.primary
@@ -324,8 +315,8 @@ fun DatePickerIconButton(
             )
         }
         Text(
-            text = if (compact) label else formattedDate ?: label,
-            style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
+            text = formattedDate ?: label,
+            style = MaterialTheme.typography.bodyMedium,
             color = if (date != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

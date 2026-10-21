@@ -73,6 +73,7 @@ import java.time.Instant
 class SeriesEditorActions(
     val save: suspend (TaskEditPatch, RecurrenceRulePatch, Boolean) -> TaskEditResult,
     val stop: suspend (String) -> TaskEditResult,
+    val convert: (suspend (TaskEditPatch, RecurrenceRule) -> TaskEditResult)? = null,
 )
 
 private enum class SeriesDate(val label: String) {
