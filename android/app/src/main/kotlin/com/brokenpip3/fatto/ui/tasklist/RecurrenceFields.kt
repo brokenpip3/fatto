@@ -83,9 +83,22 @@ internal fun RepeatControl(
             },
     ) {
         IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(FattoMetrics.minTouchTarget).testTag("RepeatControl")) {
-            Icon(Icons.Default.Repeat, contentDescription = null, modifier = Modifier.size(FattoMetrics.dateControlIcon))
+            Icon(
+                Icons.Default.Repeat, contentDescription = null, modifier = Modifier.size(FattoMetrics.dateControlIcon),
+                tint = if (interval == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+            )
         }
-        Text("Repeat", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            label, style = MaterialTheme.typography.bodyMedium,
+            color =
+                if (interval ==
+                    null
+                ) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+        )
     }
 }
 
@@ -223,9 +236,4 @@ private fun RecurrenceSettingsSheet(
             }) { Text("OK") }
         }, dismissButton = { TextButton(onClick = { untilPicker = false }) { Text("Cancel") } }) { DatePicker(state) }
     }
-}
-
-@Composable
-internal fun RecurrenceSummary(interval: String?) {
-    if (interval != null) Text("Repeat: ${recurrenceLabel(interval)}", style = MaterialTheme.typography.bodySmall)
 }

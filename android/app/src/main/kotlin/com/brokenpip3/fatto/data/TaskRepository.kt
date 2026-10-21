@@ -173,6 +173,11 @@ class TaskRepository(
             r.addRecurringTask(resolved, rule.toNative()).toModel()
         }
 
+    suspend fun convertTaskToRecurring(
+        patch: uniffi.taskchampion_android.TaskEditPatch,
+        rule: com.brokenpip3.fatto.data.model.RecurrenceRule,
+    ) = mutate { it.convertTaskToRecurring(patch, rule.toNative()) }
+
     suspend fun updateRecurrenceTemplate(
         patch: uniffi.taskchampion_android.TaskEditPatch,
         rule: uniffi.taskchampion_android.RecurrenceRulePatch,
@@ -195,13 +200,6 @@ class TaskRepository(
         reviewedUuid: String,
         patch: uniffi.taskchampion_android.TaskEditPatch,
     ) = mutate { it.updateDependenciesForReview(reviewedUuid, patch) }
-
-    private fun requireReviewPending(
-        r: ReplicaWrapper,
-        uuid: String,
-    ) {
-        check(r.getTask(uuid)?.toModel()?.let(ReviewPolicy::isPending) == true) { "Task changed elsewhere; reload the review" }
-    }
 
     override suspend fun complete(uuid: String) =
         mutate { r ->
@@ -303,4 +301,11 @@ class TaskRepository(
             )
         return SyncDiagnosticsFormatter.safeError(error, sensitiveValues)
     }
+}
+
+private fun requireReviewPending(
+    r: ReplicaWrapper,
+    uuid: String,
+) {
+    check(r.getTask(uuid)?.toModel()?.let(ReviewPolicy::isPending) == true) { "Task changed elsewhere; reload the review" }
 }

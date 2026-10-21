@@ -61,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.brokenpip3.fatto.data.model.Annotation
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
+import com.brokenpip3.fatto.data.model.RecurrenceRule
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskEditResult
 import com.brokenpip3.fatto.data.model.toEditPatch
@@ -122,6 +123,7 @@ fun TaskDetailBottomSheet(
     var scheduled by remember(baseline) { mutableStateOf(baseline.scheduled) }
     var start by remember(baseline) { mutableStateOf(baseline.start) }
     var priority by remember(baseline) { mutableStateOf(baseline.priority) }
+    var newRecurrence by remember(baseline) { mutableStateOf<RecurrenceRule?>(null) }
     var newTag by remember(baseline) { mutableStateOf("") }
     var annotations by remember(baseline) { mutableStateOf(baseline.annotations) }
     var dependencies by remember(baseline) { mutableStateOf(baseline.dependencies) }
@@ -175,8 +177,9 @@ fun TaskDetailBottomSheet(
         if (showInternalTags) emptyList() else tags.filter { INTERNAL_TAGS.contains(it.uppercase()) }
 
     val saveThen: (() -> Unit) -> Unit = { afterSave ->
-        if (!saving) {
+        if (!saving && newRecurrence?.creationError(due) == null) {
             saving = true
+            val draftRecurrence = newRecurrence
             scope.launch {
                 try {
                     val draft =
@@ -196,10 +199,18 @@ fun TaskDetailBottomSheet(
                         )
                     // Dependency/annotation controls save independently; do not send
                     // their possibly old local snapshot with an unrelated content edit.
-                    when (val result = onSave(draft.toEditPatch(baseline, autoWaiting))) {
+                    val patch = draft.toEditPatch(baseline, autoWaiting)
+                    val result =
+                        if (draftRecurrence == null) {
+                            onSave(patch)
+                        } else {
+                            seriesActions?.convert?.invoke(patch, draftRecurrence)
+                                ?: TaskEditResult.Failure("Recurring task conversion is unavailable")
+                        }
+                    when (result) {
                         TaskEditResult.Success -> {
                             refreshAfterSave = true
-                            afterSave()
+                            if (draftRecurrence == null) afterSave() else onDismiss()
                         }
                         is TaskEditResult.Failure -> saveError = result.message
                     }
@@ -232,10 +243,17 @@ fun TaskDetailBottomSheet(
             wait != baseline.wait ||
             scheduled != baseline.scheduled ||
             start != baseline.start ||
-            priority != baseline.priority
+            priority != baseline.priority ||
+            newRecurrence != null
     val requestClose: () -> Unit = {
         if (!saving && !seriesSaving) {
-            if (task.recurrence != null && (taskDirty || seriesDirty)) confirmDiscard = true else saveAndDismiss()
+            if ((task.recurrence != null || newRecurrence != null) &&
+                (taskDirty || seriesDirty)
+            ) {
+                confirmDiscard = true
+            } else {
+                saveAndDismiss()
+            }
         }
     }
 
@@ -441,18 +459,49 @@ fun TaskDetailBottomSheet(
                         wait = wait,
                         onPriorityChange = { if (!saving) priority = it },
                         onDateClick = { if (!saving && !task.isRecurrenceTemplate) activePicker = it },
+                        trailingControl = {
+                            if (task.recurrence == null) {
+                                RecurrenceFields(
+                                    newRecurrence, due, { newRecurrence = it }, newRecurrence?.creationError(due),
+                                    enabled = !saving && task.status == TaskStatus.Pending && seriesActions?.convert != null,
+                                )
+                            } else {
+                                RepeatControl(
+                                    latestTask.recurrence?.recur ?: parentSeries?.recurrence?.recur,
+                                    onClick = { showSeries = true },
+                                    enabled = !saving && parentSeries?.status == TaskStatus.Recurring && seriesActions != null,
+                                )
+                            }
+                        },
+                    )
+                }
+                newRecurrence?.creationError(due)?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (newRecurrence != null) {
+                    Text(
+                        "Saving makes this task a recurring series and stops its active timer.",
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 if (task.recurrence != null) {
-                    OccurrenceSeriesRow(
-                        latestTask, allTasks, recurrenceDiagnostics, enabled = !saving,
-                        onEditSeries =
-                            if (seriesActions != null) {
-                                { showSeries = true }
-                            } else {
-                                null
-                            },
-                    )
+                    when {
+                        parentSeries == null && !task.isRecurrenceTemplate ->
+                            Text(
+                                "Series unavailable. Sync to load its details.", style = MaterialTheme.typography.bodySmall,
+                            )
+                        parentSeries != null && parentSeries.status != TaskStatus.Recurring ->
+                            Text(
+                                "Series stopped", style = MaterialTheme.typography.bodySmall,
+                            )
+                    }
+                    if (recurrenceDiagnostics.any {
+                            it.taskUuid.equals(task.uuid, ignoreCase = true) ||
+                                it.taskUuid.equals(task.recurrence?.parent, ignoreCase = true)
+                        }
+                    ) {
+                        RecurrenceDetails(latestTask, allTasks, recurrenceDiagnostics)
+                    }
                 }
 
                 Text(text = "Tags", style = MaterialTheme.typography.labelLarge)
@@ -687,8 +736,12 @@ fun TaskDetailBottomSheet(
                         }
                     }
                 }
-                if (task.recurrence != null && taskDirty) {
-                    Button(onClick = { saveThen {} }, enabled = !saving && description.isNotBlank()) { Text("Save task") }
+                if ((task.recurrence != null || newRecurrence != null) && taskDirty) {
+                    Button(
+                        onClick = { saveThen {} },
+                        enabled =
+                            !saving && description.isNotBlank() && newRecurrence?.creationError(due) == null,
+                    ) { Text("Save task") }
                 }
             }
         }
