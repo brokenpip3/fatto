@@ -12,7 +12,7 @@ build-rust targets="arm64-v8a":
     cargo ndk \
         $(for t in {{ targets }}; do echo "-t $t"; done) \
         -o ../../android/app/src/main/jniLibs \
-        build --release
+        build --release --lib
 
 # build rust lib for all supported architectures
 build-rust-all: build-clean-jni
@@ -22,8 +22,8 @@ build-rust-all: build-clean-jni
 build-bindings: (build-rust "x86_64")
     rm -rf android/app/src/main/uniffi && mkdir -p android/app/src/main/uniffi
     cd rust/taskchampion-android && \
-    cargo build --release && \
-    cargo run --bin uniffi-bindgen generate \
+    cargo build --release --lib && \
+    cargo run --features bindgen --bin uniffi-bindgen generate \
         --library target/release/libtaskchampion_android.so \
         --language kotlin \
         --no-format \

@@ -92,12 +92,12 @@
 
           buildPhase = ''
             export HOME=$(mktemp -d)
-            cargo ndk -t arm64-v8a -t x86_64 -o $out/jniLibs build --release
-            cargo build --release
+            cargo ndk -t arm64-v8a -t x86_64 -o $out/jniLibs build --release --lib
+            cargo build --release --lib
           '';
 
           installPhase = ''
-            cargo run --bin uniffi-bindgen generate \
+            cargo run --features bindgen --bin uniffi-bindgen generate \
               --library target/release/libtaskchampion_android.so \
               --language kotlin --no-format \
               --out-dir $out/uniffi
