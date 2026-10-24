@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.RecurrenceRule
+import com.brokenpip3.fatto.data.model.calendarDateModes
 import com.brokenpip3.fatto.data.model.toEditPatch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -230,7 +231,10 @@ class RepositoryIntegrityTest {
             val due = "2030-01-01T00:00:00Z"
             val parent =
                 repository.addRecurringTask(
-                    TaskAddProps("Native series", null, listOf("home"), due, null, null, null, "H", emptyList()),
+                    TaskAddProps(
+                        "Native series", null, listOf("home"), due, null, null, null, "H", emptyList(),
+                        dateModes = calendarDateModes(),
+                    ),
                     RecurrenceRule("daily", "2030-02-01T00:00:00Z"),
                 )
             assertEquals(TaskStatus.Recurring, parent.status)

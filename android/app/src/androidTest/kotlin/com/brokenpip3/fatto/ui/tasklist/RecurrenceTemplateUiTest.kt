@@ -31,6 +31,8 @@ import uniffi.taskchampion_android.TaskStatus
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class RecurrenceTemplateUiTest {
+    @get:Rule val dateDisplayConsent = com.brokenpip3.fatto.DateDisplayConsentTestRule()
+
     @get:Rule val compose = createComposeRule()
 
     private fun template() =
@@ -39,6 +41,106 @@ class RecurrenceTemplateUiTest {
             null, null, null, null, null, null, 0f, false, false, emptyList(), emptyMap(),
             recurrence = RecurrenceData("daily", "periodic", null, null, "--", null, null, null, null),
         )
+
+    @Test fun unchangedRawOptionalDateConfirmationDoesNotRepairTheSeries() {
+        val original =
+            template().copy(
+                recurrence = template().recurrence!!.copy(mask = null),
+                nativeDates = mapOf("scheduled" to "2030-01-02T00:00:00Z"),
+            )
+        var saved: uniffi.taskchampion_android.TaskEditPatch? = null
+        compose.setContent {
+            NordicTheme {
+                RecurrenceTemplateSheet(original, listOf(original), {}, { patch, _, _ ->
+                    saved = patch
+                    TaskEditResult.Success
+                }, { TaskEditResult.Success })
+            }
+        }
+        compose.onNodeWithText("Change schedule").performScrollTo().performClick()
+        compose.onNodeWithText("Scheduled").performScrollTo().performClick()
+        compose.onNodeWithText("OK").performClick()
+        compose.onNodeWithText("Save schedule").performScrollTo().performClick()
+        compose.runOnIdle {
+            assertEquals(StringEdit.Unchanged, saved?.scheduled)
+            assertEquals(uniffi.taskchampion_android.DateModeEdit.Unchanged, saved?.dateModes?.scheduled)
+        }
+    }
+
+    @Test fun modeOnlyEditDoesNotReplaceGeneratedSeries() {
+        val previousZone = java.util.TimeZone.getDefault()
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"))
+        try {
+            val original =
+                template().copy(
+                    dateModes =
+                        com.brokenpip3.fatto.data.model.calendarDateModes().copy(
+                            due = uniffi.taskchampion_android.DateDisplayMode.LOCAL_DATE_TIME,
+                        ),
+                    udas = mapOf("fatto_display_due" to "v1:local-datetime"),
+                )
+            var replaced: Boolean? = null
+            var submitted: uniffi.taskchampion_android.TaskEditPatch? = null
+            var dirty = false
+            compose.setContent {
+                NordicTheme {
+                    RecurrenceTemplateSheet(original, listOf(original), {}, { patch, _, replace ->
+                        replaced = replace
+                        submitted = patch
+                        TaskEditResult.Success
+                    }, { TaskEditResult.Success }, onStateChange = { _, changed -> dirty = changed })
+                }
+            }
+            compose.onNodeWithText("Change schedule").performScrollTo().performClick()
+            compose.onNodeWithText("First due date").performScrollTo().performClick()
+            compose.onNodeWithText("Set time").performScrollTo().performClick()
+            compose.onNodeWithText("OK").performClick()
+            compose.runOnIdle { assertTrue("Display mode is part of the unsaved draft", dirty) }
+            compose.onNodeWithText("Save schedule").performScrollTo().performClick()
+            compose.runOnIdle {
+                assertEquals(false, replaced)
+                assertEquals(StringEdit.Replace(original.due, original.due), submitted?.due)
+                assertEquals(
+                    uniffi.taskchampion_android.DateModeEdit.Replace(
+                        "v1:local-datetime",
+                        uniffi.taskchampion_android.DateDisplayMode.CALENDAR_DATE,
+                    ),
+                    submitted?.dateModes?.due,
+                )
+            }
+        } finally {
+            java.util.TimeZone.setDefault(previousZone)
+        }
+    }
+
+    @Test fun malformedOptionalDatesClearAcrossReopenCancelAndSeriesSave() {
+        var saved: uniffi.taskchampion_android.TaskEditPatch? = null
+        val original =
+            template().copy(
+                recurrence = template().recurrence!!.copy(mask = null),
+                nativeDates = mapOf("scheduled" to "bad-scheduled", "wait" to "bad-wait"),
+            )
+        compose.setContent {
+            NordicTheme {
+                RecurrenceTemplateSheet(original, listOf(original), {}, { patch, _, _ ->
+                    saved = patch
+                    TaskEditResult.Success
+                }, { TaskEditResult.Success })
+            }
+        }
+        compose.onNodeWithText("Change schedule").performScrollTo().performClick()
+        for (label in listOf("Scheduled", "Wait")) {
+            compose.onNodeWithText(label).performScrollTo().performClick()
+            compose.onNodeWithText("Clear").performClick()
+            compose.onNodeWithText(label).performScrollTo().performClick()
+            compose.onNodeWithTag("TaskDatePickerCancel").performClick()
+        }
+        compose.onNodeWithText("Save schedule").performScrollTo().performClick()
+        compose.runOnIdle {
+            assertEquals(StringEdit.Replace("bad-scheduled", null), saved?.scheduled)
+            assertEquals(StringEdit.Replace("bad-wait", null), saved?.wait)
+        }
+    }
 
     @Test fun generatedScheduleRequiresExplicitReplacementAndRetainsOldOccurrences() {
         var replaced = false

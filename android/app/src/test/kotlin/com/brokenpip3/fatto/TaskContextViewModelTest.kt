@@ -4,6 +4,7 @@ import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
 import com.brokenpip3.fatto.data.model.TaskEditResult
+import com.brokenpip3.fatto.data.model.calendarDateModes
 import com.brokenpip3.fatto.data.model.toEditPatch
 import com.brokenpip3.fatto.vm.TaskViewModel
 import io.mockk.coEvery
@@ -56,7 +57,7 @@ class TaskContextViewModelTest {
         every { repository.activeTaskContextId } returns activeContextIdFlow
         every { repository.autoWaiting } returns autoWaitingFlow
         coEvery {
-            repository.addTask(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            repository.addTask(any<TaskAddProps>())
         } returns task(uuid = "added", description = "Added")
         coEvery { repository.updateTask(any()) } returns Unit
     }
@@ -67,12 +68,127 @@ class TaskContextViewModelTest {
     }
 
     @Test
+    fun `clock updates waiting context membership without task mutations`() =
+        runTest {
+            val source = FixedTaskTimeSource(java.time.Instant.parse("2030-01-01T12:00:00Z"))
+            val context = TaskContext(id = "ready", name = "Ready", expressionText = "-WAITING")
+            contextsFlow.value = listOf(context)
+            activeContextIdFlow.value = context.id
+            tasksFlow.value = listOf(task(uuid = "expires", description = "Expires").copy(wait = "2030-01-01T12:00:10Z"))
+            val viewModel = TaskViewModel(repository, source)
+            val job = launch { viewModel.activeTasks.collect {} }
+            advanceUntilIdle()
+            assertEquals(emptyList<Task>(), viewModel.activeTasks.value)
+            source.snapshots.value = source.snapshots.value.copy(now = java.time.Instant.parse("2030-01-01T12:00:11Z"))
+            advanceUntilIdle()
+            assertEquals(listOf("expires"), viewModel.activeTasks.value.map { it.uuid })
+            coVerify(exactly = 0) { repository.updateTask(any()) }
+            viewModel.refreshTaskTime()
+            assertEquals(1, source.refreshes)
+            job.cancel()
+        }
+
+    @Test
+    fun `clock updates selected WAITING tags search tags and counts without a repository emission`() =
+        runTest {
+            every { repository.showInternalTags } returns MutableStateFlow(true)
+            for (search in listOf(false, true)) {
+                val source = FixedTaskTimeSource(java.time.Instant.parse("2030-01-01T12:00:00Z"))
+                val original =
+                    task(uuid = "expires", description = "Expires").copy(
+                        wait = "2030-01-01T12:00:10Z", tags = listOf("WAITING", "user"),
+                    )
+                tasksFlow.value = listOf(original)
+                val viewModel = TaskViewModel(repository, source)
+                if (search) viewModel.onSearchQueryChange("tags:WAITING") else viewModel.toggleTag("WAITING")
+                val jobs =
+                    listOf(
+                        launch { viewModel.activeTasks.collect {} }, launch { viewModel.waitingTasks.collect {} },
+                        launch { viewModel.availableTags.collect {} }, launch { viewModel.tagCounts.collect {} },
+                    )
+                advanceUntilIdle()
+                assertEquals(listOf("expires"), viewModel.waitingTasks.value.map { it.uuid })
+                assertEquals(1, viewModel.tagCounts.value["WAITING"])
+                assertTrue("WAITING" in viewModel.availableTags.value)
+                source.snapshots.value = source.snapshots.value.copy(now = java.time.Instant.parse("2030-01-01T12:00:11Z"))
+                advanceUntilIdle()
+                assertEquals(emptyList<Task>(), viewModel.waitingTasks.value)
+                assertEquals(emptyList<Task>(), viewModel.activeTasks.value)
+                assertNull(viewModel.tagCounts.value["WAITING"])
+                assertTrue("WAITING" !in viewModel.availableTags.value)
+                assertEquals(1, viewModel.tagCounts.value["user"])
+                assertEquals(listOf(original), tasksFlow.value)
+                coVerify(exactly = 0) { repository.updateTask(any()) }
+                jobs.forEach { it.cancel() }
+            }
+        }
+
+    @Test
+    fun `calendar grouping follows marked zone changes while legacy dates stay fixed`() =
+        runTest {
+            val source = FixedTaskTimeSource(java.time.Instant.parse("2026-04-28T12:00:00Z"), java.time.ZoneId.of("Europe/Rome"))
+            val legacy = task(uuid = "legacy", description = "Legacy").copy(due = "2026-04-28T22:30:45Z")
+            val marked =
+                legacy.copy(
+                    uuid = "timed",
+                    dateModes =
+                        calendarDateModes().copy(
+                            due = uniffi.taskchampion_android.DateDisplayMode.LOCAL_DATE_TIME,
+                        ),
+                )
+            tasksFlow.value = listOf(legacy, marked)
+            val viewModel = TaskViewModel(repository, source)
+            val job = launch { viewModel.tasksByDate.collect {} }
+            advanceUntilIdle()
+            assertEquals(listOf("legacy"), viewModel.tasksByDate.value[java.time.LocalDate.parse("2026-04-28")]?.map { it.uuid })
+            assertEquals(listOf("timed"), viewModel.tasksByDate.value[java.time.LocalDate.parse("2026-04-29")]?.map { it.uuid })
+            source.snapshots.value = source.snapshots.value.copy(zone = java.time.ZoneId.of("America/New_York"))
+            advanceUntilIdle()
+            assertEquals(listOf("legacy", "timed"), viewModel.tasksByDate.value[java.time.LocalDate.parse("2026-04-28")]?.map { it.uuid })
+            assertNull(viewModel.tasksByDate.value[java.time.LocalDate.parse("2026-04-29")])
+            job.cancel()
+        }
+
+    @Test
+    fun `explicit clear Wait suppresses automatic Wait during creation`() =
+        runTest {
+            autoWaitingFlow.value = true
+            val props =
+                TaskAddProps(
+                    "No wait", null, emptyList(), "2030-01-02T00:00:00Z", null, null, null, null, emptyList(),
+                    calendarDateModes(),
+                )
+            coEvery { repository.addTask(props) } returns task(uuid = "added", description = "No wait")
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
+            assertEquals(TaskEditResult.Success, viewModel.createTask(props, null, false, explicitDateClears = setOf("wait")))
+            coVerify(exactly = 1) { repository.addTask(props) }
+        }
+
+    @Test
+    fun `checked creation retains modes in ordinary repository path`() =
+        runTest {
+            val props =
+                TaskAddProps(
+                    "Timed", null, emptyList(), "2030-01-02T00:00:00Z", null, null, null, null, emptyList(),
+                    calendarDateModes().copy(due = uniffi.taskchampion_android.DateDisplayMode.LOCAL_DATE_TIME),
+                )
+            coEvery { repository.addTask(props) } returns task(uuid = "added", description = "Timed")
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
+            assertEquals(TaskEditResult.Success, viewModel.createTask(props, null, false))
+            coVerify(exactly = 1) { repository.addTask(props) }
+        }
+
+    @Test
     fun `checked creation reports an add task error`() =
         runTest {
-            coEvery { repository.addTask(any(), any(), any(), any(), any(), any(), any(), any(), any()) } throws
+            coEvery { repository.addTask(any<TaskAddProps>()) } throws
                 IllegalArgumentException("Invalid tag")
-            val viewModel = TaskViewModel(repository)
-            val props = TaskAddProps("Added", null, listOf("bad tag"), null, null, null, null, null, emptyList())
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
+            val props =
+                TaskAddProps(
+                    "Added", null, listOf("bad tag"), null, null, null, null, null, emptyList(),
+                    dateModes = calendarDateModes(),
+                )
             val result = viewModel.createTask(props, null, false)
             assertEquals(TaskEditResult.Failure("Failed to add task: Invalid tag"), result)
         }
@@ -80,14 +196,18 @@ class TaskContextViewModelTest {
     @Test
     fun `checked creation returns while a previous creation snackbar is still displayed`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             val release = CompletableDeferred<Unit>()
             val collector =
                 launch(testDispatcher) {
                     viewModel.taskCreatedEvent.collect { release.await() }
                 }
             advanceUntilIdle()
-            val props = TaskAddProps("Added", null, emptyList(), null, null, null, null, null, emptyList())
+            val props =
+                TaskAddProps(
+                    "Added", null, emptyList(), null, null, null, null, null, emptyList(),
+                    dateModes = calendarDateModes(),
+                )
             val first = async { viewModel.createTask(props, null, false) }
             advanceUntilIdle()
             assertTrue(first.isCompleted)
@@ -107,7 +227,7 @@ class TaskContextViewModelTest {
         runTest {
             coEvery { repository.sync() } throws IllegalStateException("private sync secret")
             every { repository.safeSyncError(any()) } returns "[redacted]"
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             val event = async { viewModel.uiEvent.first() }
 
             viewModel.sync()
@@ -128,7 +248,7 @@ class TaskContextViewModelTest {
                     task(uuid = "wrong-project", description = "Call plumber", project = "Home", tags = listOf("office")),
                     task(uuid = "wrong-tag", description = "Call vendor", project = "Work", tags = listOf("remote")),
                 )
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val job = launch { viewModel.activeTasks.collect {} }
             advanceUntilIdle()
@@ -149,7 +269,7 @@ class TaskContextViewModelTest {
                     task(uuid = "email", description = "Email client", project = "Work"),
                     task(uuid = "home", description = "Call plumber", project = "Home"),
                 )
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             viewModel.onSearchQueryChange("call")
             val job = launch { viewModel.activeTasks.collect {} }
@@ -165,7 +285,7 @@ class TaskContextViewModelTest {
             val context = TaskContext(id = "work", name = "Work")
             contextsFlow.value = listOf(context)
             activeContextIdFlow.value = context.id
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val job = launch { viewModel.activeTaskContext.collect {} }
             advanceUntilIdle()
@@ -186,7 +306,7 @@ class TaskContextViewModelTest {
             contextsFlow.value = listOf(context)
             activeContextIdFlow.value = context.id
             tasksFlow.value = listOf(task(uuid = "task", description = "Task"))
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val job = launch { viewModel.activeTasks.collect {} }
             val errorJob = launch { viewModel.activeTaskContextError.collect {} }
@@ -214,7 +334,7 @@ class TaskContextViewModelTest {
                     ),
                     task(uuid = "pending", description = "Pending task"),
                 )
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val job = launch { viewModel.activeTasks.collect {} }
             val completedJob = launch { viewModel.completedTasks.collect {} }
@@ -246,7 +366,7 @@ class TaskContextViewModelTest {
                     task(uuid = "low", description = "Low urgency", project = "Work", urgency = 2f),
                     task(uuid = "high", description = "High urgency", project = "Home", urgency = 10f),
                 )
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             viewModel.setActiveProject("Work")
             val job = launch { viewModel.activeTasks.collect {} }
@@ -262,7 +382,7 @@ class TaskContextViewModelTest {
     @Test
     fun `context actions delegate to repository`() {
         val context = TaskContext(id = "work", name = "Work")
-        val viewModel = TaskViewModel(repository)
+        val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
         viewModel.saveTaskContext(context)
         viewModel.deleteTaskContext(context.id)
@@ -279,7 +399,7 @@ class TaskContextViewModelTest {
     fun `add task applies auto wait one week before due when enabled and wait is empty`() =
         runTest {
             autoWaitingFlow.value = true
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             viewModel.addTask(
                 description = "Prepare release",
@@ -310,7 +430,7 @@ class TaskContextViewModelTest {
     fun `add task does not apply auto wait when setting is disabled`() =
         runTest {
             autoWaitingFlow.value = false
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             viewModel.addTask(
                 description = "Visible due task",
@@ -341,7 +461,7 @@ class TaskContextViewModelTest {
     fun `add task applies auto wait one week before scheduled when enabled and wait is empty`() =
         runTest {
             autoWaitingFlow.value = true
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             viewModel.addTask(
                 description = "Start implementation",
@@ -372,7 +492,7 @@ class TaskContextViewModelTest {
     fun `add task does not apply auto wait without due or scheduled date`() =
         runTest {
             autoWaitingFlow.value = true
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             viewModel.addTask(
                 description = "Plain task",
@@ -403,7 +523,7 @@ class TaskContextViewModelTest {
     fun `add task does not override explicit wait when auto waiting is enabled`() =
         runTest {
             autoWaitingFlow.value = true
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             viewModel.addTask(
                 description = "Manual wait",
@@ -434,7 +554,7 @@ class TaskContextViewModelTest {
     fun `update task applies auto wait one week before earliest target when enabled and wait is empty`() =
         runTest {
             autoWaitingFlow.value = true
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             val edited =
                 task(
                     uuid = "task-1",
@@ -461,7 +581,7 @@ class TaskContextViewModelTest {
     fun `update task does not override explicit wait when auto waiting is enabled`() =
         runTest {
             autoWaitingFlow.value = true
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             val edited =
                 task(
                     uuid = "task-1",
@@ -485,7 +605,7 @@ class TaskContextViewModelTest {
     fun `restore task emits failure event when repository restore fails`() =
         runTest {
             coEvery { repository.restoreTask("task-1") } throws IllegalStateException("disk error")
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             val message = async { viewModel.uiEvent.first() }
 
             viewModel.restoreTask("task-1")

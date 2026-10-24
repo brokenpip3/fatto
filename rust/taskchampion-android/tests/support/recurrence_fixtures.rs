@@ -108,6 +108,7 @@ pub fn operation_count(path: &Path) -> usize {
 
 pub fn patch(task: &TaskData) -> TaskEditPatch {
     TaskEditPatch {
+        date_modes: Default::default(),
         uuid: task.uuid.clone(),
         expected_status: task.status.clone(),
         description: StringEdit::Unchanged,

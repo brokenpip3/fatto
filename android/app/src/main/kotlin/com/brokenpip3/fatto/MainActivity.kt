@@ -33,12 +33,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -48,6 +49,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -70,6 +72,9 @@ import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.notification.NotificationNavigation
 import com.brokenpip3.fatto.notification.ReviewReminderScheduler
 import com.brokenpip3.fatto.ui.calendar.CalendarScreen
+import com.brokenpip3.fatto.ui.common.LocalTaskNow
+import com.brokenpip3.fatto.ui.common.LocalTaskTimeZone
+import com.brokenpip3.fatto.ui.common.forLifecycle
 import com.brokenpip3.fatto.ui.projects.ProjectsScreen
 import com.brokenpip3.fatto.ui.settings.SettingsScreen
 import com.brokenpip3.fatto.ui.tags.TagsScreen
@@ -78,6 +83,7 @@ import com.brokenpip3.fatto.ui.tasklist.RecurrenceTemplateSheet
 import com.brokenpip3.fatto.ui.tasklist.ReviewSheet
 import com.brokenpip3.fatto.ui.tasklist.SeriesEditorActions
 import com.brokenpip3.fatto.ui.tasklist.TaskDetailBottomSheet
+import com.brokenpip3.fatto.ui.tasklist.TaskEditorSavedState
 import com.brokenpip3.fatto.ui.tasklist.TaskListScreen
 import com.brokenpip3.fatto.ui.theme.FattoElevation
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
@@ -131,10 +137,13 @@ class MainActivity : ComponentActivity() {
         }
         lifecycleScope.launch { settingsRepository.reviewSettings.collect { reviewScheduler.reconcile() } }
 
-        val taskViewModel = TaskViewModel(taskRepository)
+        val taskViewModel = TaskViewModel(taskRepository, com.brokenpip3.fatto.data.SystemTaskTimeSource().forLifecycle(lifecycle))
         lifecycle.addObserver(
             LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) taskViewModel.reloadTasks()
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    taskViewModel.refreshTaskTime()
+                    taskViewModel.reloadTasks()
+                }
             },
         )
         val diagnosticsRepository = SyncDiagnosticsRepositoryImpl(applicationContext)
@@ -144,10 +153,16 @@ class MainActivity : ComponentActivity() {
                 syncAction = { taskRepository.sync() },
                 diagnosticsRepository = diagnosticsRepository,
             )
-        notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
-        notificationOpenReview = intent.getBooleanExtra(NotificationNavigation.EXTRA_OPEN_REVIEW, false)
-        intent.removeExtra(NotificationNavigation.EXTRA_OPEN_REVIEW)
-        pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
+        if (savedInstanceState != null) {
+            notificationTaskUuid = savedInstanceState.getString("pendingTaskUuid")
+            notificationOpenReview = savedInstanceState.getBoolean("pendingOpenReview")
+            pendingShareDescription = savedInstanceState.getString("pendingShareDescription")
+        } else {
+            notificationTaskUuid = intent.getStringExtra(NotificationNavigation.EXTRA_TASK_UUID)
+            notificationOpenReview = intent.getBooleanExtra(NotificationNavigation.EXTRA_OPEN_REVIEW, false)
+            intent.removeExtra(NotificationNavigation.EXTRA_OPEN_REVIEW)
+            pendingShareDescription = ShareIntentParser.descriptionFrom(intent.getStringExtra(Intent.EXTRA_TEXT))
+        }
 
         scheduleSync()
         requestNotificationPermission()
@@ -183,314 +198,340 @@ class MainActivity : ComponentActivity() {
             }
 
             NordicTheme(darkTheme = darkTheme, fontSizePercent = fontSizePercent) {
-                val compactNavigation = effectiveFontScale() >= 1.5f
-                val navController = rememberNavController()
-                val taskUuid = notificationTaskUuid
-                LaunchedEffect(notificationOpenReview) {
-                    if (notificationOpenReview) {
-                        navController.navigate("tasks") { launchSingleTop = true }
-                        reviewViewModel.open()
-                        notificationOpenReview = false
-                    }
-                }
-
-                LaunchedEffect(taskUuid) {
-                    taskUuid?.let { uuid ->
-                        taskViewModel.clearFilters()
-                        taskViewModel.onSearchQueryChange(NotificationNavigation.taskSearchQuery(uuid))
-                        navController.navigate("tasks") {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                        notificationTaskUuid = null
-                    }
-                }
-
-                LaunchedEffect(pendingShareDescription) {
-                    if (pendingShareDescription != null) {
-                        navController.navigate("tasks") {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
+                val taskTime by taskViewModel.taskTime.collectAsStateWithLifecycle()
+                CompositionLocalProvider(LocalTaskTimeZone provides taskTime.zone, LocalTaskNow provides taskTime.now) {
+                    val compactNavigation = effectiveFontScale() >= 1.5f
+                    val navController = rememberNavController()
+                    val taskUuid = notificationTaskUuid
+                    LaunchedEffect(notificationOpenReview) {
+                        if (notificationOpenReview) {
+                            navController.navigate("tasks") { launchSingleTop = true }
+                            reviewViewModel.open()
+                            notificationOpenReview = false
                         }
                     }
-                }
 
-                Scaffold(
-                    modifier =
-                        Modifier
-                            .background(MaterialTheme.colorScheme.surface)
-                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                            .testTag("AppRoot"),
-                    containerColor = MaterialTheme.colorScheme.background,
-                    bottomBar = {
-                        NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            tonalElevation = FattoElevation.none,
-                        ) {
-                            val navBackStackEntry by navController.currentBackStackEntryAsState()
-                            val currentDestination = navBackStackEntry?.destination
-                            val items = listOf("tasks", "projects", "calendar", "tags", "settings")
-                            items.forEach { screen ->
-                                val selected = currentDestination?.hierarchy?.any { it.route?.substringBefore("?") == screen } == true
-                                NavigationBarItem(
-                                    icon = {
-                                        val icon =
-                                            when (screen) {
-                                                "tasks" -> Icons.AutoMirrored.Filled.List
-                                                "projects" -> Icons.Default.AccountTree
-                                                "calendar" -> Icons.Default.DateRange
-                                                "tags" -> Icons.Default.Tag
-                                                "settings" -> Icons.Default.Settings
-                                                else -> Icons.AutoMirrored.Filled.List
-                                            }
-                                        Icon(
-                                            icon,
-                                            contentDescription = screen.replaceFirstChar { it.uppercase() },
-                                            modifier = Modifier.size(FattoMetrics.icon),
-                                        )
-                                    },
-                                    label = {
-                                        if (!compactNavigation) {
-                                            Text(
-                                                text = screen.replaceFirstChar { it.uppercase() },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                overflow = TextOverflow.Ellipsis,
+                    LaunchedEffect(taskUuid) {
+                        taskUuid?.let { uuid ->
+                            taskViewModel.clearFilters()
+                            taskViewModel.onSearchQueryChange(NotificationNavigation.taskSearchQuery(uuid))
+                            navController.navigate("tasks") {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                            notificationTaskUuid = null
+                        }
+                    }
+
+                    LaunchedEffect(pendingShareDescription) {
+                        if (pendingShareDescription != null) {
+                            navController.navigate("tasks") {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    }
+
+                    Scaffold(
+                        modifier =
+                            Modifier
+                                .background(MaterialTheme.colorScheme.surface)
+                                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                                .testTag("AppRoot"),
+                        containerColor = MaterialTheme.colorScheme.background,
+                        bottomBar = {
+                            NavigationBar(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                tonalElevation = FattoElevation.none,
+                            ) {
+                                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                                val currentDestination = navBackStackEntry?.destination
+                                val items = listOf("tasks", "projects", "calendar", "tags", "settings")
+                                items.forEach { screen ->
+                                    val selected = currentDestination?.hierarchy?.any { it.route?.substringBefore("?") == screen } == true
+                                    NavigationBarItem(
+                                        icon = {
+                                            val icon =
+                                                when (screen) {
+                                                    "tasks" -> Icons.AutoMirrored.Filled.List
+                                                    "projects" -> Icons.Default.AccountTree
+                                                    "calendar" -> Icons.Default.DateRange
+                                                    "tags" -> Icons.Default.Tag
+                                                    "settings" -> Icons.Default.Settings
+                                                    else -> Icons.AutoMirrored.Filled.List
+                                                }
+                                            Icon(
+                                                icon,
+                                                contentDescription = screen.replaceFirstChar { it.uppercase() },
+                                                modifier = Modifier.size(FattoMetrics.icon),
                                             )
-                                        }
+                                        },
+                                        label = {
+                                            if (!compactNavigation) {
+                                                Text(
+                                                    text = screen.replaceFirstChar { it.uppercase() },
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                        },
+                                        selected = selected,
+                                        alwaysShowLabel = !compactNavigation,
+                                        onClick = {
+                                            navController.navigate(screen) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = screen != "tasks"
+                                            }
+                                        },
+                                        colors =
+                                            NavigationBarItemDefaults.colors(
+                                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                            ),
+                                    )
+                                }
+                            }
+                        },
+                    ) { innerPadding ->
+                        NavHost(
+                            navController, startDestination = "tasks",
+                            Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
+                        ) {
+                            composable("tasks") {
+                                var showAddTaskDialog by rememberSaveable { mutableStateOf(false) }
+                                var selectedTask by rememberSaveable(saver = TaskEditorSavedState.nullableTaskStateSaver) {
+                                    mutableStateOf<Task?>(null)
+                                }
+                                var editingReview by rememberSaveable { mutableStateOf(false) }
+                                val reviewState by reviewViewModel.state.collectAsState()
+                                var selectedSeries by rememberSaveable(saver = TaskEditorSavedState.nullableTaskStateSaver) {
+                                    mutableStateOf<Task?>(null)
+                                }
+                                var dialogInitialDescription by rememberSaveable { mutableStateOf<String?>(null) }
+                                val availableTags by taskViewModel.availableTags.collectAsState()
+                                val selectableProjects by taskViewModel.selectableProjects.collectAsState()
+                                val allTasks by taskViewModel.allTasks.collectAsState()
+                                val activeProject by taskViewModel.activeProject.collectAsState()
+                                val selectedTags by taskViewModel.selectedTags.collectAsState()
+                                val defaultProjectEnabled by settingsViewModel.defaultProjectEnabled.collectAsState()
+                                val defaultProject by settingsViewModel.defaultProject.collectAsState()
+                                val showInternalTags by taskViewModel.showInternalTags.collectAsState()
+                                val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
+                                val confirmActions by settingsViewModel.confirmActions.collectAsState()
+                                val showCompleted by settingsViewModel.showCompleted.collectAsState()
+                                val swipeStartToEndAction by settingsViewModel.swipeStartToEndAction.collectAsState()
+                                val swipeEndToStartAction by settingsViewModel.swipeEndToStartAction.collectAsState()
+
+                                LaunchedEffect(pendingShareDescription) {
+                                    val shared = pendingShareDescription
+                                    if (shared != null) {
+                                        dialogInitialDescription = shared
+                                        pendingShareDescription = null
+                                        showAddTaskDialog = true
+                                    }
+                                }
+
+                                TaskListScreen(
+                                    viewModel = taskViewModel,
+                                    onAddTaskClick = {
+                                        dialogInitialDescription = null
+                                        showAddTaskDialog = true
                                     },
-                                    selected = selected,
-                                    alwaysShowLabel = !compactNavigation,
-                                    onClick = {
-                                        navController.navigate(screen) {
+                                    onTaskClick = {
+                                        editingReview = false
+                                        selectedTask = it
+                                    },
+                                    onReviewClick = reviewViewModel::open,
+                                    onSeriesClick = { selectedSeries = it },
+                                    onManageContexts = {
+                                        navController.navigate("settings?section=contexts") {
                                             popUpTo(navController.graph.findStartDestination().id) {
                                                 saveState = true
                                             }
                                             launchSingleTop = true
-                                            restoreState = screen != "tasks"
                                         }
                                     },
-                                    colors =
-                                        NavigationBarItemDefaults.colors(
-                                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                        ),
+                                    confirmActions = confirmActions,
+                                    swipeStartToEndAction = swipeStartToEndAction,
+                                    swipeEndToStartAction = swipeEndToStartAction,
                                 )
-                            }
-                        }
-                    },
-                ) { innerPadding ->
-                    NavHost(
-                        navController, startDestination = "tasks",
-                        Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
-                    ) {
-                        composable("tasks") {
-                            var showAddTaskDialog by remember { mutableStateOf(false) }
-                            var selectedTask by remember { mutableStateOf<Task?>(null) }
-                            var editingReview by remember { mutableStateOf(false) }
-                            val reviewState by reviewViewModel.state.collectAsState()
-                            var selectedSeries by remember { mutableStateOf<Task?>(null) }
-                            var dialogInitialDescription by remember { mutableStateOf<String?>(null) }
-                            val availableTags by taskViewModel.availableTags.collectAsState()
-                            val selectableProjects by taskViewModel.selectableProjects.collectAsState()
-                            val allTasks by taskViewModel.allTasks.collectAsState()
-                            val activeProject by taskViewModel.activeProject.collectAsState()
-                            val selectedTags by taskViewModel.selectedTags.collectAsState()
-                            val defaultProjectEnabled by settingsViewModel.defaultProjectEnabled.collectAsState()
-                            val defaultProject by settingsViewModel.defaultProject.collectAsState()
-                            val showInternalTags by taskViewModel.showInternalTags.collectAsState()
-                            val firstDayOfWeek by settingsViewModel.firstDayOfWeek.collectAsState()
-                            val confirmActions by settingsViewModel.confirmActions.collectAsState()
-                            val showCompleted by settingsViewModel.showCompleted.collectAsState()
-                            val swipeStartToEndAction by settingsViewModel.swipeStartToEndAction.collectAsState()
-                            val swipeEndToStartAction by settingsViewModel.swipeEndToStartAction.collectAsState()
 
-                            LaunchedEffect(pendingShareDescription) {
-                                val shared = pendingShareDescription
-                                if (shared != null) {
-                                    dialogInitialDescription = shared
-                                    pendingShareDescription = null
-                                    showAddTaskDialog = true
+                                if (reviewState.stage != ReviewStage.CLOSED && !(editingReview && selectedTask != null)) {
+                                    ReviewSheet(
+                                        reviewState, reviewViewModel::perform, reviewViewModel::acceptNotice,
+                                        reviewViewModel::start, onEdit = {
+                                            editingReview = true
+                                            selectedTask = it
+                                        },
+                                        onSettings = { navController.navigate("settings?section=review") { launchSingleTop = true } },
+                                        onDismiss = reviewViewModel::finish,
+                                    )
+                                }
+
+                                if (showAddTaskDialog) {
+                                    val initialProject =
+                                        activeProject ?: defaultProject.takeIf { defaultProjectEnabled }
+                                    AddTaskDialog(
+                                        availableProjects = selectableProjects,
+                                        availableTags = availableTags.toList(),
+                                        initialProject = initialProject,
+                                        initialTags = selectedTags.toList(),
+                                        initialDescription = dialogInitialDescription ?: "",
+                                        onDismiss = { showAddTaskDialog = false },
+                                        onConfirm = { props, openEditor, clears ->
+                                            lifecycleScope.launch { taskViewModel.createTask(props, null, openEditor, clears) }
+                                            showAddTaskDialog = false
+                                        },
+                                        firstDayOfWeek = firstDayOfWeek,
+                                        onCreate = {
+                                            props,
+                                            rule,
+                                            openEditor,
+                                            clears,
+                                            ->
+                                            taskViewModel.createTask(props, rule, openEditor, clears)
+                                        },
+                                    )
+                                }
+
+                                selectedSeries?.let { series ->
+                                    RecurrenceTemplateSheet(
+                                        series, allTasks, onDismiss = { selectedSeries = null },
+                                        onSave = { patch, rule, replace -> taskViewModel.saveSeries(patch, rule, replace) },
+                                        onStop = { taskViewModel.stopSeries(series.uuid) },
+                                        firstDayOfWeek = firstDayOfWeek,
+                                        showInternalTags = showInternalTags,
+                                    )
+                                }
+
+                                selectedTask?.let { task ->
+                                    TaskDetailBottomSheet(
+                                        task = task,
+                                        onDismiss = { selectedTask = null },
+                                        seriesActions =
+                                            SeriesEditorActions(
+                                                save = { patch, rule, replace -> taskViewModel.saveSeries(patch, rule, replace) },
+                                                stop = { uuid -> taskViewModel.stopSeries(uuid) },
+                                                convert = { patch, rule -> taskViewModel.convertTaskToRecurring(patch, rule) },
+                                            ),
+                                        autoWaiting = taskViewModel.autoWaiting.collectAsState().value,
+                                        onSave = { updatedTask ->
+                                            if (editingReview) {
+                                                reviewViewModel.saveEdit(updatedTask)
+                                            } else {
+                                                taskViewModel.saveTask(updatedTask)
+                                            }
+                                        },
+                                        availableProjects = selectableProjects,
+                                        availableTags = availableTags.toList(),
+                                        showInternalTags = showInternalTags,
+                                        firstDayOfWeek = firstDayOfWeek,
+                                        onAddAnnotation = { uuid, desc ->
+                                            if (editingReview) {
+                                                reviewViewModel.addAnnotation(uuid, desc)
+                                            } else {
+                                                taskViewModel.addAnnotation(uuid, desc)
+                                            }
+                                        },
+                                        onRemoveAnnotation = { uuid, entry ->
+                                            if (editingReview) {
+                                                reviewViewModel.removeAnnotation(uuid, entry)
+                                            } else {
+                                                taskViewModel.removeAnnotation(uuid, entry)
+                                            }
+                                        },
+                                        allTasks = allTasks,
+                                        recurrenceDiagnostics = taskViewModel.recurrenceDiagnostics.collectAsState().value,
+                                        showCompleted = showCompleted,
+                                        onAddDependencies = { uuid, deps ->
+                                            if (editingReview) {
+                                                reviewViewModel.addDependencies(task.uuid, uuid, deps)
+                                            } else {
+                                                taskViewModel.addDependencies(uuid, deps)
+                                            }
+                                        },
+                                        onRemoveDependency = { uuid, dep ->
+                                            if (editingReview) {
+                                                reviewViewModel.removeDependency(task.uuid, uuid, dep)
+                                            } else {
+                                                taskViewModel.removeDependency(uuid, dep)
+                                            }
+                                        },
+                                    )
                                 }
                             }
-
-                            TaskListScreen(
-                                viewModel = taskViewModel,
-                                onAddTaskClick = {
-                                    dialogInitialDescription = null
-                                    showAddTaskDialog = true
-                                },
-                                onTaskClick = {
-                                    editingReview = false
-                                    selectedTask = it
-                                },
-                                onReviewClick = reviewViewModel::open,
-                                onSeriesClick = { selectedSeries = it },
-                                onManageContexts = {
-                                    navController.navigate("settings?section=contexts") {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                    }
-                                },
-                                confirmActions = confirmActions,
-                                swipeStartToEndAction = swipeStartToEndAction,
-                                swipeEndToStartAction = swipeEndToStartAction,
-                            )
-
-                            if (reviewState.stage != ReviewStage.CLOSED && !(editingReview && selectedTask != null)) {
-                                ReviewSheet(
-                                    reviewState, reviewViewModel::perform, reviewViewModel::acceptNotice,
-                                    reviewViewModel::start, onEdit = {
-                                        editingReview = true
-                                        selectedTask = it
-                                    },
-                                    onSettings = { navController.navigate("settings?section=review") { launchSingleTop = true } },
-                                    onDismiss = reviewViewModel::finish,
+                            composable("projects") {
+                                ProjectsScreen(
+                                    viewModel = taskViewModel,
+                                    onProjectSelected = { navController.navigate("tasks") },
                                 )
                             }
+                            composable("calendar") {
+                                CalendarScreen(
+                                    viewModel = taskViewModel,
+                                    onTaskClick = { task ->
+                                        taskViewModel.onSearchQueryChange("uuid:${task.uuid}")
+                                        navController.navigate("tasks") {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                )
+                            }
+                            composable("tags") {
+                                TagsScreen(
+                                    viewModel = taskViewModel,
+                                    onTagSelected = { navController.navigate("tasks") },
+                                )
+                            }
+                            composable(
+                                route = "settings?section={section}",
+                                arguments =
+                                    listOf(
+                                        navArgument("section") {
+                                            type = NavType.StringType
+                                            nullable = true
+                                        },
+                                    ),
+                            ) { entry ->
+                                val availableTags by taskViewModel.availableTags.collectAsState()
+                                val selectableProjects by taskViewModel.selectableProjects.collectAsState()
 
-                            if (showAddTaskDialog) {
-                                val initialProject =
-                                    activeProject ?: defaultProject.takeIf { defaultProjectEnabled }
-                                AddTaskDialog(
+                                SettingsScreen(
+                                    viewModel = settingsViewModel,
+                                    openContexts = entry.arguments?.getString("section") == "contexts",
+                                    openReview = entry.arguments?.getString("section") == "review",
                                     availableProjects = selectableProjects,
-                                    availableTags = availableTags.toList(),
-                                    initialProject = initialProject,
-                                    initialTags = selectedTags.toList(),
-                                    initialDescription = dialogInitialDescription ?: "",
-                                    onDismiss = { showAddTaskDialog = false },
-                                    onConfirm = { desc, proj, tgs, w, d, sch, st, p, deps, openEditor ->
-                                        taskViewModel.addTask(desc, proj, tgs, w, d, sch, st, p, deps, openEditor)
-                                        showAddTaskDialog = false
-                                    },
-                                    firstDayOfWeek = firstDayOfWeek,
-                                    onCreate = { props, rule, openEditor -> taskViewModel.createTask(props, rule, openEditor) },
+                                    availableTags = availableTags,
                                 )
                             }
-
-                            selectedSeries?.let { series ->
-                                RecurrenceTemplateSheet(
-                                    series, allTasks, onDismiss = { selectedSeries = null },
-                                    onSave = { patch, rule, replace -> taskViewModel.saveSeries(patch, rule, replace) },
-                                    onStop = { taskViewModel.stopSeries(series.uuid) },
-                                    showInternalTags = showInternalTags,
-                                )
-                            }
-
-                            selectedTask?.let { task ->
-                                TaskDetailBottomSheet(
-                                    task = task,
-                                    onDismiss = { selectedTask = null },
-                                    seriesActions =
-                                        SeriesEditorActions(
-                                            save = { patch, rule, replace -> taskViewModel.saveSeries(patch, rule, replace) },
-                                            stop = { uuid -> taskViewModel.stopSeries(uuid) },
-                                            convert = { patch, rule -> taskViewModel.convertTaskToRecurring(patch, rule) },
-                                        ),
-                                    autoWaiting = taskViewModel.autoWaiting.collectAsState().value,
-                                    onSave = { updatedTask ->
-                                        if (editingReview) reviewViewModel.saveEdit(updatedTask) else taskViewModel.saveTask(updatedTask)
-                                    },
-                                    availableProjects = selectableProjects,
-                                    availableTags = availableTags.toList(),
-                                    showInternalTags = showInternalTags,
-                                    firstDayOfWeek = firstDayOfWeek,
-                                    onAddAnnotation = { uuid, desc ->
-                                        if (editingReview) {
-                                            reviewViewModel.addAnnotation(uuid, desc)
-                                        } else {
-                                            taskViewModel.addAnnotation(uuid, desc)
-                                        }
-                                    },
-                                    onRemoveAnnotation = { uuid, entry ->
-                                        if (editingReview) {
-                                            reviewViewModel.removeAnnotation(uuid, entry)
-                                        } else {
-                                            taskViewModel.removeAnnotation(uuid, entry)
-                                        }
-                                    },
-                                    allTasks = allTasks,
-                                    recurrenceDiagnostics = taskViewModel.recurrenceDiagnostics.collectAsState().value,
-                                    showCompleted = showCompleted,
-                                    onAddDependencies = { uuid, deps ->
-                                        if (editingReview) {
-                                            reviewViewModel.addDependencies(task.uuid, uuid, deps)
-                                        } else {
-                                            taskViewModel.addDependencies(uuid, deps)
-                                        }
-                                    },
-                                    onRemoveDependency = { uuid, dep ->
-                                        if (editingReview) {
-                                            reviewViewModel.removeDependency(task.uuid, uuid, dep)
-                                        } else {
-                                            taskViewModel.removeDependency(uuid, dep)
-                                        }
-                                    },
-                                )
-                            }
-                        }
-                        composable("projects") {
-                            ProjectsScreen(
-                                viewModel = taskViewModel,
-                                onProjectSelected = { navController.navigate("tasks") },
-                            )
-                        }
-                        composable("calendar") {
-                            CalendarScreen(
-                                viewModel = taskViewModel,
-                                onTaskClick = { task ->
-                                    taskViewModel.onSearchQueryChange("uuid:${task.uuid}")
-                                    navController.navigate("tasks") {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                            )
-                        }
-                        composable("tags") {
-                            TagsScreen(
-                                viewModel = taskViewModel,
-                                onTagSelected = { navController.navigate("tasks") },
-                            )
-                        }
-                        composable(
-                            route = "settings?section={section}",
-                            arguments =
-                                listOf(
-                                    navArgument("section") {
-                                        type = NavType.StringType
-                                        nullable = true
-                                    },
-                                ),
-                        ) { entry ->
-                            val availableTags by taskViewModel.availableTags.collectAsState()
-                            val selectableProjects by taskViewModel.selectableProjects.collectAsState()
-
-                            SettingsScreen(
-                                viewModel = settingsViewModel,
-                                openContexts = entry.arguments?.getString("section") == "contexts",
-                                openReview = entry.arguments?.getString("section") == "review",
-                                availableProjects = selectableProjects,
-                                availableTags = availableTags,
-                            )
                         }
                     }
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("pendingTaskUuid", notificationTaskUuid)
+        outState.putBoolean("pendingOpenReview", notificationOpenReview)
+        outState.putString("pendingShareDescription", pendingShareDescription)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {

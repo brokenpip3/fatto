@@ -2,6 +2,9 @@ use std::env;
 #[path = "support/recurrence_cli.rs"]
 mod recurrence_cli;
 
+#[path = "support/timestamp_cli.rs"]
+mod timestamp_cli;
+
 use taskchampion_android::{
     ReplicaWrapper, StringEdit, StringSetEdit, TaskAddProps, TaskEditPatch, TaskStatus,
 };
@@ -17,6 +20,7 @@ fn test_sync_integration() {
     let rep1 = ReplicaWrapper::new_in_memory().unwrap();
     let task1 = rep1
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Task from replica 1".into(),
             project: None,
             tags: vec![],
@@ -74,6 +78,7 @@ fn test_sync_deletion_integration() {
     let rep1 = ReplicaWrapper::new_in_memory().unwrap();
     let task1 = rep1
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "To be deleted".into(),
             project: None,
             tags: vec![],
@@ -114,6 +119,7 @@ fn test_sync_conflict_integration() {
     let rep1 = ReplicaWrapper::new_in_memory().unwrap();
     let task1 = rep1
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Conflict task".into(),
             project: None,
             tags: vec![],
@@ -190,6 +196,7 @@ fn test_sync_aws_integration() {
     let rep1 = ReplicaWrapper::new_in_memory().unwrap();
     let task1 = rep1
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: description.clone(),
             project: None,
             tags: vec![],
@@ -226,6 +233,7 @@ fn test_task_properties_integration() {
     // 1. Test Priority & Urgency
     let task_h = rep
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "High priority".into(),
             project: None,
             tags: vec![],
@@ -243,6 +251,7 @@ fn test_task_properties_integration() {
     // 2. Test Dependencies & Blocking
     let task_blocking = rep
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Blocking task".into(),
             project: None,
             tags: vec![],
@@ -257,6 +266,7 @@ fn test_task_properties_integration() {
 
     let task_blocked = rep
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Blocked task".into(),
             project: None,
             tags: vec![],
@@ -273,6 +283,7 @@ fn test_task_properties_integration() {
     rep.update_task({
         let current = rep.get_task(task_blocked.uuid.clone()).unwrap().unwrap();
         TaskEditPatch {
+            date_modes: Default::default(),
             uuid: task_blocked.uuid.clone(),
             expected_status: current.status.clone(),
             description: StringEdit::Replace {
@@ -328,6 +339,7 @@ fn test_annotation_integration() {
     // 1. Create task with no annotations
     let task = rep
         .add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Annotation test task".into(),
             project: None,
             tags: vec![],

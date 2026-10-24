@@ -32,11 +32,12 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.brokenpip3.fatto.MainActivity
 import com.brokenpip3.fatto.R
-import com.brokenpip3.fatto.data.DateTimeUtils
 import com.brokenpip3.fatto.data.NextTasksSelector
 import com.brokenpip3.fatto.data.SettingsRepositoryImpl
+import com.brokenpip3.fatto.data.TaskDateTime
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.model.dateValue
 import com.brokenpip3.fatto.notification.NotificationNavigation
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import com.brokenpip3.fatto.ui.theme.NordicBlueGrey
@@ -185,8 +186,13 @@ private fun EmptyState(message: String) {
 private fun TaskRow(task: Task) {
     // Compact rows preserve the existing 3/5/8-task policy; dense widget sizes may fall below 48dp targets.
     val colors = GlanceTheme.colors
-    val dueText = DateTimeUtils.formatLocalDate(task.due).orEmpty()
-    val overdue = DateTimeUtils.isOverdue(task.due)
+    val context = LocalContext.current
+    val dueText =
+        TaskDateTime.format(
+            task.dateValue("due"), use24Hour = android.text.format.DateFormat.is24HourFormat(context),
+            locale = context.resources.configuration.locales[0],
+        ).orEmpty()
+    val overdue = TaskDateTime.isOverdue(task.dateValue("due"))
 
     Row(
         modifier =

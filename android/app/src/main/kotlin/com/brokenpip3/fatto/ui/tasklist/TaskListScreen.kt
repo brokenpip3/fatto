@@ -91,6 +91,8 @@ import com.brokenpip3.fatto.data.TaskSwipeAction
 import com.brokenpip3.fatto.data.model.INTERNAL_TAGS
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.data.model.TaskContext
+import com.brokenpip3.fatto.data.model.dateValue
+import com.brokenpip3.fatto.ui.common.readableTaskDate
 import com.brokenpip3.fatto.ui.theme.FattoElevation
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
@@ -1074,7 +1076,7 @@ fun TaskItem(
 
                                 task.due?.let {
                                     Text(
-                                        text = "Due: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
+                                        text = "Due: ${readableTaskDate(task.dateValue("due"))}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.error,
                                     )
@@ -1082,7 +1084,7 @@ fun TaskItem(
 
                                 task.scheduled?.let {
                                     Text(
-                                        text = "Sch: ${com.brokenpip3.fatto.data.DateTimeUtils.formatLocalDate(it)}",
+                                        text = "Sch: ${readableTaskDate(task.dateValue("scheduled"))}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                     )

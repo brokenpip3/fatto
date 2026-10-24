@@ -52,7 +52,7 @@ class FontSizeRenderingTest {
                     availableProjects = emptyList(),
                     availableTags = emptyList(),
                     onDismiss = {},
-                    onConfirm = { _, _, _, _, _, _, _, _, _, _ -> },
+                    onConfirm = { _, _, _ -> },
                 )
             }
         }

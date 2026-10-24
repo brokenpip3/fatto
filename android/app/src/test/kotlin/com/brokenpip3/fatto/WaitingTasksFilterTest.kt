@@ -54,7 +54,7 @@ class WaitingTasksFilterTest {
     @Test
     fun `task with future wait appears in waiting tasks`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val waitingTask = createTask(uuid = "waiting", desc = "Has future wait", wait = futureWait)
 
@@ -72,7 +72,7 @@ class WaitingTasksFilterTest {
     @Test
     fun `task with no wait does not appear in waiting tasks`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val normalTask = createTask(uuid = "normal", desc = "No wait")
 
@@ -88,7 +88,7 @@ class WaitingTasksFilterTest {
     @Test
     fun `task with past wait does not appear in waiting tasks`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val expiredTask = createTask(uuid = "expired", desc = "Past wait", wait = pastWait)
 
@@ -104,7 +104,7 @@ class WaitingTasksFilterTest {
     @Test
     fun `completed task with future wait does not appear in waiting tasks`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
             showCompletedFlow.value = true
 
             val completedWaiting =
@@ -127,7 +127,7 @@ class WaitingTasksFilterTest {
     @Test
     fun `waiting tasks separated from active tasks`() =
         runTest {
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val activeTask = createTask(uuid = "active", desc = "Active task")
             val waitingTask = createTask(uuid = "waiting", desc = "Waiting task", wait = futureWait)
@@ -155,7 +155,7 @@ class WaitingTasksFilterTest {
     fun `waiting tasks hidden when showWaitingTasks setting is off`() =
         runTest {
             showWaitingTasksFlow.value = false
-            val viewModel = TaskViewModel(repository)
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
 
             val waitingTask = createTask(uuid = "waiting", desc = "Waiting task", wait = futureWait)
 

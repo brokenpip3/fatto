@@ -2,7 +2,9 @@ package com.brokenpip3.fatto.data
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.OffsetDateTime
+import java.time.ZoneId
 
 object DateTimeUtils {
     /**
@@ -28,32 +30,32 @@ object DateTimeUtils {
         }
     }
 
-    /**
-     * Extracts the date portion (YYYY-MM-DD) from an ISO-8601 string.
-     * We treat dates as "floating" - if it says April 28 in UTC, it's April 28 for the user,
-     * regardless of their local timezone offset.
-     */
-    fun parseToLocalDate(dateStr: String?): LocalDate? {
-        if (dateStr.isNullOrBlank()) return null
-        return try {
-            // Simply take the first 10 characters (YYYY-MM-DD)
-            LocalDate.parse(dateStr.take(10))
-        } catch (e: Exception) {
-            null
-        }
+    /** Historical floating UTC calendar date; task fields with time use TaskDateTime explicitly. */
+    @Suppress("UnusedParameter") // Floating dates deliberately ignore the device zone; keep the existing signature.
+    fun parseToLocalDate(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): LocalDate? {
+        return runCatching { LocalDate.parse(dateStr?.take(10)) }.getOrNull()
     }
 
-    fun formatLocalDate(dateStr: String?): String? {
-        return parseToLocalDate(dateStr)?.toString()
-    }
+    fun formatLocalDate(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? = parseToLocalDate(dateStr, zone)?.toString()
 
-    fun isToday(dateStr: String?): Boolean {
-        val date = parseToLocalDate(dateStr) ?: return false
-        return date == LocalDate.now()
-    }
+    fun formatLocalDateTime(
+        dateStr: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? = formatLocalDate(dateStr, zone)
 
-    fun isOverdue(dateStr: String?): Boolean {
-        val date = parseToLocalDate(dateStr) ?: return false
-        return date.isBefore(LocalDate.now())
-    }
+    fun toStoredTimestamp(
+        date: LocalDate,
+        time: LocalTime?,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String = TaskDateTime.resolve(TaskDateSelection(date, time), zone).getOrThrow().timestamp!!
+
+    fun isToday(dateStr: String?): Boolean = parseToLocalDate(dateStr) == LocalDate.now()
+
+    fun isOverdue(dateStr: String?): Boolean = parseToLocalDate(dateStr)?.isBefore(LocalDate.now()) == true
 }

@@ -33,7 +33,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,7 +113,7 @@ fun RecurrenceFields(
     enabled: Boolean = true,
     allowNone: Boolean = true,
 ) {
-    var showSettings by remember { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     RepeatControl(rule?.interval, { showSettings = true }, enabled)
     if (showSettings && enabled) {
         RecurrenceSettingsSheet(rule, due, error, allowNone, { showSettings = false }) {
@@ -133,13 +133,17 @@ private fun RecurrenceSettingsSheet(
     onDismiss: () -> Unit,
     onApply: (RecurrenceRule?) -> Unit,
 ) {
-    var draft by remember { mutableStateOf(initial) }
-    var expanded by remember { mutableStateOf(false) }
-    var unitsExpanded by remember { mutableStateOf(false) }
-    var untilPicker by remember { mutableStateOf(false) }
+    var draft by rememberSaveable(saver = TaskEditorSavedState.nullableRuleStateSaver) { mutableStateOf(initial) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var unitsExpanded by rememberSaveable { mutableStateOf(false) }
+    var untilPicker by rememberSaveable { mutableStateOf(false) }
     val match = draft?.interval?.let { customInterval.matchEntire(it) }
-    var number by remember { mutableStateOf(initial?.interval?.let { customInterval.matchEntire(it)?.groupValues?.get(1) }.orEmpty()) }
-    var unit by remember { mutableStateOf(initial?.interval?.let { customInterval.matchEntire(it)?.groupValues?.get(2) } ?: "days") }
+    var number by rememberSaveable {
+        mutableStateOf(initial?.interval?.let { customInterval.matchEntire(it)?.groupValues?.get(1) }.orEmpty())
+    }
+    var unit by rememberSaveable {
+        mutableStateOf(initial?.interval?.let { customInterval.matchEntire(it)?.groupValues?.get(2) } ?: "days")
+    }
     val isCustom = draft != null && draft?.interval !in presets
     val unsupported = isCustom && match == null && draft?.interval == initial?.interval && !draft?.interval.isNullOrBlank()
     val validation = draft?.creationError(due)

@@ -1,6 +1,5 @@
 package com.brokenpip3.fatto.ui.tasklist
 
-import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +16,6 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,24 +24,25 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.brokenpip3.fatto.data.TaskDateValue
 import com.brokenpip3.fatto.data.model.RecurrenceRule
 import com.brokenpip3.fatto.data.model.TaskEditResult
+import com.brokenpip3.fatto.data.model.forField
+import com.brokenpip3.fatto.data.model.withField
 import com.brokenpip3.fatto.ui.common.ProjectPickerDialog
 import com.brokenpip3.fatto.ui.common.TagPickerDialog
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
@@ -53,10 +51,7 @@ import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import uniffi.taskchampion_android.TaskAddProps
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.util.Calendar
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,29 +62,32 @@ fun AddTaskDialog(
     initialTags: List<String> = emptyList(),
     initialDescription: String = "",
     onDismiss: () -> Unit,
-    onConfirm: (String, String?, List<String>, String?, String?, String?, String?, String?, List<String>, Boolean) -> Unit,
+    onConfirm: (TaskAddProps, Boolean, Set<String>) -> Unit,
     firstDayOfWeek: Int = Calendar.MONDAY,
-    onCreate: (suspend (TaskAddProps, RecurrenceRule?, Boolean) -> TaskEditResult)? = null,
+    onCreate: (suspend (TaskAddProps, RecurrenceRule?, Boolean, Set<String>) -> TaskEditResult)? = null,
 ) {
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
-    var saveError by remember { mutableStateOf<String?>(null) }
-    var rule by remember { mutableStateOf<RecurrenceRule?>(null) }
-    var description by remember(initialDescription) { mutableStateOf(initialDescription) }
-    var project by remember { mutableStateOf(initialProject ?: "") }
-    var tags by remember { mutableStateOf(initialTags) }
-    var priority by remember { mutableStateOf<String?>(null) }
-    var openEditorAfterCreate by remember { mutableStateOf(false) }
-    var newTag by remember { mutableStateOf("") }
+    var saveError by rememberSaveable { mutableStateOf<String?>(null) }
+    var rule by rememberSaveable(saver = TaskEditorSavedState.nullableRuleStateSaver) { mutableStateOf<RecurrenceRule?>(null) }
+    var description by rememberSaveable(initialDescription) { mutableStateOf(initialDescription) }
+    var project by rememberSaveable { mutableStateOf(initialProject ?: "") }
+    var tags by rememberSaveable { mutableStateOf(initialTags) }
+    var priority by rememberSaveable { mutableStateOf<String?>(null) }
+    var openEditorAfterCreate by rememberSaveable { mutableStateOf(false) }
+    var newTag by rememberSaveable { mutableStateOf("") }
 
-    var waitDate by remember { mutableStateOf<String?>(null) }
-    var dueDate by remember { mutableStateOf<String?>(null) }
-    var scheduledDate by remember { mutableStateOf<String?>(null) }
+    var waitDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var dueDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var scheduledDate by rememberSaveable { mutableStateOf<String?>(null) }
 
-    var activePicker by remember { mutableStateOf<DatePickerType?>(null) }
-    var showProjectPicker by remember { mutableStateOf(false) }
-    var showTagPicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState()
+    var explicitDateClears by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var dateModes by rememberSaveable(saver = TaskEditorSavedState.modesStateSaver) {
+        mutableStateOf(com.brokenpip3.fatto.data.model.calendarDateModes())
+    }
+    var activePicker by rememberSaveable { mutableStateOf<DatePickerType?>(null) }
+    var showProjectPicker by rememberSaveable { mutableStateOf(false) }
+    var showTagPicker by rememberSaveable { mutableStateOf(false) }
 
     val filteredProjects =
         remember(project) {
@@ -186,6 +184,7 @@ fun AddTaskDialog(
 
                     TaskDateAndPriorityControls(
                         enabled = !saving,
+                        dateModes = dateModes,
                         priority = priority,
                         due = dueDate,
                         scheduled = scheduledDate,
@@ -290,12 +289,13 @@ fun AddTaskDialog(
                                     it.isNotEmpty()
                                 },
                                 tags, dueDate, waitDate, scheduledDate, null, priority, emptyList(),
+                                dateModes = dateModes,
                             )
                         val capturedRule = rule
                         val capturedOpenEditor = openEditorAfterCreate
                         scope.launch {
                             try {
-                                when (val result = onCreate(props, capturedRule, capturedOpenEditor)) {
+                                when (val result = onCreate(props, capturedRule, capturedOpenEditor, explicitDateClears)) {
                                     TaskEditResult.Success -> onDismiss()
                                     is TaskEditResult.Failure -> saveError = result.message
                                 }
@@ -313,11 +313,11 @@ fun AddTaskDialog(
                         }
                     } else if (description.isNotBlank()) {
                         onConfirm(
-                            description,
-                            project.trim().takeIf {
-                                it.isNotEmpty()
-                            },
-                            tags, waitDate, dueDate, scheduledDate, null, priority, emptyList(), openEditorAfterCreate,
+                            TaskAddProps(
+                                description, project.trim().takeIf { it.isNotEmpty() }, tags, dueDate, waitDate, scheduledDate,
+                                null, priority, emptyList(), dateModes,
+                            ),
+                            openEditorAfterCreate, explicitDateClears,
                         )
                     }
                 },
@@ -364,49 +364,39 @@ fun AddTaskDialog(
         )
     }
 
-    if (activePicker != null && !saving) {
-        DatePickerDialog(
-            onDismissRequest = { activePicker = null },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        val instant = Instant.ofEpochMilli(millis)
-                        val formatted = DateTimeFormatter.ISO_INSTANT.format(instant)
-                        when (activePicker) {
-                            DatePickerType.DUE -> dueDate = formatted
-                            DatePickerType.WAIT -> waitDate = formatted
-                            DatePickerType.SCHEDULED -> scheduledDate = formatted
-                            null -> {}
-                        }
-                    }
-                    activePicker = null
-                }) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    when (activePicker) {
-                        DatePickerType.DUE -> dueDate = null
-                        DatePickerType.WAIT -> waitDate = null
-                        DatePickerType.SCHEDULED -> scheduledDate = null
-                        null -> {}
-                    }
-                    activePicker = null
-                }) {
-                    Text("Clear")
-                }
-            },
-        ) {
-            val currentConfig = LocalConfiguration.current
-            val config = Configuration(currentConfig)
-            val targetLocale = if (firstDayOfWeek == Calendar.SUNDAY) Locale.US else Locale.UK
-            config.setLocale(targetLocale)
-
-            CompositionLocalProvider(LocalConfiguration provides config) {
-                DatePicker(state = datePickerState)
+    activePicker?.takeUnless { saving }?.let { picker ->
+        val current =
+            when (picker) {
+                DatePickerType.DUE -> dueDate
+                DatePickerType.WAIT -> waitDate
+                DatePickerType.SCHEDULED -> scheduledDate
             }
-        }
+        val field = picker.name.lowercase()
+        DateTimePickerDialog(
+            current = TaskDateValue(current, dateModes.forField(field)),
+            firstDayOfWeek = firstDayOfWeek,
+            onConfirm = { value ->
+                dateModes = dateModes.withField(field, value.mode)
+                explicitDateClears = explicitDateClears - field
+                when (picker) {
+                    DatePickerType.DUE -> dueDate = value.timestamp
+                    DatePickerType.WAIT -> waitDate = value.timestamp
+                    DatePickerType.SCHEDULED -> scheduledDate = value.timestamp
+                }
+                activePicker = null
+            },
+            onClear = {
+                dateModes = dateModes.withField(field, uniffi.taskchampion_android.DateDisplayMode.CALENDAR_DATE)
+                explicitDateClears = explicitDateClears + field
+                when (picker) {
+                    DatePickerType.DUE -> dueDate = null
+                    DatePickerType.WAIT -> waitDate = null
+                    DatePickerType.SCHEDULED -> scheduledDate = null
+                }
+                activePicker = null
+            },
+            onDismiss = { activePicker = null },
+        )
     }
 }
 

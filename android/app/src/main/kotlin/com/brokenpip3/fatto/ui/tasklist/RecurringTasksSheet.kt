@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.brokenpip3.fatto.data.DateTimeUtils
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.model.dateValue
+import com.brokenpip3.fatto.ui.common.readableTaskDate
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import uniffi.taskchampion_android.RecurrenceDiagnostic
@@ -71,7 +73,10 @@ fun RecurringTasksSheet(
                         if (children.isEmpty()) {
                             Text("No occurrences synced yet", style = MaterialTheme.typography.bodyMedium)
                         } else if (next != null) {
-                            Text("Next synced occurrence: ${readableDate(next.due)}", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Next synced occurrence: ${readableTaskDate(next.dateValue("due"))}",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
                         }
                         if (onEditSeries != null) TextButton(onClick = { onEditSeries(template) }) { Text("Edit series") }
                         var history by remember(template.uuid) { mutableStateOf(false) }
@@ -79,7 +84,10 @@ fun RecurringTasksSheet(
                             AccordionSection("Occurrences", Icons.Default.Info, children.size, history, { history = !history }) {
                                 children.forEach { child ->
                                     TextButton(onClick = { onOccurrenceClick(child) }) {
-                                        Text("${child.description} · ${readableDate(child.due)} · ${statusLabel(child.status)}")
+                                        Text(
+                                            "${child.description} · ${readableTaskDate(child.dateValue("due"))} · " +
+                                                statusLabel(child.status),
+                                        )
                                     }
                                 }
                             }

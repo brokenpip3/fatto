@@ -1,8 +1,12 @@
+mod date_display;
+#[cfg(test)]
+mod date_display_tests;
 mod recurrence;
 mod review;
 #[cfg(test)]
 mod review_tests;
 use chrono::{DateTime, Utc};
+pub use date_display::{DateDisplayMode, DateDisplayModes, DateDisplayModesPatch, DateModeEdit};
 pub use recurrence::{RecurrenceData, RecurrenceDiagnostic, RecurrenceRule, RecurrenceRulePatch};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -108,6 +112,7 @@ pub struct TaskData {
     pub recurrence: Option<RecurrenceData>,
     pub native_dates: Vec<UdaPair>,
     pub modified: Option<String>,
+    pub date_modes: DateDisplayModes,
 }
 
 #[derive(uniffi::Enum, Debug, Clone)]
@@ -116,6 +121,10 @@ pub enum StringEdit {
     Replace {
         expected: Option<String>,
         value: Option<String>,
+    },
+    /// Validate the original raw value without repairing, replacing, or clearing it.
+    Check {
+        expected: Option<String>,
     },
 }
 
@@ -141,6 +150,7 @@ pub struct TaskEditPatch {
     pub start: StringEdit,
     pub tags: StringSetEdit,
     pub dependencies: StringSetEdit,
+    pub date_modes: DateDisplayModesPatch,
 }
 
 #[derive(uniffi::Record, Debug, Clone)]
@@ -154,6 +164,7 @@ pub struct TaskAddProps {
     pub start: Option<String>,
     pub priority: Option<String>,
     pub dependencies: Vec<String>,
+    pub date_modes: DateDisplayModes,
 }
 
 pub enum DynStorage {
@@ -262,6 +273,8 @@ impl ReplicaWrapper {
         task.set_timestamp("scheduled", parse_rfc3339(props.scheduled)?, &mut ops)?;
         task.set_timestamp("start", parse_rfc3339(props.start)?, &mut ops)?;
 
+        date_display::initialize(&mut task, props.date_modes, &mut ops)?;
+
         self.rt.block_on(replica.commit_operations(ops))?;
         let is_blocked = task.is_blocked();
         let is_blocking = task.is_blocking();
@@ -316,6 +329,7 @@ impl ReplicaWrapper {
         task.set_wait(parse_rfc3339(props.wait)?, &mut ops)?;
         task.set_timestamp("scheduled", parse_rfc3339(props.scheduled)?, &mut ops)?;
         recurrence::validate_schedule(&task)?;
+        date_display::initialize(&mut task, props.date_modes, &mut ops)?;
         self.rt.block_on(replica.commit_operations(ops))?;
         let blocked = task.is_blocked();
         let blocking = task.is_blocking();
@@ -682,55 +696,60 @@ fn apply_edit_patch(
     ];
     let mut scalar_changes = Vec::new();
     for (key, edit) in fields {
-        if let StringEdit::Replace { expected, value } = edit {
-            let date = matches!(key, "due" | "wait" | "scheduled" | "start");
-            if date && recurrence::is_template(task) && !allow_template_dates {
-                return Err(TaskError::Internal(
-                    "Series schedules are read-only in this version".into(),
-                ));
-            }
-            if key == "description" && value.is_none() {
-                return Err(TaskError::Internal("Description cannot be cleared".into()));
-            }
-            let current = task.get_value(key).map(str::to_owned);
-            let desired = if date {
-                parse_rfc3339(value.clone())?.map(|d| d.timestamp().to_string())
-            } else {
-                value.clone()
-            };
-            let matches = if date {
-                match (current.as_deref(), expected.as_deref()) {
-                    (None, None) => true,
-                    (Some(raw), Some(expected)) => {
-                        raw == expected
-                            || recurrence::timestamp(task, key)
-                                .zip(parse_rfc3339(Some(expected.into())).ok().flatten())
-                                .is_some_and(|(a, b)| a == b)
-                    }
-                    _ => false,
+        let (expected, replacement) = match edit {
+            StringEdit::Unchanged => continue,
+            StringEdit::Check { expected } => (expected, None),
+            StringEdit::Replace { expected, value } => (expected, Some(value)),
+        };
+        let date = matches!(key, "due" | "wait" | "scheduled" | "start");
+        let current = task.get_value(key).map(str::to_owned);
+        let matches = if date {
+            match (current.as_deref(), expected.as_deref()) {
+                (None, None) => true,
+                (Some(raw), Some(expected)) => {
+                    raw == expected
+                        || recurrence::timestamp(task, key)
+                            .zip(parse_rfc3339(Some(expected.into())).ok().flatten())
+                            .is_some_and(|(a, b)| a == b)
                 }
-            } else if key == "project" {
-                // TaskData represents an imported empty project as absent.
-                current.as_deref().filter(|v| !v.is_empty())
-                    == expected.as_deref().filter(|v| !v.is_empty())
-            } else {
-                current == *expected
-            };
-            if !matches {
-                conflicts.push(key.into());
+                _ => false,
             }
-            let same_instant = date
-                && recurrence::timestamp(task, key)
-                    .zip(parse_rfc3339(value.clone())?)
-                    .is_some_and(|(current, desired)| current == desired);
-            let same_project = key == "project"
-                && current.as_deref().filter(|v| !v.is_empty())
-                    == desired.as_deref().filter(|v| !v.is_empty());
-            if current != desired && !same_instant && !same_project {
-                scalar_changes.push((key, desired));
-            }
+        } else if key == "project" {
+            // TaskData represents an imported empty project as absent.
+            current.as_deref().filter(|v| !v.is_empty())
+                == expected.as_deref().filter(|v| !v.is_empty())
+        } else {
+            current == *expected
+        };
+        if !matches {
+            conflicts.push(key.into());
+        }
+        let Some(value) = replacement else { continue };
+        if date && recurrence::is_template(task) && !allow_template_dates {
+            return Err(TaskError::Internal(
+                "Series schedules are read-only in this version".into(),
+            ));
+        }
+        if key == "description" && value.is_none() {
+            return Err(TaskError::Internal("Description cannot be cleared".into()));
+        }
+        let desired = if date {
+            parse_rfc3339(value.clone())?.map(|d| d.timestamp().to_string())
+        } else {
+            value.clone()
+        };
+        let same_instant = date
+            && recurrence::timestamp(task, key)
+                .zip(parse_rfc3339(value.clone())?)
+                .is_some_and(|(current, desired)| current == desired);
+        let same_project = key == "project"
+            && current.as_deref().filter(|v| !v.is_empty())
+                == desired.as_deref().filter(|v| !v.is_empty());
+        if current != desired && !same_instant && !same_project {
+            scalar_changes.push((key, desired));
         }
     }
+    let mode_changes = date_display::validate(task, &patch, allow_template_dates, &mut conflicts)?;
     let current_tags: Vec<String> = stored_tags(task)
         .into_iter()
         .filter(|t| t.is_user())
@@ -749,12 +768,17 @@ fn apply_edit_patch(
         }
     }
     if !conflicts.is_empty() {
+        conflicts.sort_unstable();
+        conflicts.dedup();
         return Err(TaskError::EditConflict {
             uuid: patch.uuid,
             fields: conflicts,
         });
     }
     for (key, value) in scalar_changes {
+        task.set_value(key, value, ops)?;
+    }
+    for (key, value) in mode_changes {
         task.set_value(key, value, ops)?;
     }
     if let StringSetEdit::Replace { value, .. } = patch.tags {
@@ -963,6 +987,7 @@ fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
         .collect();
 
     TaskData {
+        date_modes: date_display::read(&task),
         uuid: task.get_uuid().to_string(),
         description: task.get_description().to_string(),
         status: task.get_status().into(),
@@ -1012,6 +1037,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Test task".into(),
                 project: None,
                 tags: vec![],
@@ -1045,6 +1071,7 @@ mod tests {
             let wrapper = ReplicaWrapper::new_on_disk(db_path.clone()).unwrap();
             wrapper
                 .add_task(TaskAddProps {
+                    date_modes: Default::default(),
                     description: "Disk task".into(),
                     project: None,
                     tags: vec![],
@@ -1071,6 +1098,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "To complete".into(),
                 project: None,
                 tags: vec![],
@@ -1098,6 +1126,7 @@ mod tests {
         // High priority task
         let task_h = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "High".into(),
                 project: None,
                 tags: vec![],
@@ -1115,6 +1144,7 @@ mod tests {
         // Low priority task
         let task_l = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Low".into(),
                 project: None,
                 tags: vec![],
@@ -1136,6 +1166,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Original description".into(),
                 project: None,
                 tags: vec![],
@@ -1152,6 +1183,7 @@ mod tests {
             .update_task({
                 let current = wrapper.get_task(task.uuid.clone()).unwrap().unwrap();
                 TaskEditPatch {
+                    date_modes: Default::default(),
                     uuid: task.uuid.clone(),
                     expected_status: current.status.clone(),
                     description: StringEdit::Replace {
@@ -1212,6 +1244,7 @@ mod tests {
         let expected_time = "2026-04-17T12:00:00+00:00";
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Active task".into(),
                 project: None,
                 tags: vec![],
@@ -1230,6 +1263,7 @@ mod tests {
             .update_task({
                 let current = wrapper.get_task(task.uuid.clone()).unwrap().unwrap();
                 TaskEditPatch {
+                    date_modes: Default::default(),
                     uuid: task.uuid.clone(),
                     expected_status: current.status.clone(),
                     description: StringEdit::Replace {
@@ -1279,6 +1313,7 @@ mod tests {
     fn test_invalid_date_format() {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let result = wrapper.add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Task with bad date".into(),
             project: None,
             tags: vec![],
@@ -1299,6 +1334,7 @@ mod tests {
         let project = "Project/Sub: 🏢";
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: description.into(),
                 project: Some(project.into()),
                 tags: vec!["tag_✨".into()],
@@ -1320,6 +1356,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "".into(),
                 project: None,
                 tags: vec![],
@@ -1340,6 +1377,7 @@ mod tests {
         let long_desc = "a".repeat(1000);
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: long_desc.clone(),
                 project: None,
                 tags: vec![],
@@ -1359,6 +1397,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         // Tags cannot have spaces
         let result = wrapper.add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Task with bad tag".into(),
             project: None,
             tags: vec!["tag with space".into()],
@@ -1384,6 +1423,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Task with project".into(),
                 project: Some("InitialProject".into()),
                 tags: vec![],
@@ -1402,6 +1442,7 @@ mod tests {
             .update_task({
                 let current = wrapper.get_task(task.uuid.clone()).unwrap().unwrap();
                 TaskEditPatch {
+                    date_modes: Default::default(),
                     uuid: task.uuid.clone(),
                     expected_status: current.status.clone(),
                     description: StringEdit::Replace {
@@ -1455,6 +1496,7 @@ mod tests {
         // Valid UTC date
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Date test".into(),
                 project: None,
                 tags: vec![],
@@ -1471,6 +1513,7 @@ mod tests {
         // Valid offset date (should be converted to UTC)
         let task2 = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Offset test".into(),
                 project: None,
                 tags: vec![],
@@ -1486,6 +1529,7 @@ mod tests {
 
         // Invalid date should fail
         let result = wrapper.add_task(TaskAddProps {
+            date_modes: Default::default(),
             description: "Bad date".into(),
             project: None,
             tags: vec![],
@@ -1512,6 +1556,7 @@ mod tests {
 
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "UDA test".into(),
                 project: None,
                 tags: vec!["tag1".into()],
@@ -1578,6 +1623,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Annotated task".into(),
                 project: None,
                 tags: vec![],
@@ -1606,6 +1652,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Task with notes".into(),
                 project: None,
                 tags: vec![],
@@ -1643,6 +1690,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Multi-note task".into(),
                 project: None,
                 tags: vec![],
@@ -1681,6 +1729,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let blocker = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Blocker".into(),
                 project: None,
                 tags: vec![],
@@ -1694,6 +1743,7 @@ mod tests {
             .unwrap();
         let blocked = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Blocked task".into(),
                 project: None,
                 tags: vec![],
@@ -1720,6 +1770,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let task_a = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "A".into(),
                 project: None,
                 tags: vec![],
@@ -1733,6 +1784,7 @@ mod tests {
             .unwrap();
         let task_b = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "B".into(),
                 project: None,
                 tags: vec![],
@@ -1750,6 +1802,7 @@ mod tests {
             .update_task({
                 let current = wrapper.get_task(task_a.uuid.clone()).unwrap().unwrap();
                 TaskEditPatch {
+                    date_modes: Default::default(),
                     uuid: task_a.uuid.clone(),
                     expected_status: current.status.clone(),
                     description: StringEdit::Replace {
@@ -1803,6 +1856,7 @@ mod tests {
             .update_task({
                 let current = wrapper.get_task(task_a.uuid.clone()).unwrap().unwrap();
                 TaskEditPatch {
+                    date_modes: Default::default(),
                     uuid: task_a.uuid.clone(),
                     expected_status: current.status.clone(),
                     description: StringEdit::Replace {
@@ -1858,6 +1912,7 @@ mod tests {
         let make = |description: &str| {
             wrapper
                 .add_task(TaskAddProps {
+                    date_modes: Default::default(),
                     description: description.into(),
                     project: None,
                     tags: vec![],
@@ -1880,6 +1935,7 @@ mod tests {
                 .update_task({
                     let current = wrapper.get_task(a.uuid.clone()).unwrap().unwrap();
                     TaskEditPatch {
+                        date_modes: Default::default(),
                         uuid: a.uuid.clone(),
                         expected_status: current.status.clone(),
                         description: StringEdit::Replace {
@@ -1937,6 +1993,7 @@ mod tests {
         let wrapper = ReplicaWrapper::new_in_memory().unwrap();
         let blocked = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Blocked".into(),
                 project: None,
                 tags: vec![],
@@ -1950,6 +2007,7 @@ mod tests {
             .unwrap();
         let blocker = wrapper
             .add_task(TaskAddProps {
+                date_modes: Default::default(),
                 description: "Blocker".into(),
                 project: None,
                 tags: vec![],
@@ -1966,6 +2024,7 @@ mod tests {
             .update_task({
                 let current = wrapper.get_task(blocked.uuid.clone()).unwrap().unwrap();
                 TaskEditPatch {
+                    date_modes: Default::default(),
                     uuid: blocked.uuid.clone(),
                     expected_status: current.status.clone(),
                     description: StringEdit::Replace {

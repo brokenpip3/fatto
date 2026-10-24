@@ -18,7 +18,6 @@ import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
 import com.brokenpip3.fatto.notification.CompleteTaskNotificationReceiver
 import com.brokenpip3.fatto.notification.NotificationNavigation
-import uniffi.taskchampion_android.TaskStatus
 
 class DailyNotificationWorker(
     appContext: Context,
@@ -40,15 +39,10 @@ class DailyNotificationWorker(
             val includeOverdue = settingsRepository.getIncludeOverdue()
 
             val tasksToNotify =
-                taskRepository.tasks.value.filter { task ->
-                    if (task.status != TaskStatus.Pending || !task.isActionableStatus) return@filter false
-
-                    val isDueToday = includeDue && com.brokenpip3.fatto.data.DateTimeUtils.isToday(task.due)
-                    val isScheduledToday = includeScheduled && com.brokenpip3.fatto.data.DateTimeUtils.isToday(task.scheduled)
-                    val isOverdue = includeOverdue && com.brokenpip3.fatto.data.DateTimeUtils.isOverdue(task.due)
-
-                    isDueToday || isScheduledToday || isOverdue
-                }
+                com.brokenpip3.fatto.data.DailyTaskSelector.select(
+                    taskRepository.tasks.value, includeDue, includeScheduled, includeOverdue,
+                    java.time.Instant.now(), java.time.ZoneId.systemDefault(),
+                )
 
             Log.d("DailyNotificationWorker", "Found ${tasksToNotify.size} tasks to notify")
             if (tasksToNotify.isNotEmpty()) {

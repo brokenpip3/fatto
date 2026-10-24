@@ -54,12 +54,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import com.brokenpip3.fatto.data.DateTimeUtils
+import com.brokenpip3.fatto.data.TaskDateValue
+import com.brokenpip3.fatto.data.model.calendarDateModes
+import com.brokenpip3.fatto.ui.common.formatTaskDate
 import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoOpacity
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
 import com.brokenpip3.fatto.ui.theme.FattoStroke
 import com.brokenpip3.fatto.ui.theme.effectiveFontScale
 import com.brokenpip3.fatto.ui.theme.toNordicColor
+import uniffi.taskchampion_android.DateDisplayMode
+import uniffi.taskchampion_android.DateDisplayModes
 
 enum class DatePickerType { DUE, WAIT, SCHEDULED }
 
@@ -80,6 +85,7 @@ private val dateControlArrangement =
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+@Suppress("LongParameterList")
 fun TaskDateAndPriorityControls(
     priority: String?,
     due: String?,
@@ -89,6 +95,7 @@ fun TaskDateAndPriorityControls(
     onDateClick: (DatePickerType) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    dateModes: DateDisplayModes = calendarDateModes(),
     trailingControl: (@Composable () -> Unit)? = null,
 ) {
     val compact = trailingControl != null
@@ -103,6 +110,7 @@ fun TaskDateAndPriorityControls(
             DatePickerIconButton(
                 label = "Due",
                 date = due,
+                mode = dateModes.due,
                 icon = Icons.Default.Event,
                 enabled = enabled,
                 compact = compact,
@@ -111,6 +119,7 @@ fun TaskDateAndPriorityControls(
             DatePickerIconButton(
                 label = "Sch",
                 date = scheduled,
+                mode = dateModes.scheduled,
                 icon = Icons.Default.Schedule,
                 enabled = enabled,
                 compact = compact,
@@ -119,6 +128,7 @@ fun TaskDateAndPriorityControls(
             DatePickerIconButton(
                 label = "Wait",
                 date = wait,
+                mode = dateModes.wait,
                 icon = Icons.Default.CalendarMonth,
                 enabled = enabled,
                 compact = compact,
@@ -291,9 +301,10 @@ fun DatePickerIconButton(
     onClick: () -> Unit,
     enabled: Boolean = true,
     compact: Boolean = false,
+    mode: DateDisplayMode? = null,
 ) {
     val controlWidth = if (compact) FattoMetrics.minTouchTarget else FattoMetrics.dateControlMinWidth
-    val formattedDate = DateTimeUtils.formatLocalDate(date)
+    val formattedDate = if (mode == null) DateTimeUtils.formatLocalDate(date) else formatTaskDate(TaskDateValue(date, mode))
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier =

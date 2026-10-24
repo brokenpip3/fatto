@@ -24,6 +24,7 @@ data class Task(
     val recurrence: uniffi.taskchampion_android.RecurrenceData? = null,
     val nativeDates: Map<String, String> = emptyMap(),
     val modified: String? = null,
+    val dateModes: uniffi.taskchampion_android.DateDisplayModes = calendarDateModes(),
 ) {
     val isRecurrenceTemplate: Boolean get() =
         status == TaskStatus.Recurring ||
@@ -72,6 +73,7 @@ fun TaskData.toModel(): Task =
         recurrence = recurrence,
         nativeDates = nativeDates.associate { it.key to it.value },
         modified = modified,
+        dateModes = dateModes,
         annotations = annotations.map { Annotation(entry = it.entry, description = it.description) },
     )
 
@@ -79,6 +81,7 @@ fun TaskData.toModel(): Task =
 fun Task.toEditPatch(
     original: Task,
     autoWaiting: Boolean = false,
+    explicitDateClears: Set<String> = emptySet(),
 ): uniffi.taskchampion_android.TaskEditPatch {
     require(uuid == original.uuid)
 
@@ -114,52 +117,82 @@ fun Task.toEditPatch(
         }
     }
 
-    val effectiveWait =
+    val source =
+        listOf("due" to due, "scheduled" to scheduled)
+            .mapNotNull { (field, raw) ->
+                com.brokenpip3.fatto.data.DateTimeUtils.parseToInstant(raw)?.let { Triple(field, raw, it) }
+            }.minByOrNull { it.third }
+    val derivedWait =
         if (autoWaiting &&
             !isRecurrenceTemplate &&
             wait.isNullOrBlank() &&
+            original.nativeDates["wait"] == null &&
+            "wait" !in explicitDateClears &&
             (dateChanged(original.due, due) || dateChanged(original.scheduled, scheduled))
         ) {
-            val target =
-                listOfNotNull(
-                    com.brokenpip3.fatto.data.DateTimeUtils.parseToInstant(due),
-                    com.brokenpip3.fatto.data.DateTimeUtils.parseToInstant(scheduled),
-                ).minOrNull()?.minus(7, java.time.temporal.ChronoUnit.DAYS)
-            if (target?.isAfter(java.time.Instant.now()) == true) target.toString() else wait
+            source?.third?.minus(7, java.time.temporal.ChronoUnit.DAYS)?.takeIf { it.isAfter(java.time.Instant.now()) }
         } else {
-            wait
+            null
         }
+    val effectiveWait = derivedWait?.toString() ?: wait
+    val effectiveModes = if (derivedWait != null) dateModes.withField("wait", dateModes.forField(source!!.first)) else dateModes
+
+    fun modeChanged(key: String): Boolean = effectiveModes.forField(key) != original.dateModes.forField(key)
 
     fun date(
         old: String?,
         new: String?,
         key: String,
-    ): uniffi.taskchampion_android.StringEdit =
-        if (!dateChanged(old, new)) {
-            uniffi.taskchampion_android.StringEdit.Unchanged
-        } else {
-            uniffi.taskchampion_android.StringEdit.Replace(original.nativeDates[key] ?: old, new)
+    ): uniffi.taskchampion_android.StringEdit {
+        val checkedSource = derivedWait != null && key in setOf("due", "scheduled")
+        val modeEdit = key in setOf("due", "scheduled", "wait") && modeChanged(key)
+        return when {
+            dateChanged(old, new) || key in explicitDateClears || modeEdit ->
+                uniffi.taskchampion_android.StringEdit.Replace(original.nativeDates[key] ?: old, new)
+            checkedSource -> uniffi.taskchampion_android.StringEdit.Check(original.nativeDates[key] ?: old)
+            else -> uniffi.taskchampion_android.StringEdit.Unchanged
         }
+    }
+    val dueEdit = date(original.due, due, "due")
+    val waitEdit = date(original.wait, effectiveWait, "wait")
+    val scheduledEdit = date(original.scheduled, scheduled, "scheduled")
 
-    // Derived Wait depends on both dates: check even an unchanged source date
-    // without rewriting it. Rust treats equal instants as a no-op.
-    fun sourceDate(
-        old: String?,
-        new: String?,
+    fun mode(
         key: String,
-    ): uniffi.taskchampion_android.StringEdit =
-        if (effectiveWait != wait) {
-            uniffi.taskchampion_android.StringEdit.Replace(original.nativeDates[key] ?: old, new)
-        } else {
-            date(old, new, key)
+        edit: uniffi.taskchampion_android.StringEdit,
+    ): uniffi.taskchampion_android.DateModeEdit {
+        val baseline = original.dateDisplayBaseline(key)
+        return when {
+            key in explicitDateClears || (edit is uniffi.taskchampion_android.StringEdit.Replace && edit.value == null) ->
+                uniffi.taskchampion_android.DateModeEdit.Replace(baseline, uniffi.taskchampion_android.DateDisplayMode.CALENDAR_DATE)
+            modeChanged(key) ->
+                uniffi.taskchampion_android.DateModeEdit.Replace(baseline, effectiveModes.forField(key))
+            edit != uniffi.taskchampion_android.StringEdit.Unchanged -> uniffi.taskchampion_android.DateModeEdit.Check(baseline)
+            else -> uniffi.taskchampion_android.DateModeEdit.Unchanged
         }
+    }
     return uniffi.taskchampion_android.TaskEditPatch(
+        dateModes =
+            uniffi.taskchampion_android.DateDisplayModesPatch(
+                mode(
+                    "due",
+                    dueEdit,
+                ),
+                mode(
+                    "scheduled",
+                    scheduledEdit,
+                ),
+                mode(
+                    "wait",
+                    waitEdit,
+                ),
+            ),
         uuid = uuid, expectedStatus = original.status,
         description = scalar(original.description, description), project = scalar(original.project, project),
         priority = scalar(original.priority, priority),
-        due = sourceDate(original.due, due, "due"),
-        wait = date(original.wait, effectiveWait, "wait"),
-        scheduled = sourceDate(original.scheduled, scheduled, "scheduled"), start = date(original.start, start, "start"),
+        due = dueEdit,
+        wait = waitEdit,
+        scheduled = scheduledEdit, start = date(original.start, start, "start"),
         tags = set(original.userTags, userTags), dependencies = set(original.dependencies, dependencies),
     )
 }
