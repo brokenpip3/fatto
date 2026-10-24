@@ -7,4 +7,4 @@ Fatto uses these [Taskwarrior User Defined Attributes (UDAs)](https://taskwarrio
 | `fatto_display_due` | `v1:local-datetime` | Show the due date with a time in the device timezone. | Yes |
 | `fatto_display_scheduled` | `v1:local-datetime` | Show the scheduled date with a time in the device timezone. | Yes |
 | `fatto_display_wait` | `v1:local-datetime` | Show the wait date with a time in the device timezone. | Yes |
-| `reviewed` | Date/time | Record when a task was last reviewed; the same UDA used by [Taskshell (`tasksh`)](https://taskwarrior.org/docs/review/). | Yes — used by Review |
+| `reviewed` | Date/time | Record when a task was last reviewed; same used by [Taskshell (`tasksh`)](https://taskwarrior.org/docs/review/). | Yes |
