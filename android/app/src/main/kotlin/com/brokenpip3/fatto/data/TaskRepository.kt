@@ -24,6 +24,7 @@ class TaskRepository(
     private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val baseDir: File = context.filesDir,
+    private val requestCalendarExport: () -> Unit = { com.brokenpip3.fatto.data.calendar.CalendarExportScheduler.request(context) },
 ) : ReviewTaskStore {
     private var replica: ReplicaWrapper? = null
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
@@ -89,20 +90,24 @@ class TaskRepository(
         )
 
     private suspend fun <T> database(block: suspend () -> T): T {
-        val (result, snapshot) =
-            TaskDatabaseCoordinator.withDatabase(databasePath) {
-                val result = block()
-                result to readUnlocked(requireReplica())
+        try {
+            val (result, snapshot) =
+                TaskDatabaseCoordinator.withDatabase(databasePath) {
+                    val result = block()
+                    result to readUnlocked(requireReplica())
+                }
+            // The coordinator has finished native work and checked caller cancellation.
+            synchronized(publicationLock) {
+                if (snapshot.sequence > publishedSequence) {
+                    publishedSequence = snapshot.sequence
+                    _recurrenceDiagnostics.value = snapshot.diagnostics
+                    _tasks.value = snapshot.tasks
+                }
             }
-        // The coordinator has finished native work and checked caller cancellation.
-        synchronized(publicationLock) {
-            if (snapshot.sequence > publishedSequence) {
-                publishedSequence = snapshot.sequence
-                _recurrenceDiagnostics.value = snapshot.diagnostics
-                _tasks.value = snapshot.tasks
-            }
+            return result
+        } finally {
+            runCatching { requestCalendarExport() }.onFailure { Log.e("CalendarExport", "Could not request local calendar refresh", it) }
         }
-        return result
     }
 
     private fun requireReplica(): ReplicaWrapper = replica ?: error("Replica not initialized")

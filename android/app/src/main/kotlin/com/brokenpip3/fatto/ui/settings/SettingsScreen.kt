@@ -127,6 +127,7 @@ private enum class SettingsTab(
     TASKRC("Taskrc", "SettingsTabTaskrc"),
     DISPLAY("Display", "SettingsTabDisplay"),
     NOTIFICATIONS("Notifications", "SettingsTabNotifications"),
+    CALENDAR("Calendar", "SettingsTabCalendar"),
     REVIEW("Review", "SettingsTabReview"),
     HOOKS("Hooks", "SettingsTabHooks"),
     BACKUP("Backup", "SettingsTabBackup"),
@@ -554,6 +555,8 @@ fun SettingsScreen(
                                 label = "Stop active task before completing",
                             )
                         }
+
+                    SettingsTab.CALENDAR -> CalendarExportSettingsScreen()
 
                     SettingsTab.NOTIFICATIONS ->
                         NotificationSettingsSection(

@@ -20,7 +20,7 @@ Fatto (italian for "*done*") is a handy TaskWarrior client for Android. It syncs
 - **task**: comprehensive task management with filtering, sorting, and detail editing
 - **projects**: hierarchical project management with pending task counts
 - **tags**: auto-resizing tag list with pending task counts
-- **calendar**: intuitive date pickers for due/scheduled dates
+- **calendar**: date/time pickers and one-way export of scheduled tasks to android calendars
 - **notifications**: daily summaries of due/scheduled tasks
 - **recurrence**: create, edit, replace and stop recurring series;
 - **auto-suggestions**: smart suggestions for projects and tags during task creation

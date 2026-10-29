@@ -64,6 +64,8 @@ class SyncWorker(
         } catch (e: Exception) {
             Log.e("SyncWorker", "Background sync failed: ${safeSyncError(settingsRepository, e)}")
             Result.retry()
+        } finally {
+            com.brokenpip3.fatto.data.calendar.CalendarExportScheduler.request(applicationContext)
         }
     }
 

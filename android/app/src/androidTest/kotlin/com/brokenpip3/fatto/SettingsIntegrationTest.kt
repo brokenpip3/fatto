@@ -257,7 +257,7 @@ class SettingsIntegrationTest {
         composeTestRule.onNodeWithText("Sunday").performClick()
 
         // Go to Calendar
-        composeTestRule.onNodeWithText("Calendar").performClick()
+        composeTestRule.onNodeWithTag("Navigation_calendar").performClick()
 
         // Assert "Sun" is present
         composeTestRule.onNodeWithText("Sun").assertExists()
@@ -270,7 +270,7 @@ class SettingsIntegrationTest {
         composeTestRule.onNodeWithText("Monday").performClick()
 
         // Go back to Calendar
-        composeTestRule.onNodeWithText("Calendar").performClick()
+        composeTestRule.onNodeWithTag("Navigation_calendar").performClick()
 
         // Assert "Mon" is present
         composeTestRule.onNodeWithText("Mon").assertExists()
