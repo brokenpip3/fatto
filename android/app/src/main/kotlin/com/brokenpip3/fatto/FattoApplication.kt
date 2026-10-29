@@ -5,6 +5,11 @@ import android.util.Log
 import androidx.work.Configuration
 
 class FattoApplication : Application(), Configuration.Provider {
+    override fun onCreate() {
+        super.onCreate()
+        com.brokenpip3.fatto.data.calendar.CalendarExportScheduler.bootstrap(this)
+    }
+
     override val workManagerConfiguration: Configuration
         get() =
             Configuration.Builder()

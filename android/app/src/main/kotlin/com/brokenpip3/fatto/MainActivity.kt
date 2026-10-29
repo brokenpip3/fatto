@@ -113,6 +113,16 @@ class MainActivity : ComponentActivity() {
             // Permission result handled
         }
 
+    override fun onResume() {
+        super.onResume()
+        com.brokenpip3.fatto.data.calendar.CalendarExportScheduler.foreground(this)
+    }
+
+    override fun onStop() {
+        com.brokenpip3.fatto.data.calendar.CalendarExportScheduler.background(this)
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -256,6 +266,7 @@ class MainActivity : ComponentActivity() {
                                 items.forEach { screen ->
                                     val selected = currentDestination?.hierarchy?.any { it.route?.substringBefore("?") == screen } == true
                                     NavigationBarItem(
+                                        modifier = Modifier.testTag("Navigation_$screen"),
                                         icon = {
                                             val icon =
                                                 when (screen) {
