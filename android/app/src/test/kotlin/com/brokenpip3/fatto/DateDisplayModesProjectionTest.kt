@@ -21,6 +21,7 @@ class DateDisplayModesProjectionTest {
                 priority = null, urgency = 0f, isBlocked = false, isBlocking = false, dependencies = emptyList(),
                 udas = listOf(UdaPair("fatto_display_due", "v1:local-datetime"), UdaPair("fatto_display_wait", "v99:future")),
                 annotations = emptyList(), recurrence = null, nativeDates = listOf(UdaPair("due", "1893542400")), modified = null,
+                end = null,
                 dateModes = calendarDateModes().copy(due = DateDisplayMode.LOCAL_DATE_TIME),
             )
         val original = native.toModel()

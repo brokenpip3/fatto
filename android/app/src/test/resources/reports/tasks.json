@@ -1,0 +1,5 @@
+[
+ {"uuid":"10000000-0000-0000-0000-000000000001","description":"Pending reference task","status":"pending","entry":"20261020T100000Z","start":"20261022T100000Z","project":"Work","tags":["android"]},
+ {"uuid":"10000000-0000-0000-0000-000000000002","description":"Completed reference task","status":"completed","entry":"20260930T100000Z","end":"20261023T100000Z","project":"Work.Android","tags":["android","release"]},
+ {"uuid":"10000000-0000-0000-0000-000000000003","description":"Deleted reference task","status":"deleted","entry":"20261021T100000Z","end":"20261024T100000Z"}
+]

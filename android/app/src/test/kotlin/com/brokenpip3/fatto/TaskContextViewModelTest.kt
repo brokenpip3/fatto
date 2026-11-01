@@ -648,4 +648,19 @@ class TaskContextViewModelTest {
         val due: String? = null,
         val scheduled: String? = null,
     )
+
+    @Test fun initialLoadFailureIsReportedInsteadOfEscapingTheStartupCoroutine() =
+        runTest {
+            coEvery { repository.init() } throws IllegalStateException("Cannot open replica")
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
+            val messages = mutableListOf<String>()
+            val collector =
+                backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+                    viewModel.uiEvent.collect { messages += it }
+                }
+            advanceUntilIdle()
+            assertEquals(1, messages.size)
+            assertTrue(messages.single().contains("Could not reload tasks"))
+            collector.cancel()
+        }
 }
