@@ -12,9 +12,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tag
@@ -50,7 +53,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -69,6 +74,7 @@ import com.brokenpip3.fatto.data.ShareIntentParser
 import com.brokenpip3.fatto.data.SyncDiagnosticsRepositoryImpl
 import com.brokenpip3.fatto.data.TaskRepository
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.reports.RepositoryReportTaskSource
 import com.brokenpip3.fatto.notification.NotificationNavigation
 import com.brokenpip3.fatto.notification.ReviewReminderScheduler
 import com.brokenpip3.fatto.ui.calendar.CalendarScreen
@@ -76,6 +82,7 @@ import com.brokenpip3.fatto.ui.common.LocalTaskNow
 import com.brokenpip3.fatto.ui.common.LocalTaskTimeZone
 import com.brokenpip3.fatto.ui.common.forLifecycle
 import com.brokenpip3.fatto.ui.projects.ProjectsScreen
+import com.brokenpip3.fatto.ui.reports.ReportsScreen
 import com.brokenpip3.fatto.ui.settings.SettingsScreen
 import com.brokenpip3.fatto.ui.tags.TagsScreen
 import com.brokenpip3.fatto.ui.tasklist.AddTaskDialog
@@ -90,6 +97,7 @@ import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.NordicTheme
 import com.brokenpip3.fatto.ui.theme.ThemeMode
 import com.brokenpip3.fatto.ui.theme.effectiveFontScale
+import com.brokenpip3.fatto.vm.ReportsViewModel
 import com.brokenpip3.fatto.vm.ReviewStage
 import com.brokenpip3.fatto.vm.ReviewViewModel
 import com.brokenpip3.fatto.vm.SettingsViewModel
@@ -148,10 +156,33 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { settingsRepository.reviewSettings.collect { reviewScheduler.reconcile() } }
 
         val taskViewModel = TaskViewModel(taskRepository, com.brokenpip3.fatto.data.SystemTaskTimeSource().forLifecycle(lifecycle))
+        val reportTimeSource = com.brokenpip3.fatto.data.SystemTaskTimeSource().forLifecycle(lifecycle)
+        val reportSource = RepositoryReportTaskSource(taskRepository)
+        val reportsViewModel =
+            ViewModelProvider(
+                this,
+                object : ViewModelProvider.Factory {
+                    override fun <T : ViewModel> create(
+                        modelClass: Class<T>,
+                        extras: CreationExtras,
+                    ): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ReportsViewModel(
+                            reportSource,
+                            reportTimeSource,
+                            settingsRepository.firstDayOfWeek,
+                            extras.createSavedStateHandle(),
+                        ) as T
+                    }
+                },
+            )[ReportsViewModel::class.java]
+        lifecycleScope.launch { reportsViewModel.attach(reportSource, reportTimeSource, settingsRepository.firstDayOfWeek) }
+
         lifecycle.addObserver(
             LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) {
                     taskViewModel.refreshTaskTime()
+                    reportsViewModel.refreshTime()
                     taskViewModel.reloadTasks()
                 }
             },
@@ -212,32 +243,36 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalTaskTimeZone provides taskTime.zone, LocalTaskNow provides taskTime.now) {
                     val compactNavigation = effectiveFontScale() >= 1.5f
                     val navController = rememberNavController()
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val navigationReady = navBackStackEntry != null
                     val taskUuid = notificationTaskUuid
-                    LaunchedEffect(notificationOpenReview) {
-                        if (notificationOpenReview) {
+                    LaunchedEffect(notificationOpenReview, navigationReady) {
+                        if (navigationReady && notificationOpenReview) {
                             navController.navigate("tasks") { launchSingleTop = true }
                             reviewViewModel.open()
                             notificationOpenReview = false
                         }
                     }
 
-                    LaunchedEffect(taskUuid) {
-                        taskUuid?.let { uuid ->
-                            taskViewModel.clearFilters()
-                            taskViewModel.onSearchQueryChange(NotificationNavigation.taskSearchQuery(uuid))
-                            navController.navigate("tasks") {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                    LaunchedEffect(taskUuid, navigationReady) {
+                        if (navigationReady) {
+                            taskUuid?.let { uuid ->
+                                taskViewModel.clearFilters()
+                                taskViewModel.onSearchQueryChange(NotificationNavigation.taskSearchQuery(uuid))
+                                navController.navigate("tasks") {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
+                                notificationTaskUuid = null
                             }
-                            notificationTaskUuid = null
                         }
                     }
 
-                    LaunchedEffect(pendingShareDescription) {
-                        if (pendingShareDescription != null) {
+                    LaunchedEffect(pendingShareDescription, navigationReady) {
+                        if (navigationReady && pendingShareDescription != null) {
                             navController.navigate("tasks") {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
@@ -260,58 +295,63 @@ class MainActivity : ComponentActivity() {
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 tonalElevation = FattoElevation.none,
                             ) {
-                                val navBackStackEntry by navController.currentBackStackEntryAsState()
                                 val currentDestination = navBackStackEntry?.destination
-                                val items = listOf("tasks", "projects", "calendar", "tags", "settings")
-                                items.forEach { screen ->
-                                    val selected = currentDestination?.hierarchy?.any { it.route?.substringBefore("?") == screen } == true
-                                    NavigationBarItem(
-                                        modifier = Modifier.testTag("Navigation_$screen"),
-                                        icon = {
-                                            val icon =
-                                                when (screen) {
-                                                    "tasks" -> Icons.AutoMirrored.Filled.List
-                                                    "projects" -> Icons.Default.AccountTree
-                                                    "calendar" -> Icons.Default.DateRange
-                                                    "tags" -> Icons.Default.Tag
-                                                    "settings" -> Icons.Default.Settings
-                                                    else -> Icons.AutoMirrored.Filled.List
-                                                }
-                                            Icon(
-                                                icon,
-                                                contentDescription = screen.replaceFirstChar { it.uppercase() },
-                                                modifier = Modifier.size(FattoMetrics.icon),
-                                            )
-                                        },
-                                        label = {
-                                            if (!compactNavigation) {
-                                                Text(
-                                                    text = screen.replaceFirstChar { it.uppercase() },
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    overflow = TextOverflow.Ellipsis,
+                                val items = listOf("tasks", "projects", "calendar", "tags", "reports", "settings")
+                                Row(Modifier.fillMaxWidth()) {
+                                    items.forEach { screen ->
+                                        val selected =
+                                            currentDestination?.hierarchy?.any {
+                                                it.route?.substringBefore("?") == screen
+                                            } == true
+                                        NavigationBarItem(
+                                            modifier = Modifier.testTag("Navigation_$screen"),
+                                            icon = {
+                                                val icon =
+                                                    when (screen) {
+                                                        "tasks" -> Icons.AutoMirrored.Filled.List
+                                                        "projects" -> Icons.Default.AccountTree
+                                                        "calendar" -> Icons.Default.DateRange
+                                                        "tags" -> Icons.Default.Tag
+                                                        "reports" -> Icons.Default.BarChart
+                                                        "settings" -> Icons.Default.Settings
+                                                        else -> Icons.AutoMirrored.Filled.List
+                                                    }
+                                                Icon(
+                                                    icon,
+                                                    contentDescription = screen.replaceFirstChar { it.uppercase() },
+                                                    modifier = Modifier.size(FattoMetrics.icon),
                                                 )
-                                            }
-                                        },
-                                        selected = selected,
-                                        alwaysShowLabel = !compactNavigation,
-                                        onClick = {
-                                            navController.navigate(screen) {
-                                                popUpTo(navController.graph.findStartDestination().id) {
-                                                    saveState = true
+                                            },
+                                            label = {
+                                                if (!compactNavigation) {
+                                                    Text(
+                                                        text = screen.replaceFirstChar { it.uppercase() },
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                    )
                                                 }
-                                                launchSingleTop = true
-                                                restoreState = screen != "tasks"
-                                            }
-                                        },
-                                        colors =
-                                            NavigationBarItemDefaults.colors(
-                                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                            ),
-                                    )
+                                            },
+                                            selected = selected,
+                                            alwaysShowLabel = !compactNavigation,
+                                            onClick = {
+                                                navController.navigate(screen) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                        saveState = true
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = screen != "tasks"
+                                                }
+                                            },
+                                            colors =
+                                                NavigationBarItemDefaults.colors(
+                                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                                ),
+                                        )
+                                    }
                                 }
                             }
                         },
@@ -504,6 +544,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                 )
                             }
+                            composable("reports") { ReportsScreen(reportsViewModel) }
                             composable("tags") {
                                 TagsScreen(
                                     viewModel = taskViewModel,

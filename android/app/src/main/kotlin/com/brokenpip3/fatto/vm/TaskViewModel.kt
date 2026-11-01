@@ -366,9 +366,7 @@ class TaskViewModel(
     val taskCreatedEvent = _taskCreatedEvent.asSharedFlow()
 
     init {
-        viewModelScope.launch {
-            repository.init()
-        }
+        reloadTasks()
     }
 
     fun onSearchQueryChange(query: String) {

@@ -112,6 +112,7 @@ pub struct TaskData {
     pub recurrence: Option<RecurrenceData>,
     pub native_dates: Vec<UdaPair>,
     pub modified: Option<String>,
+    pub end: Option<String>,
     pub date_modes: DateDisplayModes,
 }
 
@@ -1010,6 +1011,7 @@ fn map_task(task: Task, is_blocked: bool, is_blocking: bool) -> TaskData {
         annotations,
         recurrence: recurrence::read_recurrence(&task),
         modified: recurrence::timestamp(&task, "modified").map(|d| d.to_rfc3339()),
+        end: recurrence::timestamp(&task, "end").map(|d| d.to_rfc3339()),
         native_dates: ["due", "wait", "scheduled", "start"]
             .iter()
             .filter_map(|key| {
@@ -1030,6 +1032,64 @@ pub fn hello() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn report_raw_task(
+        status: taskchampion::Status,
+        end: Option<&str>,
+    ) -> (Arc<ReplicaWrapper>, Task) {
+        let wrapper = ReplicaWrapper::new_in_memory().unwrap();
+        let task = {
+            let mut replica = wrapper.inner.lock().unwrap();
+            let mut ops = Operations::new();
+            let mut task = wrapper
+                .rt
+                .block_on(replica.create_task(Uuid::new_v4(), &mut ops))
+                .unwrap();
+            task.set_status(status, &mut ops).unwrap();
+            task.set_value("end", end.map(str::to_string), &mut ops)
+                .unwrap();
+            wrapper.rt.block_on(replica.commit_operations(ops)).unwrap();
+            task
+        };
+        (wrapper, task)
+    }
+
+    #[test]
+    fn report_end_maps_completed_and_deleted() {
+        for status in [
+            taskchampion::Status::Completed,
+            taskchampion::Status::Deleted,
+        ] {
+            let (_wrapper, task) = report_raw_task(status, Some("1792749600"));
+            assert_eq!(
+                map_task(task, false, false).end.as_deref(),
+                Some("2026-10-23T10:00:00+00:00")
+            );
+        }
+    }
+
+    #[test]
+    fn report_end_missing_or_invalid_is_none() {
+        for end in [None, Some("not-a-date")] {
+            let (_wrapper, task) = report_raw_task(taskchampion::Status::Completed, end);
+            assert_eq!(map_task(task, false, false).end, None);
+        }
+    }
+
+    #[test]
+    fn report_mapping_does_not_mutate_task() {
+        let (wrapper, task) = report_raw_task(taskchampion::Status::Completed, Some("1792749600"));
+        let mut replica = wrapper.inner.lock().unwrap();
+        let before = wrapper.rt.block_on(replica.num_local_operations()).unwrap();
+        let raw_end = task.get_value("end").map(str::to_string);
+        let mapped = map_task(task.clone(), false, false);
+        assert!(mapped.end.is_some());
+        assert_eq!(task.get_value("end").map(str::to_string), raw_end);
+        assert_eq!(
+            wrapper.rt.block_on(replica.num_local_operations()).unwrap(),
+            before
+        );
+    }
+
     use tempfile::tempdir;
 
     #[test]

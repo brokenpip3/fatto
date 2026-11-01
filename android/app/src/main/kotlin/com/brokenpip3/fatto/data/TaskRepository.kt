@@ -26,6 +26,8 @@ class TaskRepository(
     private val baseDir: File = context.filesDir,
     private val requestCalendarExport: () -> Unit = { com.brokenpip3.fatto.data.calendar.CalendarExportScheduler.request(context) },
 ) : ReviewTaskStore {
+    private val reportPublisher = com.brokenpip3.fatto.data.reports.ReportSourcePublisher()
+    val reportSourceState = reportPublisher.state
     private var replica: ReplicaWrapper? = null
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
     override val tasks: StateFlow<List<Task>> = _tasks.asStateFlow()
@@ -90,6 +92,7 @@ class TaskRepository(
         )
 
     private suspend fun <T> database(block: suspend () -> T): T {
+        val reportRequest = reportPublisher.begin()
         try {
             val (result, snapshot) =
                 TaskDatabaseCoordinator.withDatabase(databasePath) {
@@ -104,7 +107,14 @@ class TaskRepository(
                     _tasks.value = snapshot.tasks
                 }
             }
+            reportPublisher.succeed(reportRequest, snapshot.sequence, snapshot.tasks, _syncTransportError.value)
             return result
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            reportPublisher.cancel(reportRequest)
+            throw e
+        } catch (e: Exception) {
+            reportPublisher.fail(reportRequest, "Could not reload local tasks")
+            throw e
         } finally {
             runCatching { requestCalendarExport() }.onFailure { Log.e("CalendarExport", "Could not request local calendar refresh", it) }
         }
@@ -279,25 +289,32 @@ class TaskRepository(
     ) = mutate { it.removeAnnotation(uuid, entry) }
 
     suspend fun sync() {
-        database {
-            check(settingsRepository.hasCredentials()) { "No sync credentials configured" }
-            Syncer.sync(requireReplica(), settingsRepository)
-        }
+        val failure = database { syncTransportUnlocked(requireReplica(), localChangesSaved = false) }
         notifyWidgetRefresh()
+        // Transport failures do not invalidate the successful local snapshot above.
+        failure?.let { throw it }
     }
 
     private fun triggerSyncUnlocked(r: ReplicaWrapper) {
-        if (!settingsRepository.hasCredentials()) return
-        try {
+        if (settingsRepository.hasCredentials()) syncTransportUnlocked(r, localChangesSaved = true)
+    }
+
+    private fun syncTransportUnlocked(
+        r: ReplicaWrapper,
+        localChangesSaved: Boolean,
+    ): Exception? {
+        return try {
+            check(settingsRepository.hasCredentials()) { "No sync credentials configured" }
             Syncer.sync(r, settingsRepository)
             _syncTransportError.value = null
+            null
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            // Local changes remain committed. Recurrence diagnostics are refreshed
-            // from storage independently of this transport failure.
-            _syncTransportError.value = "Local changes saved; sync failed: ${safeSyncError(e)}"
+            val prefix = if (localChangesSaved) "Local changes saved; sync failed" else "Sync failed"
+            _syncTransportError.value = "$prefix: ${safeSyncError(e)}"
             Log.e("TaskRepository", _syncTransportError.value!!)
+            e
         }
     }
 

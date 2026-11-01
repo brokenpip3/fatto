@@ -24,6 +24,7 @@ data class Task(
     val recurrence: uniffi.taskchampion_android.RecurrenceData? = null,
     val nativeDates: Map<String, String> = emptyMap(),
     val modified: String? = null,
+    val end: String? = null,
     val dateModes: uniffi.taskchampion_android.DateDisplayModes = calendarDateModes(),
 ) {
     val isRecurrenceTemplate: Boolean get() =
@@ -73,6 +74,7 @@ fun TaskData.toModel(): Task =
         recurrence = recurrence,
         nativeDates = nativeDates.associate { it.key to it.value },
         modified = modified,
+        end = end,
         dateModes = dateModes,
         annotations = annotations.map { Annotation(entry = it.entry, description = it.description) },
     )

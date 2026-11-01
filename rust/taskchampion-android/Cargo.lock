@@ -2696,7 +2696,7 @@ dependencies = [
 
 [[package]]
 name = "taskchampion-android"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "async-trait",
  "chrono",
