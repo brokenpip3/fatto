@@ -1,0 +1,4 @@
+In this version of Fatto:
+- Set a specific time for due and scheduled dates.
+- Sync tasks with Android calendars.
+- Explore history, timesheet, and stats in the new reports tab.
