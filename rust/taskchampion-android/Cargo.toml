@@ -15,7 +15,7 @@ required-features = ["bindgen"]
 bindgen = ["uniffi/cli"]
 
 [dependencies]
-taskchampion = { path = "../vendor/taskchampion", features = ["sync", "storage", "bundled"] }
+taskchampion = { path = "vendor/taskchampion", features = ["sync", "storage", "bundled"] }
 uniffi = "0.32"
 thiserror = "2"
 # we match taskchampion 3.1.0's rusqlite dependency to avoid link conflict
