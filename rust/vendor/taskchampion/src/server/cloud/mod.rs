@@ -1,0 +1,26 @@
+/*!
+* Support for cloud-service-backed sync.
+*
+* All of these operate using a similar approach, with specific patterns of object names. The
+* process of adding a new version requires a compare-and-swap operation that sets a new version
+* as the "latest" only if the existing "latest" has the expected value. This ensures a continuous
+* chain of versions, even if multiple replicas attempt to sync at the same time.
+*/
+
+#[cfg(target_arch = "wasm32")]
+compile_error!("Cloud servers are not available on WASM targets");
+
+mod iter;
+mod server;
+mod service;
+
+pub(in crate::server) use server::CloudServer;
+
+#[cfg(feature = "server-gcp")]
+pub(in crate::server) mod gcp;
+
+#[cfg(feature = "server-aws")]
+pub(in crate::server) mod aws;
+
+#[cfg(all(test, feature = "cloud"))]
+mod test;

@@ -1,0 +1,128 @@
+name: tests - rust
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  ## Run the `taskchampion` crate's tests with various combinations of features.
+  features:
+    strategy:
+      matrix:
+        features:
+          - ""
+          - "server-sync,tls-webpki-roots"
+          - "server-gcp,tls-webpki-roots"
+          - "server-aws,tls-webpki-roots"
+          - "server-sync,tls-native-roots"
+          - "server-gcp,tls-native-roots"
+          - "server-aws,tls-native-roots"
+          - "storage,bundled"
+
+    name: "taskchampion ${{ matrix.features == '' && 'with no features' || format('with features {0}', matrix.features) }}"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/registry
+          key: ubuntu-latest-stable-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system packages
+        run: sudo apt-get install -y libsqlite3-dev
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: target
+          key: ubuntu-latest-stable-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: test
+        run: cargo test -p taskchampion --no-default-features --features "${{ matrix.features }}"
+
+  ## Run all TaskChampion crate tests, using both the minimum supported rust version
+  ## and the latest stable Rust.
+  test:
+    strategy:
+      matrix:
+        rust:
+          - "1.91.1" # MSRV
+          - "stable"
+        os:
+          - ubuntu-latest
+          - macOS-latest
+          - windows-latest
+
+    name: "rust ${{ matrix.rust }} on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "${{ matrix.rust }}"
+          override: true
+
+      - name: test
+        run: cargo test
+
+  ## Test a build for WASM.
+  wasm:
+    name: "WASM Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+
+      - run: |
+          wasm-pack test --headless --firefox \
+            --no-default-features --features storage-indexeddb,server-sync
+
+      - run: |
+          wasm-pack test --headless --chrome \
+            --no-default-features --features storage-indexeddb,server-sync

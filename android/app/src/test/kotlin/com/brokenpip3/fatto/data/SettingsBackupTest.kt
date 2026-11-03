@@ -109,6 +109,24 @@ class SettingsBackupTest {
     }
 
     @Test
+    fun `sync certificate opt-in round trips and older backups stay strict`() {
+        val source = FakeSettingsRepository().apply {
+            saveCredentials("https://sync.example.com", "client", "secret", acceptInvalidCertificates = true)
+        }
+        val json = JSONObject(backupService(source).exportJson().getOrThrow())
+        assertTrue(json.getJSONObject("settings").getJSONObject("serverCredentials").getBoolean("acceptInvalidCertificates"))
+
+        val target = FakeSettingsRepository()
+        val service = backupService(target)
+        service.applyImport(service.parseImport(json.toString()).getOrThrow()).getOrThrow()
+        assertTrue(target.getCredentials()!!.acceptInvalidCertificates)
+
+        json.getJSONObject("settings").getJSONObject("serverCredentials").remove("acceptInvalidCertificates")
+        service.applyImport(service.parseImport(json.toString()).getOrThrow()).getOrThrow()
+        assertFalse(target.getCredentials()!!.acceptInvalidCertificates)
+    }
+
+    @Test
     fun `decode rejects backup from newer android version code`() {
         val json =
             backupService(currentVersionCode = 23).exportJson().getOrThrow()
@@ -330,8 +348,9 @@ class SettingsBackupTest {
             url: String,
             clientId: String,
             secret: String,
+            acceptInvalidCertificates: Boolean,
         ): Boolean {
-            credentials = SyncCredentials(url, clientId, secret)
+            credentials = SyncCredentials(url, clientId, secret, acceptInvalidCertificates)
             return true
         }
 

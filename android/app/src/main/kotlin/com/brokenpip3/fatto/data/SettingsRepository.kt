@@ -24,6 +24,7 @@ data class SyncCredentials(
     val url: String,
     val clientId: String,
     val secret: String,
+    val acceptInvalidCertificates: Boolean = false,
 )
 
 data class S3Credentials(
@@ -132,6 +133,7 @@ interface SettingsRepository {
         url: String,
         clientId: String,
         secret: String,
+        acceptInvalidCertificates: Boolean = false,
     ): Boolean
 
     fun getS3Credentials(): S3Credentials?
@@ -483,7 +485,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         Log.d("SettingsRepository", "Getting credentials")
 
         return if (url != null && clientId != null && secret != null) {
-            SyncCredentials(url, clientId, secret)
+            SyncCredentials(url, clientId, secret, prefs.getBoolean("sync_accept_invalid_certificates", false))
         } else {
             null
         }
@@ -502,6 +504,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
                     .remove("sync_url")
                     .remove("client_id")
                     .remove("encryption_secret")
+                    .remove("sync_accept_invalid_certificates")
                     .remove("s3_bucket")
                     .remove("s3_region")
                     .remove("s3_endpoint_url")
@@ -513,6 +516,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
                     .putString("sync_url", it.url)
                     .putString("client_id", it.clientId)
                     .putString("encryption_secret", it.secret)
+                    .putBoolean("sync_accept_invalid_certificates", it.acceptInvalidCertificates)
             }
             s3Credentials?.let {
                 editor
@@ -584,6 +588,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
         url: String,
         clientId: String,
         secret: String,
+        acceptInvalidCertificates: Boolean,
     ): Boolean {
         val prefs = sharedPreferences
         if (prefs == null) {
@@ -597,6 +602,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
                     .putString("sync_url", url)
                     .putString("client_id", clientId)
                     .putString("encryption_secret", secret)
+                    .putBoolean("sync_accept_invalid_certificates", acceptInvalidCertificates)
                     .commit()
             Log.d("SettingsRepository", "Save success: $success")
             return success
@@ -615,6 +621,7 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
                     .remove("sync_url")
                     .remove("client_id")
                     .remove("encryption_secret")
+                    .remove("sync_accept_invalid_certificates")
                     .remove("sync_type")
                     .remove("s3_bucket")
                     .remove("s3_region")

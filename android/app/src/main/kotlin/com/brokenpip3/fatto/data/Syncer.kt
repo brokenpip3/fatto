@@ -37,7 +37,7 @@ object Syncer {
                 } ?: false
             SyncType.SERVER ->
                 settings.getCredentials()?.let { creds ->
-                    replica.sync(creds.url, creds.clientId, creds.secret)
+                    replica.syncWithTls(creds.url, creds.clientId, creds.secret, creds.acceptInvalidCertificates)
                     true
                 } ?: false
         }

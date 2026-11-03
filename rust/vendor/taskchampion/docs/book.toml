@@ -1,0 +1,8 @@
+[book]
+authors = ["Dustin J. Mitchell"]
+language = "en"
+src = "src"
+title = "TaskChampion"
+
+[output.html]
+default-theme = "ayu"

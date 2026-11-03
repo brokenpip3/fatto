@@ -609,13 +609,31 @@ impl ReplicaWrapper {
     }
 
     pub fn sync(&self, server_url: String, client_id: String, secret: String) -> Result<()> {
+        self.sync_with_tls(server_url, client_id, secret, false)
+    }
+
+    pub fn sync_with_tls(
+        &self,
+        server_url: String,
+        client_id: String,
+        secret: String,
+        accept_invalid_certificates: bool,
+    ) -> Result<()> {
         let mut replica = self.inner.lock().unwrap();
         let client_id = Uuid::parse_str(&client_id)
             .map_err(|_| TaskError::Internal("Invalid Client ID".into()))?;
-        let config = ServerConfig::Remote {
-            url: server_url,
-            client_id,
-            encryption_secret: secret.into_bytes(),
+        let config = if accept_invalid_certificates {
+            ServerConfig::RemoteInsecure {
+                url: server_url,
+                client_id,
+                encryption_secret: secret.into_bytes(),
+            }
+        } else {
+            ServerConfig::Remote {
+                url: server_url,
+                client_id,
+                encryption_secret: secret.into_bytes(),
+            }
         };
         self.rt.block_on(async {
             let mut server = config.into_server().await?;

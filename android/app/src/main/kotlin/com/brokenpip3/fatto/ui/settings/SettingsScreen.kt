@@ -137,6 +137,7 @@ private enum class SettingsTab(
 private data class SyncSettingsSectionState(
     val syncType: SyncType,
     val syncUrl: String,
+    val acceptInvalidCertificates: Boolean,
     val clientId: String,
     val encryptionSecret: String,
     val secretVisible: Boolean,
@@ -156,6 +157,7 @@ private data class SyncSettingsSectionActions(
     val onSyncTypeChange: (SyncType) -> Unit,
     val onSecretVisibleChange: (Boolean) -> Unit,
     val onSyncUrlChange: (String) -> Unit,
+    val onAcceptInvalidCertificatesChange: (Boolean) -> Unit,
     val onClientIdChange: (String) -> Unit,
     val onSecretChange: (String) -> Unit,
     val onS3BucketChange: (String) -> Unit,
@@ -248,6 +250,7 @@ fun SettingsScreen(
     val syncTestState by viewModel.syncTestState.collectAsState()
     val diagnosticEvents by viewModel.diagnosticEvents.collectAsState()
     val syncUrl by viewModel.syncUrl.collectAsState()
+    val acceptInvalidCertificates by viewModel.acceptInvalidCertificates.collectAsState()
     val clientId by viewModel.clientId.collectAsState()
     val encryptionSecret by viewModel.encryptionSecret.collectAsState()
     val s3Bucket by viewModel.s3Bucket.collectAsState()
@@ -312,6 +315,7 @@ fun SettingsScreen(
     var showDiagnostics by remember { mutableStateOf(false) }
     var showExportWarning by remember { mutableStateOf(false) }
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
+    var showInsecureTlsWarning by remember { mutableStateOf(false) }
     var pendingImportDocument by remember { mutableStateOf<SettingsBackupDocument?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -435,6 +439,7 @@ fun SettingsScreen(
                                 SyncSettingsSectionState(
                                     syncType = syncType,
                                     syncUrl = syncUrl,
+                                    acceptInvalidCertificates = acceptInvalidCertificates,
                                     clientId = clientId,
                                     encryptionSecret = encryptionSecret,
                                     secretVisible = secretVisible,
@@ -454,6 +459,10 @@ fun SettingsScreen(
                                     onSyncTypeChange = viewModel::onSyncTypeChange,
                                     onSecretVisibleChange = { secretVisible = it },
                                     onSyncUrlChange = viewModel::onUrlChange,
+                                    onAcceptInvalidCertificatesChange = { enabled ->
+                                        if (enabled) showInsecureTlsWarning = true
+                                        else viewModel.onAcceptInvalidCertificatesChange(false)
+                                    },
                                     onClientIdChange = viewModel::onClientIdChange,
                                     onSecretChange = viewModel::onSecretChange,
                                     onS3BucketChange = viewModel::onS3BucketChange,
@@ -663,6 +672,30 @@ fun SettingsScreen(
                 )
             }
 
+            if (showInsecureTlsWarning) {
+                AlertDialog(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    onDismissRequest = { showInsecureTlsWarning = false },
+                    title = { Text("Accept invalid TLS certificates?", style = MaterialTheme.typography.headlineSmall) },
+                    text = {
+                        Text(
+                            "This disables certificate-chain and hostname verification for this sync server. " +
+                                "An attacker on the network could impersonate it and read or alter traffic. Use only for a trusted private server.",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showInsecureTlsWarning = false
+                            viewModel.onAcceptInvalidCertificatesChange(true)
+                        }) { Text("Accept risk") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showInsecureTlsWarning = false }) { Text("Cancel") }
+                    },
+                )
+            }
+
             pendingImportDocument?.let { document ->
                 AlertDialog(
                     shape = MaterialTheme.shapes.extraLarge,
@@ -847,6 +880,28 @@ private fun SyncSettingsSection(
                     shape = MaterialTheme.shapes.medium,
                     colors = FattoFieldDefaults.filledColors(),
                 )
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = FattoMetrics.minTouchTarget)
+                            .toggleable(
+                                value = state.acceptInvalidCertificates,
+                                onValueChange = actions.onAcceptInvalidCertificatesChange,
+                                role = Role.Checkbox,
+                            ),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = state.acceptInvalidCertificates, onCheckedChange = null)
+                    Column(modifier = Modifier.padding(start = FattoSpacing.small)) {
+                        Text("Accept invalid TLS certificates", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "For private self-signed servers only",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 TextField(
                     value = state.clientId,
                     onValueChange = actions.onClientIdChange,

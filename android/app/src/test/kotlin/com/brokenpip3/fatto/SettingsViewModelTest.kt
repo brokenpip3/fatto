@@ -33,6 +33,18 @@ import java.util.Calendar
 
 class SettingsViewModelTest {
     @Test
+    fun `invalid certificate preference defaults off and can be enabled`() {
+        val repository = FakeSettingsRepository().apply {
+            saveCredentials("https://sync.example.com", "client", "secret")
+        }
+        val viewModel = SettingsViewModel(repository)
+
+        assertFalse(viewModel.acceptInvalidCertificates.value)
+        viewModel.onAcceptInvalidCertificatesChange(true)
+        assertTrue(viewModel.acceptInvalidCertificates.value)
+    }
+
+    @Test
     fun `settings export json contains current version code`() {
         val viewModel = SettingsViewModel(FakeSettingsRepository())
 
@@ -638,9 +650,10 @@ class SettingsViewModelTest {
             url: String,
             clientId: String,
             secret: String,
+            acceptInvalidCertificates: Boolean,
         ): Boolean {
             if (!credentialSaveSucceeds) return false
-            credentials = SyncCredentials(url, clientId, secret)
+            credentials = SyncCredentials(url, clientId, secret, acceptInvalidCertificates)
             return true
         }
 

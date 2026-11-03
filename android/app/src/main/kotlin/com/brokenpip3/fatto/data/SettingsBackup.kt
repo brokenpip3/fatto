@@ -208,12 +208,14 @@ class SettingsBackupCodec(
             .put("url", credentials.url)
             .put("clientId", credentials.clientId)
             .put("secret", credentials.secret)
+            .put("acceptInvalidCertificates", credentials.acceptInvalidCertificates)
 
     private fun decodeServerCredentials(json: JSONObject): SyncCredentials =
         SyncCredentials(
             url = json.requiredString("url"),
             clientId = json.requiredString("clientId"),
             secret = json.requiredString("secret"),
+            acceptInvalidCertificates = json.optBoolean("acceptInvalidCertificates", false),
         )
 
     private fun encodeS3Credentials(credentials: S3Credentials): JSONObject =

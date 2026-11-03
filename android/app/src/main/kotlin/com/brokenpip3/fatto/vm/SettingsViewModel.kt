@@ -86,6 +86,9 @@ class SettingsViewModel(
     private val _syncUrl = MutableStateFlow("")
     val syncUrl = _syncUrl.asStateFlow()
 
+    private val _acceptInvalidCertificates = MutableStateFlow(false)
+    val acceptInvalidCertificates = _acceptInvalidCertificates.asStateFlow()
+
     private val _clientId = MutableStateFlow("")
     val clientId = _clientId.asStateFlow()
 
@@ -205,6 +208,7 @@ class SettingsViewModel(
         val creds = repository.getCredentials()
         if (creds != null) {
             _syncUrl.value = creds.url
+            _acceptInvalidCertificates.value = creds.acceptInvalidCertificates
             _clientId.value = creds.clientId
             serverEncryptionSecret = creds.secret
             if (_syncType.value == SyncType.SERVER) {
@@ -265,6 +269,11 @@ class SettingsViewModel(
     fun onUrlChange(value: String) {
         _syncUrl.value = value
         clearValidationError(SyncServerField.URL)
+        markSyncSettingsEdited()
+    }
+
+    fun onAcceptInvalidCertificatesChange(value: Boolean) {
+        _acceptInvalidCertificates.value = value
         markSyncSettingsEdited()
     }
 
@@ -601,8 +610,8 @@ class SettingsViewModel(
         val previousCredentials = repository.getCredentials()
         val configurationUnchanged =
             repository.getSyncType() == SyncType.SERVER &&
-                previousCredentials == SyncCredentials(url, clientId, secret)
-        if (!repository.saveCredentials(url, clientId, secret)) {
+                previousCredentials == SyncCredentials(url, clientId, secret, _acceptInvalidCertificates.value)
+        if (!repository.saveCredentials(url, clientId, secret, _acceptInvalidCertificates.value)) {
             recordDiagnostic("server_config", "save_failed", "Unable to save Sync Server credentials")
             _syncTestState.value = SyncTestState.SaveFailed(System.currentTimeMillis(), "Unable to save Sync Server settings")
             return false
