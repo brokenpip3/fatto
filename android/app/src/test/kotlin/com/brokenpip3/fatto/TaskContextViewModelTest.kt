@@ -359,6 +359,51 @@ class TaskContextViewModelTest {
         }
 
     @Test
+    fun `tag chip cycles include then exclude then off`() =
+        runTest {
+            tasksFlow.value =
+                listOf(
+                    task(uuid = "router", description = "Replace router", tags = listOf("devices")),
+                    task(uuid = "both", description = "Laptop at home", tags = listOf("devices", "home")),
+                    task(uuid = "home", description = "Fix gate", tags = listOf("home")),
+                    task(uuid = "untagged", description = "Call bank"),
+                )
+            val viewModel = TaskViewModel(repository, FixedTaskTimeSource())
+            val job = launch { viewModel.activeTasks.collect {} }
+            advanceUntilIdle()
+            val all = listOf("router", "both", "home", "untagged")
+            assertEquals(all, viewModel.activeTasks.value.map { it.uuid })
+
+            viewModel.cycleTag("devices")
+            advanceUntilIdle()
+            assertEquals(listOf("router", "both"), viewModel.activeTasks.value.map { it.uuid })
+            assertEquals(setOf("devices"), viewModel.selectedTags.value)
+
+            viewModel.cycleTag("devices")
+            advanceUntilIdle()
+            assertEquals(listOf("home", "untagged"), viewModel.activeTasks.value.map { it.uuid })
+            assertEquals(emptySet<String>(), viewModel.selectedTags.value)
+            assertEquals(setOf("devices"), viewModel.excludedTags.value)
+
+            // Exclusion wins over inclusion: `+home -devices` drops the task tagged with both.
+            viewModel.cycleTag("home")
+            advanceUntilIdle()
+            assertEquals(listOf("home"), viewModel.activeTasks.value.map { it.uuid })
+
+            viewModel.clearFilters()
+            advanceUntilIdle()
+            assertEquals(all, viewModel.activeTasks.value.map { it.uuid })
+
+            viewModel.cycleTag("devices")
+            viewModel.cycleTag("devices")
+            viewModel.cycleTag("devices")
+            advanceUntilIdle()
+            assertEquals(all, viewModel.activeTasks.value.map { it.uuid })
+            assertEquals(emptySet<String>(), viewModel.excludedTags.value)
+            job.cancel()
+        }
+
+    @Test
     fun `urgency bar max remains based on all tasks while filtered`() =
         runTest {
             tasksFlow.value =

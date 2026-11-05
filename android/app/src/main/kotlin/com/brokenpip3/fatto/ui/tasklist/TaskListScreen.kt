@@ -133,6 +133,7 @@ fun TaskListScreen(
     val completedTasks by viewModel.completedTasks.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTags by viewModel.selectedTags.collectAsState()
+    val excludedTags by viewModel.excludedTags.collectAsState()
     val activeProject by viewModel.activeProject.collectAsState()
     val availableTags by viewModel.availableTags.collectAsState()
     val showInternalTags by viewModel.showInternalTags.collectAsState()
@@ -170,7 +171,7 @@ fun TaskListScreen(
     val lazyListState = rememberLazyListState()
     ScrollToTopOnListChange(
         lazyListState, currentSortOrder, currentSortDirection, searchQuery,
-        selectedTags, activeProject, activeContextId, showOnlyActiveTasks,
+        selectedTags, excludedTags, activeProject, activeContextId, showOnlyActiveTasks,
     )
     var pullAccumulator by remember { mutableFloatStateOf(0f) }
 
@@ -455,6 +456,7 @@ fun TaskListScreen(
                             showFilters ||
                                 searchQuery.isNotEmpty() ||
                                 selectedTags.isNotEmpty() ||
+                                excludedTags.isNotEmpty() ||
                                 activeProject != null ||
                                 activeContext != null,
                     ) {
@@ -462,7 +464,8 @@ fun TaskListScreen(
                             modifier = Modifier.padding(top = FattoSpacing.large),
                             verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                         ) {
-                            val hasClearableFilters = searchQuery.isNotEmpty() || selectedTags.isNotEmpty() || activeProject != null
+                            val hasClearableFilters =
+                                searchQuery.isNotEmpty() || selectedTags.isNotEmpty() || excludedTags.isNotEmpty() || activeProject != null
                             FilterSectionActions(
                                 largeFontScale = largeFontScale,
                                 hasClearableFilters = hasClearableFilters,
@@ -538,46 +541,12 @@ fun TaskListScreen(
                                     contentPadding = PaddingValues(bottom = FattoSpacing.small),
                                 ) {
                                     items(availableTags.toList()) { tag ->
-                                        Surface(
-                                            onClick = { viewModel.toggleTag(tag) },
-                                            modifier =
-                                                Modifier
-                                                    .heightIn(min = FattoMetrics.minTouchTarget)
-                                                    .semantics { selected = selectedTags.contains(tag) },
-                                            color =
-                                                if (selectedTags.contains(tag)) {
-                                                    tag.toNordicColor().copy(alpha = FattoOpacity.selectedTint)
-                                                } else {
-                                                    MaterialTheme.colorScheme.surfaceContainerLow
-                                                },
-                                            shape = MaterialTheme.shapes.small,
-                                            border =
-                                                BorderStroke(
-                                                    width = FattoStroke.subtle,
-                                                    color =
-                                                        if (selectedTags.contains(tag)) {
-                                                            tag.toNordicColor()
-                                                        } else {
-                                                            MaterialTheme.colorScheme.outlineVariant
-                                                        },
-                                                ),
-                                        ) {
-                                            Text(
-                                                text = tag,
-                                                modifier =
-                                                    Modifier.padding(
-                                                        horizontal = FattoSpacing.medium,
-                                                        vertical = FattoSpacing.small,
-                                                    ),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color =
-                                                    if (selectedTags.contains(tag)) {
-                                                        MaterialTheme.colorScheme.onSurface
-                                                    } else {
-                                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                                    },
-                                            )
-                                        }
+                                        TagFilterChip(
+                                            tag = tag,
+                                            included = selectedTags.contains(tag),
+                                            excluded = excludedTags.contains(tag),
+                                            onClick = { viewModel.cycleTag(tag) },
+                                        )
                                     }
                                 }
                             }
@@ -867,6 +836,61 @@ private fun ContextErrorBanner(
                 modifier = Modifier.padding(FattoSpacing.medium),
             )
         }
+    }
+}
+
+/** Tag filter chip. Tapping cycles: off -> include -> exclude (Taskwarrior `-tag`) -> off. */
+@Composable
+private fun TagFilterChip(
+    tag: String,
+    included: Boolean,
+    excluded: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier =
+            Modifier
+                .heightIn(min = FattoMetrics.minTouchTarget)
+                .semantics {
+                    selected = included || excluded
+                    stateDescription =
+                        when {
+                            included -> "Showing only $tag"
+                            excluded -> "Hiding $tag"
+                            else -> "Not filtered"
+                        }
+                },
+        color =
+            if (included) {
+                tag.toNordicColor().copy(alpha = FattoOpacity.selectedTint)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            },
+        shape = MaterialTheme.shapes.small,
+        border =
+            BorderStroke(
+                width = FattoStroke.subtle,
+                color =
+                    when {
+                        included -> tag.toNordicColor()
+                        excluded -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.outlineVariant
+                    },
+            ),
+    ) {
+        Text(
+            text = if (excluded) "−$tag" else tag,
+            modifier = Modifier.padding(horizontal = FattoSpacing.medium, vertical = FattoSpacing.small),
+            style = MaterialTheme.typography.labelMedium,
+            textDecoration = if (excluded) TextDecoration.LineThrough else null,
+            color =
+                when {
+                    included -> MaterialTheme.colorScheme.onSurface
+                    excluded -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        )
     }
 }
 
