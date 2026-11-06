@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +41,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.brokenpip3.fatto.data.TaskDateValue
 import com.brokenpip3.fatto.data.model.RecurrenceRule
 import com.brokenpip3.fatto.data.model.TaskEditResult
@@ -132,7 +136,14 @@ fun AddTaskDialog(
 
     AlertDialog(
         onDismissRequest = resetAndDismiss,
-        modifier = Modifier.testTag("AddTaskDialog"),
+        // safeDrawing includes the IME: the dialog shrinks to fit above the keyboard so the
+        // Create button stays reachable. decorFitsSystemWindows = false hands those insets to
+        // Compose instead of relying on the window's adjustResize, which edge-to-edge (API 35+)
+        // no longer guarantees.
+        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing).testTag("AddTaskDialog"),
+        // A stray touch outside the dialog (easy while dragging to reach Create) must not
+        // discard the draft. Cancel and Back remain the deliberate ways out.
+        properties = DialogProperties(dismissOnClickOutside = false, decorFitsSystemWindows = false),
         title = { Text("New Task", style = MaterialTheme.typography.headlineSmall) },
         text = {
             Box(Modifier.fillMaxWidth()) {
