@@ -10,6 +10,22 @@ import org.junit.Test
 
 class TaskFilterStateTest {
     @Test
+    fun `excluded tags survive saving a simple filter as a context`() {
+        val state = TaskFilterState(tags = setOf("home"), excludedTags = setOf("devices"))
+
+        assertEquals("+home -+devices", state.toContext("Home without devices").expressionText)
+    }
+
+    @Test
+    fun `context tags retain their include and exclude polarity`() {
+        val state = TaskFilterState.fromContext(TaskContext(id = "home", name = "Home", expressionText = "+home -+devices"))
+
+        assertEquals(setOf("home"), state.tags)
+        assertEquals(setOf("devices"), state.excludedTags)
+        assertEquals("+home -+devices", state.toContext("Home").expressionText)
+    }
+
+    @Test
     fun `lossless expressions round trip through builder state`() {
         val context =
             TaskContext(

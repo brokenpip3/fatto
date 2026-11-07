@@ -91,6 +91,10 @@ class TaskViewModel(
     private val _selectedTags = MutableStateFlow<Set<String>>(emptySet())
     val selectedTags = _selectedTags.asStateFlow()
 
+    // Tags whose tasks are hidden from the list (Taskwarrior's `-tag`).
+    private val _excludedTags = MutableStateFlow<Set<String>>(emptySet())
+    val excludedTags = _excludedTags.asStateFlow()
+
     private val _activeProject = MutableStateFlow<String?>(null)
     val activeProject = _activeProject.asStateFlow()
 
@@ -145,10 +149,10 @@ class TaskViewModel(
         combine(
             repository.tasks,
             _searchQuery,
-            _selectedTags,
+            combine(_selectedTags, _excludedTags) { included, excluded -> included to excluded },
             uuidFilter,
             taskListFilterState.combine(taskTime) { filters, time -> filters to time },
-        ) { tasks, query, tags, uuidFilter, (filters, time) ->
+        ) { tasks, query, (tags, excludedTags), uuidFilter, (filters, time) ->
             val parsed = com.brokenpip3.fatto.data.SearchParser.parse(query)
             val effectiveProject = parsed.project ?: filters.project
             val effectiveTags = if (parsed.tags.isNotEmpty()) parsed.tags else tags
@@ -162,7 +166,9 @@ class TaskViewModel(
                     (parsed.uuid == null || task.uuid == parsed.uuid) &&
                         (uuidFilter.isEmpty() || task.uuid in uuidFilter)
                 val matchesQuery = task.description.contains(searchFilter, ignoreCase = true)
-                val matchesTags = effectiveTags.isEmpty() || task.tags.intersect(effectiveTags).isNotEmpty()
+                val matchesTags =
+                    (effectiveTags.isEmpty() || task.tags.intersect(effectiveTags).isNotEmpty()) &&
+                        task.tags.none { it in excludedTags }
                 val matchesProject =
                     effectiveProject == null ||
                         task.project == effectiveProject ||
@@ -374,6 +380,7 @@ class TaskViewModel(
     }
 
     fun toggleTag(tag: String) {
+        _excludedTags.value = _excludedTags.value - tag
         _selectedTags.value =
             if (_selectedTags.value.contains(tag)) {
                 _selectedTags.value - tag
@@ -382,8 +389,29 @@ class TaskViewModel(
             }
     }
 
+    /** Tag chip tap: off -> include -> exclude -> off. */
+    fun cycleTag(tag: String) {
+        when (tag) {
+            in _selectedTags.value -> {
+                _selectedTags.value = _selectedTags.value - tag
+                _excludedTags.value = _excludedTags.value + tag
+            }
+            in _excludedTags.value -> _excludedTags.value = _excludedTags.value - tag
+            else -> _selectedTags.value = _selectedTags.value + tag
+        }
+    }
+
+    fun setTagFilters(
+        included: Set<String>,
+        excluded: Set<String>,
+    ) {
+        _selectedTags.value = included - excluded
+        _excludedTags.value = excluded
+    }
+
     fun clearTags() {
         _selectedTags.value = emptySet()
+        _excludedTags.value = emptySet()
     }
 
     fun setActiveProject(project: String?) {
@@ -407,6 +435,7 @@ class TaskViewModel(
     fun clearFilters() {
         _searchQuery.value = ""
         _selectedTags.value = emptySet()
+        _excludedTags.value = emptySet()
         _activeProject.value = null
     }
 
