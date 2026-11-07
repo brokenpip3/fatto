@@ -38,6 +38,7 @@ data class TaskFilterState(
     val tags: Set<String> = emptySet(),
     val rawExpressionText: String? = null,
     val builderTerms: List<ContextBuilderTerm> = emptyList(),
+    val excludedTags: Set<String> = emptySet(),
 ) {
     fun expressionText(): String =
         rawExpressionText?.trim()?.takeIf { it.isNotBlank() }
@@ -49,7 +50,8 @@ data class TaskFilterState(
                 project?.trim()?.takeIf { it.isNotBlank() }?.let {
                     add(TaskFilterExpressionFormatter.term("project:$it"))
                 }
-                tags.sorted().forEach { add(TaskFilterExpressionFormatter.term("+$it")) }
+                (tags - excludedTags).sorted().forEach { add(TaskFilterExpressionFormatter.term("+$it")) }
+                excludedTags.sorted().forEach { add("-${TaskFilterExpressionFormatter.term("+$it")}") }
             }.joinToString(" ")
 
     fun toContext(
@@ -95,7 +97,12 @@ data class TaskFilterState(
             if (!simple || projectTerms.size > 1) {
                 return TaskFilterState(
                     descriptionQuery = terms.filter { it.kind == ContextBuilderTermKind.KEYWORD }.joinToString(" ") { it.value },
-                    tags = terms.filter { it.kind == ContextBuilderTermKind.TAG }.map { it.value }.toSet(),
+                    tags =
+                        terms.filter { it.kind == ContextBuilderTermKind.TAG && it.polarity == ContextBuilderPolarity.INCLUDE }
+                            .map { it.value }.toSet(),
+                    excludedTags =
+                        terms.filter { it.kind == ContextBuilderTermKind.TAG && it.polarity == ContextBuilderPolarity.EXCLUDE }
+                            .map { it.value }.toSet(),
                     builderTerms = terms,
                 )
             }

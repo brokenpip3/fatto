@@ -18,6 +18,52 @@ class TaskFilterBuilderSheetTest {
     val composeTestRule = createComposeRule()
 
     @Test
+    fun filterApplyPreservesExcludedTags() {
+        var applied: TaskFilterState? = null
+        composeTestRule.setContent {
+            TaskFilterBuilderSheet(
+                initialState = TaskFilterState(tags = setOf("home"), excludedTags = setOf("devices")),
+                availableProjects = emptyList(),
+                availableTags = setOf("home", "devices"),
+                contextName = "",
+                onDismiss = {},
+                onApply = { applied = it },
+                onSaveContext = { _, _ -> },
+            )
+        }
+
+        composeTestRule.onNodeWithText("Tags").performClick()
+        composeTestRule.onNodeWithText("−devices").assertExists()
+        composeTestRule.onNodeWithText("Apply").performClick()
+
+        assertEquals(setOf("devices"), applied?.excludedTags)
+        assertEquals(setOf("home"), applied?.tags)
+    }
+
+    @Test
+    fun contextSavePreservesExcludedTags() {
+        var savedExpression: String? = null
+        composeTestRule.setContent {
+            TaskFilterBuilderSheet(
+                initialState = TaskFilterState(tags = setOf("home"), excludedTags = setOf("devices")),
+                availableProjects = emptyList(),
+                availableTags = setOf("home", "devices"),
+                contextName = "",
+                purpose = TaskFilterBuilderPurpose.CONTEXT,
+                onDismiss = {},
+                onApply = null,
+                onSaveContext = { _, state -> savedExpression = state.expressionText() },
+            )
+        }
+
+        composeTestRule.onNodeWithText("Save").performClick()
+        composeTestRule.onNodeWithText("Context name").performTextInput("Home without devices")
+        composeTestRule.onNodeWithContentDescription("Confirm save context").performClick()
+
+        assertEquals("+home -+devices", savedExpression)
+    }
+
+    @Test
     fun newContextShowsOnlySaveAction() {
         composeTestRule.setContent {
             TaskFilterBuilderSheet(

@@ -55,6 +55,7 @@ fun TagsScreen(
 ) {
     val tagCounts by viewModel.tagCounts.collectAsState()
     val selectedTags by viewModel.selectedTags.collectAsState()
+    val excludedTags by viewModel.excludedTags.collectAsState()
     val tagsPerLine by viewModel.tagsPerLine.collectAsState()
 
     Scaffold(
@@ -62,7 +63,7 @@ fun TagsScreen(
             TopAppBar(
                 title = { Text("Tags", style = MaterialTheme.typography.headlineSmall) },
                 actions = {
-                    if (selectedTags.isNotEmpty()) {
+                    if (selectedTags.isNotEmpty() || excludedTags.isNotEmpty()) {
                         IconButton(onClick = { viewModel.clearTags() }) {
                             Icon(Icons.Default.ClearAll, contentDescription = "Clear All Tags")
                         }

@@ -380,6 +380,7 @@ class TaskViewModel(
     }
 
     fun toggleTag(tag: String) {
+        _excludedTags.value = _excludedTags.value - tag
         _selectedTags.value =
             if (_selectedTags.value.contains(tag)) {
                 _selectedTags.value - tag
@@ -398,6 +399,14 @@ class TaskViewModel(
             in _excludedTags.value -> _excludedTags.value = _excludedTags.value - tag
             else -> _selectedTags.value = _selectedTags.value + tag
         }
+    }
+
+    fun setTagFilters(
+        included: Set<String>,
+        excluded: Set<String>,
+    ) {
+        _selectedTags.value = included - excluded
+        _excludedTags.value = excluded
     }
 
     fun clearTags() {

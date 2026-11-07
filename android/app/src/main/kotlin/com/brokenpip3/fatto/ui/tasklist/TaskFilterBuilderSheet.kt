@@ -441,11 +441,11 @@ private fun SimpleFilterContent(
     AccordionSection(
         title = "Tags",
         icon = Icons.Default.Tag,
-        count = state.tags.size.takeIf { it > 0 },
+        count = (state.tags.size + state.excludedTags.size).takeIf { it > 0 },
         expanded = tagsExpanded,
         onToggle = { onTagsExpandedChange(!tagsExpanded) },
     ) {
-        if (state.tags.isNotEmpty()) {
+        if (state.tags.isNotEmpty() || state.excludedTags.isNotEmpty()) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(FattoSpacing.small),
                 verticalArrangement = Arrangement.spacedBy(FattoSpacing.small),
@@ -453,6 +453,9 @@ private fun SimpleFilterContent(
             ) {
                 state.tags.sorted().forEach { tag ->
                     TagChip(tag = tag, onRemove = { onStateChange(state.copy(tags = state.tags - tag)) })
+                }
+                state.excludedTags.sorted().forEach { tag ->
+                    TagChip(tag = "−$tag", onRemove = { onStateChange(state.copy(excludedTags = state.excludedTags - tag)) })
                 }
             }
         }
@@ -469,7 +472,7 @@ private fun SimpleFilterContent(
                     onClick = {
                         val tag = tagQuery.trim()
                         if (tag.isNotBlank()) {
-                            onStateChange(state.copy(tags = state.tags + tag))
+                            onStateChange(state.copy(tags = state.tags + tag, excludedTags = state.excludedTags - tag))
                             onTagQueryChange("")
                         }
                     },
@@ -489,7 +492,7 @@ private fun SimpleFilterContent(
                     SuggestionChip(
                         label = tag,
                         onClick = {
-                            onStateChange(state.copy(tags = state.tags + tag))
+                            onStateChange(state.copy(tags = state.tags + tag, excludedTags = state.excludedTags - tag))
                             onTagQueryChange("")
                         },
                     )
@@ -941,8 +944,11 @@ private fun TaskFilterState.withContextBuilderTerms(): TaskFilterState {
             project?.trim()?.takeIf { it.isNotBlank() }?.let {
                 add(ContextBuilderTerm(ContextBuilderTermKind.PROJECT, it))
             }
-            tags.sorted().forEach {
+            (tags - excludedTags).sorted().forEach {
                 add(ContextBuilderTerm(ContextBuilderTermKind.TAG, it))
+            }
+            excludedTags.sorted().forEach {
+                add(ContextBuilderTerm(ContextBuilderTermKind.TAG, it, ContextBuilderPolarity.EXCLUDE))
             }
         }
     return copy(builderTerms = terms)

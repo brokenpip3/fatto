@@ -723,6 +723,7 @@ fun TaskListScreen(
                             descriptionQuery = searchQuery,
                             project = activeProject,
                             tags = selectedTags,
+                            excludedTags = excludedTags,
                         ),
                     availableProjects = availableProjects.map { it.fullName },
                     availableTags = availableTags,
@@ -733,8 +734,7 @@ fun TaskListScreen(
                         viewModel.onSearchQueryChange(filter.descriptionQuery)
                         viewModel.clearProject()
                         filter.project?.let { viewModel.setActiveProject(it) }
-                        viewModel.clearTags()
-                        filter.tags.forEach { viewModel.toggleTag(it) }
+                        viewModel.setTagFilters(filter.tags, filter.excludedTags)
                         filterBuilderPurpose = null
                     },
                     onSaveContext = { name, filter ->
