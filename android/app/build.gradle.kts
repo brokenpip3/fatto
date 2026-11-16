@@ -172,8 +172,8 @@ dependencies {
     implementation("androidx.glance:glance-material3:1.2.0-rc01")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("io.mockk:mockk:1.14.11")
-    testImplementation("io.mockk:mockk-agent-jvm:1.14.11")
+    testImplementation("io.mockk:mockk:1.14.12")
+    testImplementation("io.mockk:mockk-agent-jvm:1.14.12")
     testImplementation("org.json:json:20260814")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     androidTestImplementation("androidx.test:rules:1.7.0")
