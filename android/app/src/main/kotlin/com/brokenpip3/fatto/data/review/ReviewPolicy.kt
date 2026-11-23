@@ -1,9 +1,12 @@
 package com.brokenpip3.fatto.data.review
 
+import com.brokenpip3.fatto.data.TaskDateTime
 import com.brokenpip3.fatto.data.model.Task
+import com.brokenpip3.fatto.data.model.dateValue
 import uniffi.taskchampion_android.TaskStatus
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
@@ -31,12 +34,19 @@ object ReviewPolicy {
         tasks: List<Task>,
         settings: ReviewSettings,
         now: Instant,
+        zone: ZoneId = ZoneId.systemDefault(),
     ): ReviewSelection {
         val cutoff = now.minus(settings.intervalDays.toLong(), ChronoUnit.DAYS)
         val invalid = mutableSetOf<String>()
         val candidates =
             tasks.filter { task ->
                 if (!isPending(task)) return@filter false
+                if (settings.skipWaitDatesOutsideToday &&
+                    (task.wait != null || task.nativeDates["wait"] != null) &&
+                    !TaskDateTime.isToday(task.dateValue("wait"), now, zone)
+                ) {
+                    return@filter false
+                }
                 if (settings.project != null &&
                     task.project != settings.project &&
                     task.project?.startsWith("${settings.project}.") != true

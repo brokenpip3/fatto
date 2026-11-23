@@ -19,6 +19,7 @@ data class ReviewSettings(
     val rightAction: ReviewAction = ReviewAction.REVIEWED,
     val leftAction: ReviewAction = ReviewAction.SKIP,
     val reminderDays: Int? = null,
+    val skipWaitDatesOutsideToday: Boolean = false,
 ) {
     init {
         require(intervalDays > 0) { "Enter a positive number of days" }
@@ -34,6 +35,7 @@ data class ReviewSettings(
             .put("project", project ?: JSONObject.NULL).put("tag", tag ?: JSONObject.NULL)
             .put("rightAction", rightAction.name).put("leftAction", leftAction.name)
             .put("reminderDays", reminderDays ?: JSONObject.NULL)
+            .put("skipWaitDatesOutsideToday", skipWaitDatesOutsideToday)
 
     companion object {
         private fun positiveInt(
@@ -56,6 +58,7 @@ data class ReviewSettings(
                 rightAction = ReviewAction.valueOf(json.getString("rightAction")),
                 leftAction = ReviewAction.valueOf(json.getString("leftAction")),
                 reminderDays = if (json.isNull("reminderDays")) null else positiveInt(json, "reminderDays"),
+                skipWaitDatesOutsideToday = json.optBoolean("skipWaitDatesOutsideToday", false),
             )
     }
 }

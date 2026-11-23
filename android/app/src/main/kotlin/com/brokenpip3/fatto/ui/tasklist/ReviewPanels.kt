@@ -69,7 +69,11 @@ internal fun ReviewStartOverview(state: ReviewUiState) {
                 ReviewPolicyRow(
                     Icons.Default.Schedule,
                     "Never reviewed or over ${state.settings.intervalDays} days ago",
-                    "Pending and waiting tasks",
+                    if (state.settings.skipWaitDatesOutsideToday) {
+                        "Tasks with no wait date or a wait date of today"
+                    } else {
+                        "Pending and waiting tasks"
+                    },
                 )
                 ReviewPolicyRow(
                     Icons.Default.TaskAlt, "Never reviewed first, then oldest",

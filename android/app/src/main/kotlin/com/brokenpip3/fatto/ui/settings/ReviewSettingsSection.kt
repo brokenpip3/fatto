@@ -2,7 +2,10 @@ package com.brokenpip3.fatto.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -10,6 +13,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -19,9 +23,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -30,6 +36,7 @@ import com.brokenpip3.fatto.data.review.ReviewAction
 import com.brokenpip3.fatto.data.review.ReviewSettings
 import com.brokenpip3.fatto.notification.ReviewReminderScheduler
 import com.brokenpip3.fatto.ui.theme.FattoFieldDefaults
+import com.brokenpip3.fatto.ui.theme.FattoMetrics
 import com.brokenpip3.fatto.ui.theme.FattoSpacing
 
 @Composable
@@ -64,6 +71,19 @@ fun ReviewSettingsSection(
         }
         ReviewChoiceField("Tag", settings.tag ?: "All tags", listOf("All tags") + tags.sorted()) {
             onChange(settings.copy(tag = it.takeUnless { value -> value == "All tags" }))
+        }
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = FattoMetrics.minTouchTarget)
+                .toggleable(
+                    value = settings.skipWaitDatesOutsideToday,
+                    role = Role.Switch,
+                    onValueChange = { onChange(settings.copy(skipWaitDatesOutsideToday = it)) },
+                ),
+            horizontalArrangement = Arrangement.spacedBy(FattoSpacing.medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Skip tasks with wait dates outside today", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Switch(checked = settings.skipWaitDatesOutsideToday, onCheckedChange = null)
         }
         Text("Swipe actions", style = MaterialTheme.typography.titleMedium)
         Text("These actions apply only to review.", style = MaterialTheme.typography.bodyMedium)
