@@ -57,6 +57,65 @@ class ReviewViewModelTest {
         return ReviewViewModel(store, settings, clock = { now }, onProductiveSessionEnded = onEnd) to store
     }
 
+    @Test fun `next tag action preserves fresh tags and advances after saving`() =
+        runTest(dispatcher) {
+            val (vm, store) = model()
+            vm.open()
+            vm.start()
+            val action = ReviewAction.ADD_NEXT
+            vm.perform(action)
+            vm.perform(action)
+            (store.tasks as MutableStateFlow).value = listOf(task("a").copy(tags = listOf("home", "work")), task("b"))
+            runCurrent()
+
+            coVerify(exactly = 1) {
+                store.saveReviewEdit(
+                    match {
+                        it.uuid == "a" &&
+                            it.tags ==
+                            uniffi.taskchampion_android.StringSetEdit.Replace(
+                                listOf("home", "work"), listOf("home", "next", "work"),
+                            ) &&
+                            it.description == uniffi.taskchampion_android.StringEdit.Unchanged
+                    },
+                )
+            }
+            assertEquals("b", vm.state.value.currentTask?.uuid)
+            assertEquals(1, vm.state.value.reviewed)
+        }
+
+    @Test fun `next tag action marks already tagged task reviewed without duplicating tags`() =
+        runTest(dispatcher) {
+            val (vm, store) = model(limit = 1)
+            (store.tasks as MutableStateFlow).value = listOf(task("a").copy(tags = listOf("home", "next")))
+            vm.open()
+            vm.start()
+            vm.perform(ReviewAction.ADD_NEXT)
+            runCurrent()
+
+            coVerify(exactly = 1) { store.markReviewed("a") }
+            coVerify(exactly = 0) { store.saveReviewEdit(any()) }
+            assertEquals(ReviewStage.SUMMARY, vm.state.value.stage)
+            assertEquals(1, vm.state.value.reviewedActions)
+        }
+
+    @Test fun `failed next tag action keeps task available for retry`() =
+        runTest(dispatcher) {
+            val endings = mutableListOf<Instant>()
+            val (vm, store) = model(onEnd = endings::add)
+            coEvery { store.saveReviewEdit(any()) } throws IllegalStateException("disk full")
+            vm.open()
+            vm.start()
+            vm.perform(ReviewAction.ADD_NEXT)
+            runCurrent()
+
+            assertEquals("a", vm.state.value.currentTask?.uuid)
+            assertEquals(0, vm.state.value.reviewedActions)
+            assertTrue(vm.state.value.error!!.contains("disk full"))
+            vm.finish()
+            assertTrue(endings.isEmpty())
+        }
+
     @Test fun `closing the consent notice leaves tasks unchanged`() =
         runTest(dispatcher) {
             val (vm, store) = model(consent = false)

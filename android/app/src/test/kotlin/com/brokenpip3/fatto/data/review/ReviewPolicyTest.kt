@@ -21,6 +21,15 @@ class ReviewPolicyTest {
         udas = reviewed?.let { mapOf("reviewed" to it) } ?: emptyMap(), modified = modified,
     )
 
+    @Test fun `next tag swipe action survives settings backup`() {
+        val action = ReviewAction.ADD_NEXT
+        val settings = ReviewSettings(rightAction = action, leftAction = action)
+
+        assertEquals(settings, ReviewSettings.fromJson(settings.toJson()))
+        assertEquals(ReviewAction.REVIEWED, ReviewSettings().rightAction)
+        assertEquals(ReviewAction.SKIP, ReviewSettings().leftAction)
+    }
+
     @Test fun `cutoff is strict and waiting tasks participate`() {
         val tasks =
             listOf(

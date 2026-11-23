@@ -6,6 +6,7 @@ import java.time.Duration
 enum class ReviewAction(val label: String) {
     REVIEWED("Mark reviewed"),
     SKIP("Skip"),
+    ADD_NEXT("Add next tag"),
     COMPLETE("Complete"),
     DELETE("Delete"),
 }
