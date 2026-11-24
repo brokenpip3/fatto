@@ -67,6 +67,29 @@ class ReviewSheetTest {
         }
     }
 
+    @Test fun swipesDispatchConfiguredNextTagActionInBothDirections() {
+        var action: ReviewAction? = null
+        val addNext = ReviewAction.ADD_NEXT
+        compose.setContent {
+            NordicTheme {
+                ReviewSheet(
+                    ReviewUiState(
+                        stage = ReviewStage.ACTIVE, currentTask = task, total = 1,
+                        settings = ReviewSettings(leftAction = addNext, rightAction = addNext),
+                    ),
+                    onAction = { action = it }, onAcceptNotice = {}, onStart = {}, onEdit = {}, onSettings = {}, onDismiss = {},
+                )
+            }
+        }
+        compose.onNodeWithTag("ReviewSwipeCard").performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        assertEquals(addNext, action)
+        compose.runOnIdle { action = null }
+        compose.onNodeWithTag("ReviewSwipeCard").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        assertEquals(addNext, action)
+    }
+
     @Test fun swipesDispatchTheSameActionsAsButtons() {
         var action: ReviewAction? = null
         compose.setContent {

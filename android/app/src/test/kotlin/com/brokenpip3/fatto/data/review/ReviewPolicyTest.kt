@@ -4,8 +4,10 @@ import com.brokenpip3.fatto.data.model.Task
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.taskchampion_android.DateDisplayMode
 import uniffi.taskchampion_android.TaskStatus
 import java.time.Instant
+import java.time.ZoneId
 
 class ReviewPolicyTest {
     private val now = Instant.parse("2026-10-17T12:00:00Z")
@@ -21,6 +23,15 @@ class ReviewPolicyTest {
         udas = reviewed?.let { mapOf("reviewed" to it) } ?: emptyMap(), modified = modified,
     )
 
+    @Test fun `next tag swipe action survives settings backup`() {
+        val action = ReviewAction.ADD_NEXT
+        val settings = ReviewSettings(rightAction = action, leftAction = action)
+
+        assertEquals(settings, ReviewSettings.fromJson(settings.toJson()))
+        assertEquals(ReviewAction.REVIEWED, ReviewSettings().rightAction)
+        assertEquals(ReviewAction.SKIP, ReviewSettings().leftAction)
+    }
+
     @Test fun `cutoff is strict and waiting tasks participate`() {
         val tasks =
             listOf(
@@ -29,6 +40,37 @@ class ReviewPolicyTest {
                 task("future", "2027-01-01T00:00:00Z"), task("done").copy(status = TaskStatus.Completed),
             )
         assertEquals(listOf("missing", "old"), ReviewPolicy.select(tasks, ReviewSettings(), now).tasks.map { it.uuid })
+    }
+
+    @Test fun `wait date filter uses the displayed calendar day before limiting`() {
+        val zone = ZoneId.of("America/New_York")
+        val reviewTime = Instant.parse("2026-10-17T01:00:00Z")
+        val timed = task("timed")
+        val tasks =
+            listOf(
+                task("a-past").copy(wait = "2026-10-15T00:00:00Z"),
+                task("a-future").copy(wait = "2026-10-17T00:00:00Z"),
+                task("a-unreadable").copy(nativeDates = mapOf("wait" to "invalid")),
+                task("all-day").copy(wait = "2026-10-16T00:00:00Z"),
+                task("no-wait"),
+                timed.copy(
+                    wait = "2026-10-17T02:00:00Z",
+                    dateModes = timed.dateModes.copy(wait = DateDisplayMode.LOCAL_DATE_TIME),
+                ),
+            )
+        val settings = ReviewSettings(sessionLimit = 3, skipWaitDatesOutsideToday = true)
+        val selection = ReviewPolicy.select(tasks, settings, reviewTime, zone)
+
+        assertEquals(listOf("all-day", "no-wait", "timed"), selection.tasks.map { it.uuid })
+    }
+
+    @Test fun `wait date filter survives backup and defaults off in older settings`() {
+        val settings = ReviewSettings(skipWaitDatesOutsideToday = true)
+        val legacyJson = settings.toJson()
+        legacyJson.remove("skipWaitDatesOutsideToday")
+
+        assertEquals(settings, ReviewSettings.fromJson(settings.toJson()))
+        assertEquals(ReviewSettings(), ReviewSettings.fromJson(legacyJson))
     }
 
     @Test fun `sort uses reviewed then modified then uuid and reports malformed values`() {

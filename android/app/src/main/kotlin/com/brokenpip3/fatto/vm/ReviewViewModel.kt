@@ -178,6 +178,12 @@ class ReviewViewModel(
                 when (action) {
                     ReviewAction.REVIEWED -> store.markReviewed(task.uuid)
                     ReviewAction.SKIP -> Unit
+                    ReviewAction.ADD_NEXT ->
+                        if ("next" in fresh.tags) {
+                            store.markReviewed(task.uuid)
+                        } else {
+                            store.saveReviewEdit(fresh.copy(tags = fresh.tags + "next").toEditPatch(fresh))
+                        }
                     ReviewAction.COMPLETE -> store.complete(task.uuid)
                     ReviewAction.DELETE -> store.delete(task.uuid)
                 }
@@ -185,7 +191,7 @@ class ReviewViewModel(
                 val s = _state.value
                 _state.value =
                     s.copy(
-                        reviewed = s.reviewed + if (action == ReviewAction.REVIEWED) 1 else 0,
+                        reviewed = s.reviewed + if (action == ReviewAction.REVIEWED || action == ReviewAction.ADD_NEXT) 1 else 0,
                         skipped = s.skipped + if (action == ReviewAction.SKIP) 1 else 0,
                         completed = s.completed + if (action == ReviewAction.COMPLETE) 1 else 0,
                         deleted = s.deleted + if (action == ReviewAction.DELETE) 1 else 0,
